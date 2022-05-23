@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import Adam
-from torch.distributions import Normal, MultivariateNormal, kl_divergence,Laplace
+from torch.distributions import Normal, MultivariateNormal, LowRankMultivariateNormal
 import os
 import numpy as np
 
@@ -181,6 +181,7 @@ class VAE_Base(nn.module):
 		self.save_dir = save_dir 
 		self.epoch = 0
 		self.lr = lr
+		self.loss = {'train': {}, 'test': {}}
 
 		device_name = "cuda" if torch.cuda.is_available() else "cpu"
 		self.device = torch.device(device_name)
@@ -308,8 +309,106 @@ class VAE_Base(nn.module):
 
 		return test_loss
 
-	def visualize(self,loader,n_recons=10):
+	def visualize(self, loader, num_specs=5):
+		"""
+		Plot spectrograms and their reconstructions.
 
+		Spectrograms are chosen at random from the Dataloader Dataset.
+
+		Parameters
+		----------
+		loader : torch.utils.data.Dataloader
+			Spectrogram Dataloader
+		num_specs : int, optional
+			Number of spectrogram pairs to plot. Defaults to ``5``.
+		gap : int or tuple of two ints, optional
+			The vertical and horizontal gap between images, in pixels. Defaults
+			to ``(2,6)``.
+		save_filename : str, optional
+			Where to save the plot, relative to `self.save_dir`. Defaults to
+			``'temp.pdf'``.
+
+		Returns
+		-------
+		specs : numpy.ndarray
+			Spectgorams from `loader`.
+		rec_specs : numpy.ndarray
+			Corresponding spectrogram reconstructions.
+		"""
+		# Collect random indices.
+		assert num_specs <= len(loader.dataset) and num_specs >= 1
+		indices = np.random.choice(np.arange(len(loader.dataset)),
+			size=num_specs,replace=False)
+		
+		(specs,days) = loader.dataset[indices]
+		for spec in specs:
+			spec = torch.stack(spec).to(self.device)
+
+
+			# Retrieve spectrograms from the loader.
+			# Get resonstructions.
+			with torch.no_grad():
+				_, _, _,rec_specs = self.compute_loss(spec, return_latent_rec=True)
+			spec = spec.detach().cpu().numpy()
+			nrows = 1 + spec.shape[0]//5
+			fig,axs = plt.subplots(nrows=nrows,ncols=5)
+			row_ind = 0
+			col_ind = 0
+
+			for im in range(spec.shape[0]):
+
+				axs[row_ind,col_ind].imshow(spec[im,:,:])
+
+			#all_specs = np.stack([specs, rec_specs])
+		# Plot.
+			save_fn = 'reconstruction_epoch_' + str(self.epoch) + '_' + str(im) + '.png' 
+			save_filename = os.path.join(self.save_dir, save_fn)
+
+		return 
+
+	def train_test_loop(self,loaders, epochs=100, test_freq=2, save_freq=10,
+		vis_freq=1):
+		"""
+		Train the model for multiple epochs, testing and saving along the way.
+
+		Parameters
+		----------
+		loaders : dictionary
+			Dictionary mapping the keys ``'test'`` and ``'train'`` to respective
+			torch.utils.data.Dataloader objects.
+		epochs : int, optional
+			Number of (possibly additional) epochs to train the model for.
+			Defaults to ``100``.
+		test_freq : int, optional
+			Testing is performed every `test_freq` epochs. Defaults to ``2``.
+		save_freq : int, optional
+			The model is saved every `save_freq` epochs. Defaults to ``10``.
+		vis_freq : int, optional
+			Syllable reconstructions are plotted every `vis_freq` epochs.
+			Defaults to ``1``.
+		"""
+		print("="*40)
+		print("Training: epochs", self.epoch, "to", self.epoch+epochs-1)
+		print("Training set:", len(loaders['train'].dataset))
+		print("Test set:", len(loaders['test'].dataset))
+		print("="*40)
+		# For some number of epochs...
+		for epoch in range(self.epoch, self.epoch+epochs):
+			# Run through the training data and record a loss.
+			loss = self.train_epoch(loaders['train'])
+			self.loss['train'][epoch] = loss
+			# Run through the test data and record a loss.
+			if (test_freq is not None) and (epoch % test_freq == 0):
+				loss = self.test_epoch(loaders['test'])
+				self.loss['test'][epoch] = loss
+			# Save the model.
+			if (save_freq is not None) and (epoch % save_freq == 0) and \
+					(epoch > 0):
+				filename = "checkpoint_"+str(epoch).zfill(3)+'.tar'
+				self.save_state(filename)
+			# Plot reconstructions.
+			if (vis_freq is not None) and (epoch % vis_freq == 0):
+				self.visualize(loaders['test'])
 
 	def get_latent(self,loader):
 
@@ -367,5 +466,226 @@ class VAE_Base(nn.module):
 		self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 		self.epoch = checkpoint['epoch']
 
-	
+class SmoothnessPriorVae(VAE_Base):
+
+	def __init__(self, encoder, decoder,save_dir,lr=1e-4):
+
+		super(SmoothnessPriorVae,self).init(encoder, decoder,save_dir,lr=1e-4)
+
+	def _compute_kl_loss(self, mus, u, d):
+
+
+		Ainv = torch.diag_embed(1/d)
+		term1 = torch.log(1 + u.T @ Ainv @ u)
+		term2 = torch.log(d).sum()
+
+		ld = term1 + term2 
+
+		mu = torch.stack([torch.zeros(1,mu.shape[1],device=self.device),mu])
+		mean = torch.pow(mu[:-1,:] - mu[1:,:],2)
+
+		trace = torch.diag(u @ u.T + 1/Ainv)
+
+		kl = 0.5 * ((trace + mean - 1).sum(axis=1) - ld)
+
+		return kl
+
+class ReconstructTimeVae(VAE_Base):
+
+	def __init__(self, encoder, decoder,save_dir,lr=1e-4):
+
+		super(ReconstructTimeVae,self).init(encoder, decoder,save_dir,lr=1e-4)
+
+	def compute_loss(self,x,encode_times,return_recon = False):
+
+
+		mu,u,d = self.encoder.encode_with_time(x,encode_times)
+
+		dist = LowRankMultivariateNormal(mu,u,d)
+
+		zhat = dist.rsample()
+
+		xhat,that = self.decoder.decode(zhat,return_time=True)
+
+		kl = self._compute_kl_loss(mu,u,d).sum()
+		logprob = self._compute_reconstruction_loss(x,xhat).sum()
+
+		time_reg = torch.pow(that - encode_times,2).sum()
+
+		elbo = logprob - kl 
+
+		if return_recon:
+			return -elbo + time_reg,logprob, kl, time_reg, xhat.view(-1,128,128).detach().cpu().numpy() 
+		else:
+			return -elbo + time_reg,logprob, kl, time_reg
+
+
+	def train_epoch(self,train_loader):
+
+		self.train()
+
+		train_loss = 0.0
+		train_kl = 0.0
+		train_lp = 0.0
+		train_tr = 0.0
+
+		dt = train_loader.dataset.dt 
+
+		for ind, batch in enumerate(train_loader):
+
+			self.optimizer.zero_grad()
+			(spec,day) = batch 
+			day = day.to(self.device)
+
+			spec = torch.stack(spec,axis=0)
+			spec = spec.to(self.device)
+			start_time = 0.0
+			end_time = dt * spec.shape[0] + dt
+			encode_times = torch.arange(start_time,end_time,dt,device=self.device)
+			loss,lp,kl,tr = self.compute_loss(spec,encode_times)
+
+			train_loss += loss.item()
+			train_kl += kl.item()
+			train_lp += lp.item()
+			train_tr += tr.item()
+
+			loss.backward()
+			self.optimizer.step()
+
+		train_loss /= len(train_loader)
+		train_kl /= len(train_loader)
+		train_lp /= len(train_loader)
+		train_tr /= len(train_loader)
+
+		print('Epoch {0:d} average train loss: {1:.3f}'.format(self.epoch,train_loss))
+		print('Epoch {0:d} average train kl: {1:.3f}'.format(self.epoch,train_kl))
+		print('Epoch {0:d} average train lp: {1:.3f}'.format(self.epoch,train_lp))
+		print('Epoch {0:d} average train time rec: {1:.3f}'.format(self.epoch,train_tr))
+
+		return train_loss
+
+	def test_epoch(self,test_loader):
+
+		self.eval()
+		test_loss = 0.0
+		test_kl = 0.0
+		test_lp = 0.0 
+		test_tr = 0.0
+		dt = test_loader.dataset.dt
+		
+		for ind, batch in enumerate(test_loader):
+
+			(spec,day) = batch 
+			day = day.to(self.device)
+
+			spec = torch.stack(spec,axis=0)
+			spec = spec.to(self.device)
+			start_time = 0.0
+			end_time = dt * spec.shape[0] + dt
+			encode_times = torch.arange(start_time,end_time,dt,device=self.device)
+			with torch.no_grad():
+				loss,lp,kl,tr = self.compute_loss(spec,encode_times)
+
+			test_loss += loss.item()
+			test_kl += kl.item()
+			test_lp += lp.item()
+			test_tr += tr.item()
+
+			
+		test_loss /= len(test_loader)
+		test_kl /= len(test_loader)
+		test_lp /= len(test_loader)
+		test_tr /= len(test_loader)
+
+		print('Epoch {0:d} average test loss: {1:.3f}'.format(self.epoch,test_loss))
+		print('Epoch {0:d} average test kl: {1:.3f}'.format(self.epoch,test_kl))
+		print('Epoch {0:d} average test lp: {1:.3f}'.format(self.epoch,test_lp))
+		print('Epoch {0:d} average test tr: {1:.3f}'.format(self.epoch,test_tr))
+
+		return test_loss
+
+	def visualize(self, loader, num_specs=5):
+		"""
+		Plot spectrograms and their reconstructions.
+
+		Spectrograms are chosen at random from the Dataloader Dataset.
+
+		Parameters
+		----------
+		loader : torch.utils.data.Dataloader
+			Spectrogram Dataloader
+		num_specs : int, optional
+			Number of spectrogram pairs to plot. Defaults to ``5``.
+		gap : int or tuple of two ints, optional
+			The vertical and horizontal gap between images, in pixels. Defaults
+			to ``(2,6)``.
+		save_filename : str, optional
+			Where to save the plot, relative to `self.save_dir`. Defaults to
+			``'temp.pdf'``.
+
+		Returns
+		-------
+		specs : numpy.ndarray
+			Spectgorams from `loader`.
+		rec_specs : numpy.ndarray
+			Corresponding spectrogram reconstructions.
+		"""
+		# Collect random indices.
+		dt = loader.dataset.dt
+		assert num_specs <= len(loader.dataset) and num_specs >= 1
+		indices = np.random.choice(np.arange(len(loader.dataset)),
+			size=num_specs,replace=False)
+		
+		(specs,days) = loader.dataset[indices]
+		for spec in specs:
+			spec = torch.stack(spec).to(self.device)
+
+
+			# Retrieve spectrograms from the loader.
+			# Get resonstructions.
+			start_time = 0.0
+			end_time = dt * spec.shape[0] + dt
+			encode_times = torch.arange(start_time,end_time,dt,device=self.device)
+			with torch.no_grad():
+				_, _, _,_,rec_specs = self.compute_loss(spec, encode_times,return_latent_rec=True)
+			spec = spec.detach().cpu().numpy()
+			nrows = 1 + spec.shape[0]//5
+			fig,axs = plt.subplots(nrows=nrows,ncols=5)
+			row_ind = 0
+			col_ind = 0
+
+			for im in range(spec.shape[0]):
+
+				axs[row_ind,col_ind].imshow(spec[im,:,:])
+
+			#all_specs = np.stack([specs, rec_specs])
+		# Plot.
+			save_fn = 'reconstruction_epoch_' + str(self.epoch) + '_' + str(im) + '.png' 
+			save_filename = os.path.join(self.save_dir, save_fn)
+
+		return 
+	def get_latent(self,loader):
+
+		latents = []
+
+		for ind, batch in enumerate(loader):
+
+			(spec,day) = batch 
+			day = day.to(self.device)
+
+			spec = torch.stack(spec,axis=0).to(self.device)
+			start_time = 0.0
+			end_time = dt * spec.shape[0] + dt
+			encode_times = torch.arange(start_time,end_time,dt,device=self.device)
+
+			with torch.no_grad():
+				z_mu,_,_ = self.encoder.encode_with_time(spec,encode_times)
+
+			latents.append(z_mu.detach().cpu().numpy())
+
+		return latents
+
+if __name__ == '__main__':
+
+	return
 
