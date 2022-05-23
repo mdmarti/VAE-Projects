@@ -5,6 +5,7 @@ from torch.optim import Adam
 from torch.distributions import Normal, MultivariateNormal, LowRankMultivariateNormal
 import os
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 class encoder(nn.Module):
@@ -195,7 +196,7 @@ class VAE_Base(nn.module):
 
 		x = torch.reshape(x,(x.shape[0],-1))
 		xhat = torch.reshape(xhat,(xhat.shape[0],-1))
-		l2s = torch.sum(torch.pow(x - mean,2),axis=1)
+		l2s = torch.sum(torch.pow(x - xhat,2),axis=1)
 
 		logprob = constant - 0.5 * self.vae.precision * torch.sum(l2s)
 
@@ -572,7 +573,7 @@ class ReconstructTimeVae(VAE_Base):
 		test_lp = 0.0 
 		test_tr = 0.0
 		dt = test_loader.dataset.dt
-		
+
 		for ind, batch in enumerate(test_loader):
 
 			(spec,day) = batch 
@@ -667,6 +668,7 @@ class ReconstructTimeVae(VAE_Base):
 	def get_latent(self,loader):
 
 		latents = []
+		dt = loader.dataset.dt
 
 		for ind, batch in enumerate(loader):
 
@@ -687,5 +689,5 @@ class ReconstructTimeVae(VAE_Base):
 
 if __name__ == '__main__':
 
-	return
+	pass
 
