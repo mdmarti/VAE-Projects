@@ -41,7 +41,7 @@ def mmd_fxn(lat1,lat2,sig):
 
     mmds = []
     for l in lat1:
-
+        l = np.expand_dims(l,0)
         mmd = np.sum(rbf_dot(l,lat1) - rbf_dot(l,lat2))
         mmds.append(mmd)
 
