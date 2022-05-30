@@ -4,11 +4,86 @@ import os
 from colour import Color
 import pickle 
 import glob
+import math
 
 
 X_SHAPE = (128,128)
 
 ############## Smoothness analysis functions ###########
+
+def total_change(list_of_changes,type='l1'):
+
+    '''
+    takes as input a list of changes within trajectory, outputs 
+    a list of metrics indicating total amount of change within trajectory
+    and mean changes within trajectory
+    '''
+
+    tc = []
+    tcm = []
+
+    if type == 'l1':
+        for traj in list_of_changes:
+            changes = np.sum(np.abs(traj),axis=1)
+            tc.append(changes)
+            tcm.append(np.mean(changes))
+
+    elif type == 'l2':
+        for traj in list_of_changes:
+            changes = np.sum(traj ** 2,axis=1)
+            tc.append(changes)
+            tcm.append(np.mean(changes))
+
+    elif type == 'linf':
+        for traj in list_of_changes:
+            changes = np.argmax(traj,axis=1)
+            tc.append(changes)
+            tcm.append(np.mean(changes))
+    else: 
+        print('Not implemented!')
+        raise NotImplementedError
+
+
+    return tc,tcm
+
+
+def cosine_angle_change(list_of_trajs):
+
+    '''
+    takes as input a list of latent vectors within a trajectory, outputs a list of cosine similarities,angles between vectors
+    in addition to averages of the two
+    '''
+
+    cos_sims = []
+    angles = []
+    mean_cos_sims = []
+    mean_angles = []
+
+    for traj in list_of_trajs:
+        tmp_cos = []
+        tmp_ang = []
+
+        for vec_ind in range(traj.shape[0] - 1):
+            v1 = traj[vec_ind,:]
+            v2 = traj[vec_ind +1,:]
+
+            num = v1 @ v2 
+            denom = np.sqrt(v1 @ v1) * np.sqrt(v2 @ v2)
+
+            cos = num/denom
+            tmp_cos.append(cos)
+
+            ang = math.degrees(math.acos(cos))
+            tmp_ang.append(ang)
+
+        cos_sims.append(tmp_cos)
+        mean_cos_sims.append(np.mean(tmp_cos))
+
+        angles.append(tmp_ang)
+        mean_angles.append(np.mean(tmp_ang))
+
+    return (angles, cos_sims), (mean_angles,mean_cos_sims)
+
 
 
 
