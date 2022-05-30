@@ -65,7 +65,7 @@ FS = 42000
 # plot integrated trajectory on top of this
 
 
-def bird_model_script(n_train_runs = 10, root = '',figs=False):
+def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',datadir='',):
 
 ########## Setting up directory lists: separate into train, test dirs
 ############# Expected File Structure
@@ -84,7 +84,7 @@ def bird_model_script(n_train_runs = 10, root = '',figs=False):
 # | ...
 
 	# here is where the data are stored
-	datadir = '/home/mrmiews/Desktop/' #'/media/mrmiews/Storage for Data/'
+	datadir = '/home/mrmiews/' #'/media/mrmiews/Storage for Data/'
 
 	# here are the days we are using to train our model. Each day has .wav files
 	# containing song
@@ -97,7 +97,8 @@ def bird_model_script(n_train_runs = 10, root = '',figs=False):
 				'135','136','137','138','139','140'] #['UNDIRECTED_11092020','DIRECTED_11092020']#,,
 
 	# subset for traininng
-	realTrainDays = ['40','45','55','74','79','87','97','105','112','120','130','135','138','140']
+	realTrainDays = ['70','71','72','73','74','75','76','77','78','79','80','81','82','83']
+	#['40','45','55','74','79','87','97','105','112','120','130','135','138','140']
 	# another subset. why this is necessary? who knows
 	songDays = ['44','45','46','47','48','49','50','51','52','53','54','55','56','57','58']
 	# another subset. Could have just used one, but apparently I didn't feel like it!
@@ -145,8 +146,8 @@ def bird_model_script(n_train_runs = 10, root = '',figs=False):
 		'spec_max_val': 7.0, # maximum log-spectrogram value
 		'fs': 44100, # audio samplerate
 		'get_spec': get_spec, # figure out what this is
-		'min_dur': 0.015, # minimum syllable duration
-		'max_dur': 0.25, #maximum syllable duration
+		'min_dur': 0.2, #0.015, # minimum syllable duration
+		'max_dur': 0.75, #0.25, #maximum syllable duration
 		'smoothing_timescale': 0.007, #amplitude
 		'temperature': 0.5, # softmax temperature parameter
 		'softmax': False, # apply softmax to frequency bins to calculate amplitude
@@ -176,19 +177,19 @@ def bird_model_script(n_train_runs = 10, root = '',figs=False):
 #############################
 # 1) Amplitude segmentation #
 #############################
+	segment_params = tune_segmenting_params(dsb_audio_dirs,segment_params)
 
-	#for audio_dir, segment_dir in zip(dsb_audio_dirs_tutor, dsb_song_dirs):
-	#	segment(audio_dir, segment_dir, segment_params)
+	for audio_dir, segment_dir in zip(dsb_audio_dirs, dsb_segment_dirs):
+		segment(audio_dir, segment_dir, segment_params)
 
 
 	# this is using full motifs, so it should be fine. if you want to use the actual youth song,
 	# change the get_window_partition bit to include freshly segmented data
 	#loaders = get_fixed_window_data_loaders(test_part, segment_params)
-	motif_part = get_window_partition(adult_audio_dirs,adult_motif_dirs,0.8)
+	motif_part = get_window_partition(dsb_audio_dirs,dsb_segment_dirs,0.8)
 	#motif_part['test'] = motif_part['train']
 	print('getting prediction loader')
 	loaders_for_prediction = get_fixed_ordered_data_loaders_motif(motif_part,segment_params)
-	split = 0.4
 	# this is used for the shotgun VAE, as opposed to the shotgun-dynamics VAE
 	#partition = get_window_partition(dsb_audio_dirs, dsb_segment_dirs, split)
 	#loaders = get_fixed_window_data_loaders(partition, segment_params)

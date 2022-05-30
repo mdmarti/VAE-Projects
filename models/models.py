@@ -497,7 +497,7 @@ class ReconstructTimeVae(VAE_Base):
 
 		super(ReconstructTimeVae,self).init(encoder, decoder,save_dir,lr=1e-4)
 
-	def compute_loss(self,x,encode_times,return_recon = False):
+	def compute_loss(self,x,encode_times,return_recon = False,weight=100):
 
 
 		mu,u,d = self.encoder.encode_with_time(x,encode_times)
@@ -511,7 +511,7 @@ class ReconstructTimeVae(VAE_Base):
 		kl = self._compute_kl_loss(mu,u,d).sum()
 		logprob = self._compute_reconstruction_loss(x,xhat).sum()
 
-		time_reg = torch.pow(that - encode_times,2).sum()
+		time_reg = weight * torch.pow(that - encode_times,2).sum()
 
 		elbo = logprob - kl 
 
