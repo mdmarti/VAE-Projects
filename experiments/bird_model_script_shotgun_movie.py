@@ -197,12 +197,37 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 #############################
 # 1) Train model            #
 #############################
+	if smoothness_dir != '':
+		save_file = os.path.join(smoothness_dir,'checkpoint_030.tar')
+		smooth_encoder = encoder()
+		smooth_decoder = decoder()
+		smooth_prior_vae = SmoothnessPriorVae(smooth_encoder,smooth_decoder,smoothness_dir)
 
-	embedding_VAE = nn_predict(save_dir = os.path.join(root,'movie_vaeAR_joint_beta50'),lr=1e-5)
-	#embedding_VAE = VAE(save_dir=os.path.join(root,'movie_vae'))
+		if not os.path.isfile(save_file):
+			smooth_prior_vae.train_test_loop(loaders_for_prediction,epochs=31,test_freq=5,save_freq=10,vis_freq=10)
+		else:
+			smooth_prior_vae.load_state(save_file)
+	if time_recondir != '':
+		save_file = os.path.join(time_recondir,'checkpoint_030.tar')
+		time_encoder = encoder()
+		time_decoder = decoder()
+		time_vae = ReconstructTimeVae(time_encoder,time_decoder,time_recondir)
 
-	### prev got to checkpoint 100 for conditional mean
-	ev_fname = os.path.join(root,'movie_vaeAR_joint_beta50','checkpoint_050.tar')
+		if not os.path.isfile(save_file):
+			time_vae.train_test_loop(loaders_for_prediction,epochs=31,test_freq=5,save_freq=10,vis_freq=10)
+		else:
+			time_vae.load_state(save_file)
+	if vanilla_dir != '':
+		save_file = os.path.join(vanilla_dir,'checkpoint_030.tar')
+
+		vanilla_encoder = encoder()
+		vanilla_decoder = decoder()
+		vanilla_vae = VAE_Base(vanilla_encoder,vanilla_decoder,vanilla_dir)
+
+		if not os.path.isfile(save_file):
+			vanilla_vae.train_test_loop(loaders_for_prediction,epochs=31,test_freq=5,save_freq=10,vis_freq=10)
+		else:
+			vanilla_vae.load_state(save_file)
 
 	checkpoints = [] #glob.glob(os.path.join(root,'movie_vaeAR','*2[0-9][0-9].tar'))
 	names = [n.split('/')[-1] for n in checkpoints]

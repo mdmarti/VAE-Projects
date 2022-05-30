@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 class encoder(nn.Module):
 
-	def __init__(self,z_dim):
+	def __init__(self,z_dim=32):
 
 		"""
 		encoder for birdsong VAEs
