@@ -22,30 +22,30 @@ class encoder(nn.Module):
 
 		self.encoder_conv = nn.Sequential(nn.BatchNorm2d(1),
 								nn.Conv2d(1, 8, 3,1,padding=1),
-								nn.Relu(),
+								nn.ReLU(),
 								nn.BatchNorm2d(8),
 								nn.Conv2d(8, 8, 3,2,padding=1),
-								nn.Relu(),
+								nn.ReLU(),
 								nn.BatchNorm2d(8),
 								nn.Conv2d(8, 16,3,1,padding=1),
-								nn.Relu(),
+								nn.ReLU(),
 								nn.BatchNorm2d(16),
 								nn.Conv2d(16,16,3,2,padding=1),
-								nn.Relu(),
+								nn.ReLU(),
 								nn.BatchNorm2d(16),
 								nn.Conv2d(16,24,3,1,padding=1),
-								nn.Relu(),
+								nn.ReLU(),
 								nn.BatchNorm2d(24),
 								nn.Conv2d(24,24,3,2,padding=1),
-								nn.Relu(),
+								nn.ReLU(),
 								nn.BatchNorm2d(24),
 								nn.Conv2d(24,32,3,1,padding=1),
-								nn.Relu())
+								nn.ReLU())
 
 		self.encoder_fc = nn.Sequential(nn.Linear(8193,1024),
-								nn.Relu(),
+								nn.ReLU(),
 								nn.Linear(1024,256),
-								nn.Relu())
+								nn.ReLU())
 
 		self.fc11 = nn.Linear(256,64)
 		self.fc12 = nn.Linear(256,64)
@@ -58,11 +58,15 @@ class encoder(nn.Module):
 
 		h = self.encoder_conv(x)
 		h = h.view(-1,8192)
-		h = torch.cat(h,torch.zeros(h.shape[0],1,device=h.device))
-		h = self.encoder_fc(x)
-		mu = F.relu(self.fc11(h))
-		u = F.relu(self.fc12(h))
-		d = F.relu(self.fc13(h))
+		#print(h.shape)
+		#print(torch.zeros(h.shape[0],1,device=h.device).shape)
+		dummy = torch.zeros(h.shape[0],1,device=h.device)
+		h = torch.cat((h,dummy),dim=1)
+		#print(h.shape)
+		h = self.encoder_fc(h)
+		mu = F.ReLU(self.fc11(h))
+		u = F.ReLU(self.fc12(h))
+		d = F.ReLU(self.fc13(h))
 		mu = self.fc21(h)
 		u = self.fc22(h)
 		d = self.fc23(h)
@@ -73,11 +77,11 @@ class encoder(nn.Module):
 
 		h = self.encoder_conv(x)
 		h = h.view(-1,8192)
-		h = torch.cat(h,encode_times)
-		h = self.encoder_fc(x)
-		mu = F.relu(self.fc11(h))
-		u = F.relu(self.fc12(h))
-		d = F.relu(self.fc13(h))
+		h = torch.cat((h,encode_times))
+		h = self.encoder_fc(h)
+		mu = F.ReLU(self.fc11(h))
+		u = F.ReLU(self.fc12(h))
+		d = F.ReLU(self.fc13(h))
 		mu = self.fc21(h)
 		u = self.fc22(h)
 		d = self.fc23(h)
@@ -112,27 +116,27 @@ class decoder(nn.Module):
 		self.decoder_fc = nn.Sequential(nn.Linear(z_dim,64),
 										nn.Linear(64,256),
 										nn.Linear(256,1024),
-										nn.Relu(),
+										nn.ReLU(),
 										nn.Linear(1024,8193),
-										nn.Relu())
+										nn.ReLU())
 		self.decoder_convt = nn.Sequential(nn.BatchNorm2d(32),
 										nn.ConvTranspose2d(32,24,3,1,padding=1),
-										nn.Relu(),
+										nn.ReLU(),
 										nn.BatchNorm2d(24),
 										nn.ConvTranspose2d(24,24,3,2,padding=1,output_padding=1),
-										nn.Relu(),
+										nn.ReLU(),
 										nn.BatchNorm2d(24),
 										nn.ConvTranspose2d(24,16,3,1,padding=1),
-										nn.Relu(),
+										nn.ReLU(),
 										nn.BatchNorm2d(16),
 										nn.ConvTranspose2d(16,16,3,2,padding=1,output_padding=1),
-										nn.Relu(),
+										nn.ReLU(),
 										nn.BatchNorm2d(16),
 										nn.ConvTranspose2d(16,8,3,1,padding=1),
-										nn.Relu(),
+										nn.ReLU(),
 										nn.BatchNorm2d(8),
 										nn.ConvTranspose2d(8,8,3,2,padding=1,output_padding=1),
-										nn.Relu(),
+										nn.ReLU(),
 										nn.BatchNorm2d(8),
 										nn.ConvTranspose2d(8,1,3,1,padding=1))
 
@@ -174,7 +178,7 @@ class VAE_Base(nn.Module):
 
 	def __init__(self, encoder, decoder,save_dir,lr=1e-4):
 
-		super(VAE_Base,self).init()
+		super(VAE_Base,self).__init__()
 
 		self.encoder = encoder 
 		self.decoder = decoder 
@@ -251,13 +255,14 @@ class VAE_Base(nn.Module):
 		train_lp = 0.0 
 
 		for ind, batch in enumerate(train_loader):
-
+			#print(batch)
 			self.optimizer.zero_grad()
 			(spec,day) = batch 
-			day = day.to(self.device)
-
-			spec = torch.stack(spec,axis=0)
-			spec = spec.to(self.device)
+			day = day.to(self.device).squeeze()
+			#print(day.shape)
+			#print(spec.shape)
+			#spec = torch.stack(spec,axis=0)
+			spec = spec.to(self.device).squeeze().unsqueeze(1)
 
 			loss,lp,kl = self.compute_loss(spec)
 
@@ -471,7 +476,7 @@ class SmoothnessPriorVae(VAE_Base):
 
 	def __init__(self, encoder, decoder,save_dir,lr=1e-4):
 
-		super(SmoothnessPriorVae,self).init(encoder, decoder,save_dir,lr=1e-4)
+		super(SmoothnessPriorVae,self).__init__(encoder, decoder,save_dir,lr=1e-4)
 
 	def _compute_kl_loss(self, mus, u, d):
 
@@ -495,7 +500,7 @@ class ReconstructTimeVae(VAE_Base):
 
 	def __init__(self, encoder, decoder,save_dir,lr=1e-4):
 
-		super(ReconstructTimeVae,self).init(encoder, decoder,save_dir,lr=1e-4)
+		super(ReconstructTimeVae,self).__init__(encoder, decoder,save_dir,lr=1e-4)
 
 	def compute_loss(self,x,encode_times,return_recon = False,weight=100):
 

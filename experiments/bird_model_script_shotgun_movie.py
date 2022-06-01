@@ -6,7 +6,7 @@ currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentfram
 parentdir = os.path.dirname(os.path.dirname(currentdir))
 sys.path.insert(0, parentdir) 
 
-
+import fire
 from VAE_Projects.models.models import encoder,decoder,VAE_Base,SmoothnessPriorVae,ReconstructTimeVae
 from VAE_Projects.models.utils import rbf_dot,mmd_fxn,numpy_to_tensor
 import matplotlib.pyplot as plt
@@ -40,7 +40,7 @@ from ava.preprocessing.preprocess import process_sylls, \
 	tune_syll_preprocessing_params
 from ava.preprocessing.utils import get_spec
 from ava.segmenting.refine_segments import refine_segments_pre_vae
-from ava.segmenting.segment import tune_segmenting_params, segment
+from ava.segmenting.segment import tune_segmenting_params
 from ava.segmenting.amplitude_segmentation import get_onsets_offsets
 from ava.segmenting.template_segmentation import get_template, segment_files, \
 	clean_collected_segments, segment_sylls_from_songs, read_segment_decisions
@@ -144,14 +144,14 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 		'spec_max_val': 7.0, # maximum log-spectrogram value
 		'fs': 44100, # audio samplerate
 		'get_spec': get_spec, # figure out what this is
-		'min_dur': 0.2, #0.015, # minimum syllable duration
-		'max_dur': 0.75, #0.25, #maximum syllable duration
+		'min_dur': 0.35, #0.015, # minimum syllable duration
+		'max_dur': 1.1, #0.25, #maximum syllable duration
 		'smoothing_timescale': 0.007, #amplitude
 		'temperature': 0.5, # softmax temperature parameter
 		'softmax': False, # apply softmax to frequency bins to calculate amplitude
-		'th_1': 20, # segmenting threshold 1
-		'th_2': 35, # segmenting threshold 2
-		'th_3': 60, # segmenting threshold 3
+		'th_1': 2.25, # segmenting threshold 1
+		'th_2': -1, # segmenting threshold 2
+		'th_3': 4.5, # segmenting threshold 3
 		'window_length': 0.10, # spec window, in s
 		'window_overlap':0.09, # overlap between spec windows, in s
 		'algorithm': get_onsets_offsets, #finding syllables
@@ -175,10 +175,11 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 #############################
 # 1) Amplitude segmentation #
 #############################
-	segment_params = tune_segmenting_params(dsb_audio_dirs,segment_params)
+	#segment_params = tune_segmenting_params(dsb_audio_dirs,segment_params)
 
-	for audio_dir, segment_dir in zip(dsb_audio_dirs, dsb_segment_dirs):
-		segment(audio_dir, segment_dir, segment_params)
+	#from ava.segmenting.segment import segment
+	#for audio_dir, segment_dir in zip(dsb_audio_dirs, dsb_segment_dirs):
+		#segment(audio_dir, segment_dir, segment_params)
 
 
 	# this is using full motifs, so it should be fine. if you want to use the actual youth song,
@@ -196,6 +197,8 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 # 1) Train model            #
 #############################
 	if vanilla_dir != '':
+		if not os.path.isdir(vanilla_dir):
+			os.mkdir(vanilla_dir)
 		save_file = os.path.join(vanilla_dir,'checkpoint_030.tar')
 
 		vanilla_encoder = encoder()
@@ -208,6 +211,8 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 			vanilla_vae.load_state(save_file)
 
 	if smoothness_dir != '':
+		if not os.path.isdir(smoothness_dir):
+			os.mkdir(smoothness_dir)
 		save_file = os.path.join(smoothness_dir,'checkpoint_030.tar')
 		smooth_encoder = encoder()
 		smooth_decoder = decoder()
@@ -218,6 +223,8 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 		else:
 			smooth_prior_vae.load_state(save_file)
 	if time_recondir != '':
+		if not os.path.isdir(time_recondir):
+			os.mkdir(time_recondir)
 		save_file = os.path.join(time_recondir,'checkpoint_030.tar')
 		time_encoder = encoder()
 		time_decoder = decoder()
@@ -1293,4 +1300,4 @@ def time_weighted_distance(x,y,c = 10):
 if __name__ == '__main__':
 
 	root = '/home/mrmiews/Desktop/Pearson_Lab/'
-	bird_model_script(n_train_runs = 1, root = os.path.join(root,'model_for_movie'),figs=False)
+	fire.Fire(bird_model_script) #(n_train_runs = 1, root = os.path.join(root,'model_for_movie'),figs=False)
