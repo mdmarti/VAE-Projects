@@ -1,12 +1,19 @@
-from models import encoder,decoder,VAE_Base,SmoothnessPriorVae,ReconstructTimeVae
-from utils import rbf_dot,mmd_fxn,numpy_to_tensor
-from vae_bird import VAE
+import os
+import sys
+import inspect
+
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(os.path.dirname(currentdir))
+sys.path.insert(0, parentdir) 
+
+
+from VAE_Projects.models.models import encoder,decoder,VAE_Base,SmoothnessPriorVae,ReconstructTimeVae
+from VAE_Projects.models.utils import rbf_dot,mmd_fxn,numpy_to_tensor
 import matplotlib.pyplot as plt
 from colour import Color
 import numpy as np
 import os
 import copy
-import h5py
 from sklearn.cluster import KMeans, AgglomerativeClustering
 from sklearn.decomposition import PCA, FastICA
 from sklearn.tree import DecisionTreeRegressor
@@ -15,22 +22,15 @@ from sklearn.linear_model import LinearRegression
 import scipy
 
 import torch
-import gzip
 import umap
-import pickle
-import glob
-import cv2
 
-import tensorflow as tf
 from torch.utils.data import Dataset, DataLoader
 from torch.distributions import LowRankMultivariateNormal
-from itertools import repeat
 from joblib import Parallel, delayed
 import numpy as np
 import os
-import imageio
 import numba
-import librosa
+
 
 from ava.data.data_container import DataContainer
 from ava.models.vae import X_SHAPE, VAE
@@ -44,10 +44,8 @@ from ava.segmenting.segment import tune_segmenting_params, segment
 from ava.segmenting.amplitude_segmentation import get_onsets_offsets
 from ava.segmenting.template_segmentation import get_template, segment_files, \
 	clean_collected_segments, segment_sylls_from_songs, read_segment_decisions
-from r_vae_utils import get_qps_km, qpvae_ds, calc_dkl, make_cleaned_plot, latents_motif_ds
 from ava.models.window_vae_dataset import get_window_partition, \
 				get_fixed_window_data_loaders, get_fixed_ordered_data_loaders_motif
-from ava.plotting.tooltip_plot import tooltip_plot
 
 FS = 42000
 
@@ -197,6 +195,18 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 #############################
 # 1) Train model            #
 #############################
+	if vanilla_dir != '':
+		save_file = os.path.join(vanilla_dir,'checkpoint_030.tar')
+
+		vanilla_encoder = encoder()
+		vanilla_decoder = decoder()
+		vanilla_vae = VAE_Base(vanilla_encoder,vanilla_decoder,vanilla_dir)
+
+		if not os.path.isfile(save_file):
+			vanilla_vae.train_test_loop(loaders_for_prediction,epochs=31,test_freq=5,save_freq=10,vis_freq=10)
+		else:
+			vanilla_vae.load_state(save_file)
+
 	if smoothness_dir != '':
 		save_file = os.path.join(smoothness_dir,'checkpoint_030.tar')
 		smooth_encoder = encoder()
@@ -217,17 +227,6 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 			time_vae.train_test_loop(loaders_for_prediction,epochs=31,test_freq=5,save_freq=10,vis_freq=10)
 		else:
 			time_vae.load_state(save_file)
-	if vanilla_dir != '':
-		save_file = os.path.join(vanilla_dir,'checkpoint_030.tar')
-
-		vanilla_encoder = encoder()
-		vanilla_decoder = decoder()
-		vanilla_vae = VAE_Base(vanilla_encoder,vanilla_decoder,vanilla_dir)
-
-		if not os.path.isfile(save_file):
-			vanilla_vae.train_test_loop(loaders_for_prediction,epochs=31,test_freq=5,save_freq=10,vis_freq=10)
-		else:
-			vanilla_vae.load_state(save_file)
 
 	checkpoints = [] #glob.glob(os.path.join(root,'movie_vaeAR','*2[0-9][0-9].tar'))
 	names = [n.split('/')[-1] for n in checkpoints]

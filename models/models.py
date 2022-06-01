@@ -93,7 +93,7 @@ class encoder(nn.Module):
 		return z_hat
 
 
-class decoder(nn.module):
+class decoder(nn.Module):
 
 	def __init__(self, z_dim=32,precision =1e4):
 		"""
@@ -170,7 +170,7 @@ class decoder(nn.module):
 		else:
 			return xhat
 
-class VAE_Base(nn.module):
+class VAE_Base(nn.Module):
 
 	def __init__(self, encoder, decoder,save_dir,lr=1e-4):
 
