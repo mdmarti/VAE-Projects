@@ -67,9 +67,9 @@ class encoder(nn.Module):
 		mu = F.relu(self.fc11(h))
 		u = F.relu(self.fc12(h))
 		d = F.relu(self.fc13(h))
-		mu = self.fc21(h)
-		u = self.fc22(h)
-		d = self.fc23(h)
+		mu = self.fc21(mu)
+		u = self.fc22(u)
+		d = self.fc23(d)
 		
 		return mu, u.unsqueeze(-1),d.exp()
 
@@ -82,9 +82,9 @@ class encoder(nn.Module):
 		mu = F.relu(self.fc11(h))
 		u = F.relu(self.fc12(h))
 		d = F.relu(self.fc13(h))
-		mu = self.fc21(h)
-		u = self.fc22(h)
-		d = self.fc23(h)
+		mu = self.fc21(mu)
+		u = self.fc22(u)
+		d = self.fc23(d)
 		
 		return mu, u.unsqueeze(-1),d.exp()
 
@@ -196,13 +196,13 @@ class VAE_Base(nn.Module):
 
 	def _compute_reconstruction_loss(self,x,xhat):
 
-		constant = -0.5 * np.prod(x.shape[1:]) * np.log(2*np.pi/self.vae.precision)
+		constant = -0.5 * np.prod(x.shape[1:]) * np.log(2*np.pi/self.decoder.precision)
 
 		x = torch.reshape(x,(x.shape[0],-1))
 		xhat = torch.reshape(xhat,(xhat.shape[0],-1))
 		l2s = torch.sum(torch.pow(x - xhat,2),axis=1)
 
-		logprob = constant - 0.5 * self.vae.precision * torch.sum(l2s)
+		logprob = constant - 0.5 * self.decoder.precision * torch.sum(l2s)
 
 		return logprob
 
@@ -210,17 +210,25 @@ class VAE_Base(nn.Module):
 
 		## uses matrix determinant lemma to compute logdet of covar
 		Ainv = torch.diag_embed(1/d)
-		term1 = torch.log(1 + u.T @ Ainv @ u)
+		#print(Ainv.shape)
+		#print(u.shape)
+		term1 = torch.log(1 + u.transpose(-2,-1) @ Ainv @ u)
 		term2 = torch.log(d).sum()
 
 		ld = term1 + term2 
-
+		ld = ld.squeeze()
 		mean = torch.pow(mu,2)
 
-		trace = torch.diag(u @ u.T + 1/Ainv)
+		#print((u @ u.transpose(-2,-1)).shape)
+		#print((torch.diag_embed(d)).shape)
+		trace = torch.diagonal((u @ u.transpose(-2,-1)) \
+					+ torch.diag_embed(d),dim1=-2,dim2=-1)
 
-		kl = 0.5 * ((trace + mean - 1).sum(axis=1) - ld)
-
+		kl = 0.5 * ((trace + mean - 1).sum(axis=1) - ld).sum()
+		#print(trace.shape)
+		#print(mean.shape)
+		#print(ld.shape)
+		#print(kl.shape)
 		return kl
 
 
@@ -237,9 +245,10 @@ class VAE_Base(nn.Module):
 
 		kl = self._compute_kl_loss(mu,u,d)
 		logprob = self._compute_reconstruction_loss(x,xhat)
-
+		#print(kl.shape)
+		#print(logprob.shape)
 		elbo = logprob - kl 
-
+		
 		if return_recon:
 			return -elbo,logprob, kl, xhat.view(-1,128,128).detach().cpu().numpy() 
 		else:
