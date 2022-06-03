@@ -302,10 +302,10 @@ class VAE_Base(nn.Module):
 		for ind, batch in enumerate(test_loader):
 
 			(spec,day) = batch 
-			day = day.to(self.device)
+			day = day.to(self.device).squeeze()
 
-			spec = torch.stack(spec,axis=0)
-			spec = spec.to(self.device)
+			#spec = torch.stack(spec,axis=0)
+			spec = spec.to(self.device).squeeze().unsqueeze(1)
 			with torch.no_grad():
 				loss,lp,kl = self.compute_loss(spec)
 
@@ -357,7 +357,7 @@ class VAE_Base(nn.Module):
 		
 		(specs,days) = loader.dataset[indices]
 		for spec in specs:
-			spec = torch.stack(spec).to(self.device)
+			spec = spec.to(self.device).squeeze().unsqueeze()
 
 
 			# Retrieve spectrograms from the loader.
@@ -370,14 +370,43 @@ class VAE_Base(nn.Module):
 			row_ind = 0
 			col_ind = 0
 
-			for im in range(spec.shape[0]):
+			for im in range(rec_specs.shape[0]):
 
-				axs[row_ind,col_ind].imshow(spec[im,:,:])
+				if col_ind >= 5:
+					row_ind += 1
+					col_ind = 0
+
+				axs[row_ind,col_ind].imshow(rec_specs[im,:,:])
+				col_ind += 1
 
 			#all_specs = np.stack([specs, rec_specs])
 		# Plot.
 			save_fn = 'reconstruction_epoch_' + str(self.epoch) + '_' + str(im) + '.png' 
 			save_filename = os.path.join(self.save_dir, save_fn)
+
+			plt.savefig(save_filename)
+			plt.close('all')
+
+			fig,axs = plt.subplots(nrows=nrows,ncols=5)
+			row_ind = 0
+			col_ind = 0
+
+			for im in range(spec.shape[0]):
+
+				if col_ind >= 5:
+					row_ind += 1
+					col_ind = 0
+
+				axs[row_ind,col_ind].imshow(spec[im,:,:])
+				col_ind += 1
+
+			#all_specs = np.stack([specs, rec_specs])
+		# Plot.
+			save_fn = 'real_epoch_' + str(self.epoch) + '_' + str(im) + '.png' 
+			save_filename = os.path.join(self.save_dir, save_fn)
+
+			plt.savefig(save_filename)
+			plt.close('all')
 
 		return 
 
@@ -475,7 +504,7 @@ class VAE_Base(nn.Module):
 		#print(self.state_dict().keys())
 
 		checkpoint = torch.load(fn, map_location=self.device)
-		layer_1 = checkpoint['model_state_dict'].pop('layer_1')
+		#layer_1 = checkpoint['model_state_dict'].pop('layer_1')
 
 		self.load_state_dict(checkpoint['model_state_dict'])
 		self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -487,21 +516,26 @@ class SmoothnessPriorVae(VAE_Base):
 
 		super(SmoothnessPriorVae,self).__init__(encoder, decoder,save_dir,lr=1e-4)
 
-	def _compute_kl_loss(self, mus, u, d):
-
+	def _compute_kl_loss(self, mu, u, d):
 
 		Ainv = torch.diag_embed(1/d)
-		term1 = torch.log(1 + u.T @ Ainv @ u)
+		#print(Ainv.shape)
+		#print(u.shape)
+		term1 = torch.log(1 + u.transpose(-2,-1) @ Ainv @ u)
 		term2 = torch.log(d).sum()
 
 		ld = term1 + term2 
+		ld = ld.squeeze()
 
 		mu = torch.stack([torch.zeros(1,mu.shape[1],device=self.device),mu])
 		mean = torch.pow(mu[:-1,:] - mu[1:,:],2)
 
-		trace = torch.diag(u @ u.T + 1/Ainv)
+		#print((u @ u.transpose(-2,-1)).shape)
+		#print((torch.diag_embed(d)).shape)
+		trace = torch.diagonal((u @ u.transpose(-2,-1)) \
+					+ torch.diag_embed(d),dim1=-2,dim2=-1)
 
-		kl = 0.5 * ((trace + mean - 1).sum(axis=1) - ld)
+		kl = 0.5 * ((trace + mean - 1).sum(axis=1) - ld).sum()
 
 		return kl
 
@@ -550,10 +584,10 @@ class ReconstructTimeVae(VAE_Base):
 
 			self.optimizer.zero_grad()
 			(spec,day) = batch 
-			day = day.to(self.device)
+			day = day.to(self.device).squeeze()
 
-			spec = torch.stack(spec,axis=0)
-			spec = spec.to(self.device)
+			#spec = torch.stack(spec,axis=0)
+			spec = spec.to(self.device).squeeze().unsqueeze(1)
 			start_time = 0.0
 			end_time = dt * spec.shape[0] + dt
 			encode_times = torch.arange(start_time,end_time,dt,device=self.device)
@@ -591,10 +625,10 @@ class ReconstructTimeVae(VAE_Base):
 		for ind, batch in enumerate(test_loader):
 
 			(spec,day) = batch 
-			day = day.to(self.device)
+			day = day.to(self.device).squeeze()
 
-			spec = torch.stack(spec,axis=0)
-			spec = spec.to(self.device)
+			#spec = torch.stack(spec,axis=0)
+			spec = spec.to(self.device).squeeze().unsqueeze(1)
 			start_time = 0.0
 			end_time = dt * spec.shape[0] + dt
 			encode_times = torch.arange(start_time,end_time,dt,device=self.device)
@@ -653,7 +687,7 @@ class ReconstructTimeVae(VAE_Base):
 		
 		(specs,days) = loader.dataset[indices]
 		for spec in specs:
-			spec = torch.stack(spec).to(self.device)
+			spec = spec.to(self.device).squeeze().unsqueeze(1)
 
 
 			# Retrieve spectrograms from the loader.
@@ -669,14 +703,41 @@ class ReconstructTimeVae(VAE_Base):
 			row_ind = 0
 			col_ind = 0
 
-			for im in range(spec.shape[0]):
+			for im in range(rec_specs.shape[0]):
 
-				axs[row_ind,col_ind].imshow(spec[im,:,:])
+				if col_ind >= 5:
+					row_ind +=1
+					col_ind = 0
+				axs[row_ind,col_ind].imshow(rec_specs[im,:,:])
+				col_ind += 1
 
 			#all_specs = np.stack([specs, rec_specs])
 		# Plot.
 			save_fn = 'reconstruction_epoch_' + str(self.epoch) + '_' + str(im) + '.png' 
 			save_filename = os.path.join(self.save_dir, save_fn)
+
+			plt.savefig(save_filename)
+			plt.close('all')
+
+			fig,axs = plt.subplots(nrows=nrows,ncols=5)
+			row_ind = 0
+			col_ind = 0
+
+			for im in range(spec.shape[0]):
+
+				if col_ind >= 5:
+					row_ind +=1
+					col_ind = 0
+				axs[row_ind,col_ind].imshow(spec[im,:,:])
+				col_ind += 1
+
+			#all_specs = np.stack([specs, rec_specs])
+		# Plot.
+			save_fn = 'real_epoch_' + str(self.epoch) + '_' + str(im) + '.png' 
+			save_filename = os.path.join(self.save_dir, save_fn)
+
+			plt.savefig(save_filename)
+			plt.close('all')
 
 		return 
 	def get_latent(self,loader):
