@@ -357,13 +357,13 @@ class VAE_Base(nn.Module):
 		
 		(specs,days) = loader.dataset[indices]
 		for spec in specs:
-			spec = spec.to(self.device).squeeze().unsqueeze()
+			spec = spec.to(self.device).squeeze().unsqueeze(1)
 
 
 			# Retrieve spectrograms from the loader.
 			# Get resonstructions.
 			with torch.no_grad():
-				_, _, _,rec_specs = self.compute_loss(spec, return_latent_rec=True)
+				_, _, _,rec_specs = self.compute_loss(spec, return_recon=True)
 			spec = spec.detach().cpu().numpy()
 			nrows = 1 + spec.shape[0]//5
 			fig,axs = plt.subplots(nrows=nrows,ncols=5)
@@ -376,8 +376,16 @@ class VAE_Base(nn.Module):
 					row_ind += 1
 					col_ind = 0
 
-				axs[row_ind,col_ind].imshow(rec_specs[im,:,:])
+				axs[row_ind,col_ind].imshow(rec_specs[im,:,:],origin='lower')
+				axs[row_ind,col_ind].get_xaxis().set_visible(False)
+				axs[row_ind,col_ind].get_yaxis().set_visible(False)
 				col_ind += 1
+
+			for ii in range(col_ind,5):
+				axs[row_ind,ii].get_xaxis().set_visible(False)
+				axs[row_ind,ii].get_yaxis().set_visible(False)
+				axs[row_ind,ii].axis('square')
+
 
 			#all_specs = np.stack([specs, rec_specs])
 		# Plot.
@@ -397,8 +405,15 @@ class VAE_Base(nn.Module):
 					row_ind += 1
 					col_ind = 0
 
-				axs[row_ind,col_ind].imshow(spec[im,:,:])
+				axs[row_ind,col_ind].imshow(spec[im,:,:,:].squeeze(),origin='lower')
+				axs[row_ind,col_ind].get_xaxis().set_visible(False)
+				axs[row_ind,col_ind].get_yaxis().set_visible(False)
 				col_ind += 1
+
+			for ii in range(col_ind,5):
+				axs[row_ind,ii].get_xaxis().set_visible(False)
+				axs[row_ind,ii].get_yaxis().set_visible(False)
+				axs[row_ind,ii].axis('square')
 
 			#all_specs = np.stack([specs, rec_specs])
 		# Plot.
@@ -453,6 +468,8 @@ class VAE_Base(nn.Module):
 			# Plot reconstructions.
 			if (vis_freq is not None) and (epoch % vis_freq == 0):
 				self.visualize(loaders['test'])
+
+			self.epoch += 1
 
 	def get_latent(self,loader):
 
@@ -696,7 +713,7 @@ class ReconstructTimeVae(VAE_Base):
 			end_time = dt * spec.shape[0] + dt
 			encode_times = torch.arange(start_time,end_time,dt,device=self.device)
 			with torch.no_grad():
-				_, _, _,_,rec_specs = self.compute_loss(spec, encode_times,return_latent_rec=True)
+				_, _, _,_,rec_specs = self.compute_loss(spec, encode_times,return_recon=True)
 			spec = spec.detach().cpu().numpy()
 			nrows = 1 + spec.shape[0]//5
 			fig,axs = plt.subplots(nrows=nrows,ncols=5)
@@ -708,8 +725,15 @@ class ReconstructTimeVae(VAE_Base):
 				if col_ind >= 5:
 					row_ind +=1
 					col_ind = 0
-				axs[row_ind,col_ind].imshow(rec_specs[im,:,:])
+				axs[row_ind,col_ind].imshow(rec_specs[im,:,:],origin='lower')
+				axs[row_ind,col_ind].get_xaxis().set_visible(False)
+				axs[row_ind,col_ind].get_yaxis().set_visible(False)
 				col_ind += 1
+
+			for ii in range(col_ind,5):
+				axs[row_ind,ii].get_xaxis().set_visible(False)
+				axs[row_ind,ii].get_yaxis().set_visible(False)
+				axs[row_ind,ii].axis('square')
 
 			#all_specs = np.stack([specs, rec_specs])
 		# Plot.
@@ -728,8 +752,15 @@ class ReconstructTimeVae(VAE_Base):
 				if col_ind >= 5:
 					row_ind +=1
 					col_ind = 0
-				axs[row_ind,col_ind].imshow(spec[im,:,:])
+				axs[row_ind,col_ind].imshow(spec[im,:,:,:].squeeze(),origin='lower')
+				axs[row_ind,col_ind].get_xaxis().set_visible(False)
+				axs[row_ind,col_ind].get_yaxis().set_visible(False)
 				col_ind += 1
+
+			for ii in range(col_ind,5):
+				axs[row_ind,ii].get_xaxis().set_visible(False)
+				axs[row_ind,ii].get_yaxis().set_visible(False)
+				axs[row_ind,ii].axis('square')
 
 			#all_specs = np.stack([specs, rec_specs])
 		# Plot.
