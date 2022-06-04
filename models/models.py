@@ -464,7 +464,7 @@ class VAE_Base(nn.Module):
 			if (save_freq is not None) and (epoch % save_freq == 0) and \
 					(epoch > 0):
 				filename = "checkpoint_"+str(epoch).zfill(3)+'.tar'
-				self.save_state(filename)
+				self.save_state()
 			# Plot reconstructions.
 			if (vis_freq is not None) and (epoch % vis_freq == 0):
 				self.visualize(loaders['test'])
@@ -544,7 +544,7 @@ class SmoothnessPriorVae(VAE_Base):
 		ld = term1 + term2 
 		ld = ld.squeeze()
 
-		mu = torch.stack([torch.zeros(1,mu.shape[1],device=self.device),mu])
+		mu = torch.cat([torch.zeros(1,mu.shape[1],device=self.device),mu],axis=0)
 		mean = torch.pow(mu[:-1,:] - mu[1:,:],2)
 
 		#print((u @ u.transpose(-2,-1)).shape)

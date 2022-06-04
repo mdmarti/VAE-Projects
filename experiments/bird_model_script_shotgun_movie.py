@@ -199,40 +199,46 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 	if vanilla_dir != '':
 		if not os.path.isdir(vanilla_dir):
 			os.mkdir(vanilla_dir)
-		save_file = os.path.join(vanilla_dir,'checkpoint_030.tar')
-
+		save_file = os.path.join(vanilla_dir,'checkpoint_encoder_30.tar')
+		#print(save_file)
 		vanilla_encoder = encoder()
 		vanilla_decoder = decoder()
 		vanilla_vae = VAE_Base(vanilla_encoder,vanilla_decoder,vanilla_dir)
 
 		if not os.path.isfile(save_file):
+			print('training vanilla')
 			vanilla_vae.train_test_loop(loaders_for_prediction,epochs=31,test_freq=5,save_freq=10,vis_freq=10)
 		else:
+			print('loading vanilla')
 			vanilla_vae.load_state(save_file)
 
 	if smoothness_dir != '':
 		if not os.path.isdir(smoothness_dir):
 			os.mkdir(smoothness_dir)
-		save_file = os.path.join(smoothness_dir,'checkpoint_030.tar')
+		save_file = os.path.join(smoothness_dir,'checkpoint_encoder_30.tar')
 		smooth_encoder = encoder()
 		smooth_decoder = decoder()
 		smooth_prior_vae = SmoothnessPriorVae(smooth_encoder,smooth_decoder,smoothness_dir)
 
 		if not os.path.isfile(save_file):
+			print('training smooth')
 			smooth_prior_vae.train_test_loop(loaders_for_prediction,epochs=31,test_freq=5,save_freq=10,vis_freq=10)
 		else:
+			print('loading smooth')
 			smooth_prior_vae.load_state(save_file)
 	if time_recondir != '':
 		if not os.path.isdir(time_recondir):
 			os.mkdir(time_recondir)
-		save_file = os.path.join(time_recondir,'checkpoint_030.tar')
+		save_file = os.path.join(time_recondir,'checkpoint_encoder_30.tar')
 		time_encoder = encoder()
 		time_decoder = decoder()
 		time_vae = ReconstructTimeVae(time_encoder,time_decoder,time_recondir)
 
 		if not os.path.isfile(save_file):
+			print('training time')
 			time_vae.train_test_loop(loaders_for_prediction,epochs=31,test_freq=5,save_freq=10,vis_freq=10)
 		else:
+			print('loading time')
 			time_vae.load_state(save_file)
 
 	checkpoints = [] #glob.glob(os.path.join(root,'movie_vaeAR','*2[0-9][0-9].tar'))
