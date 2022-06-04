@@ -199,7 +199,7 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 	if vanilla_dir != '':
 		if not os.path.isdir(vanilla_dir):
 			os.mkdir(vanilla_dir)
-		save_file = os.path.join(vanilla_dir,'checkpoint_encoder_30.tar')
+		save_file = os.path.join(vanilla_dir,'checkpoint_encoder_200.tar')
 		#print(save_file)
 		vanilla_encoder = encoder()
 		vanilla_decoder = decoder()
@@ -207,7 +207,7 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 
 		if not os.path.isfile(save_file):
 			print('training vanilla')
-			vanilla_vae.train_test_loop(loaders_for_prediction,epochs=31,test_freq=5,save_freq=10,vis_freq=10)
+			vanilla_vae.train_test_loop(loaders_for_prediction,epochs=201,test_freq=5,save_freq=50,vis_freq=25)
 		else:
 			print('loading vanilla')
 			vanilla_vae.load_state(save_file)
@@ -215,14 +215,14 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 	if smoothness_dir != '':
 		if not os.path.isdir(smoothness_dir):
 			os.mkdir(smoothness_dir)
-		save_file = os.path.join(smoothness_dir,'checkpoint_encoder_30.tar')
+		save_file = os.path.join(smoothness_dir,'checkpoint_encoder_200.tar')
 		smooth_encoder = encoder()
 		smooth_decoder = decoder()
 		smooth_prior_vae = SmoothnessPriorVae(smooth_encoder,smooth_decoder,smoothness_dir)
 
 		if not os.path.isfile(save_file):
 			print('training smooth')
-			smooth_prior_vae.train_test_loop(loaders_for_prediction,epochs=31,test_freq=5,save_freq=10,vis_freq=10)
+			smooth_prior_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
 		else:
 			print('loading smooth')
 			smooth_prior_vae.load_state(save_file)
