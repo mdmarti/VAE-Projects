@@ -227,6 +227,7 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 		else:
 			print('loading vanilla')
 			vanilla_vae.load_state(save_file)
+			vanilla_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
 			#vanilla_vae.test_epoch(loaders_for_prediction['test'])
 			loaders = []
 			for ind,day in enumerate(realTrainDays):
@@ -253,13 +254,8 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 		else:
 			print('loading smooth')
 			smooth_prior_vae.load_state(save_file)
+			smooth_prior_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
 			#smooth_prior_vae.test_epoch(loaders_for_prediction['test'])
-			loaders = []
-			for ind,day in enumerate(realTrainDays):
-				part = get_window_partition([dsb_audio_dirs[ind]],[dsb_segment_dirs[ind]],1.0)
-				part['test'] = part['train']
-				loader = get_fixed_ordered_data_loaders_motif(part,segment_params)
-				loaders.append(loader)
 			
 			for ind, l in enumerate(loaders):
 				print('Developmental day {} \n'.format(realTrainDays[ind]))
@@ -280,13 +276,8 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 			print('loading time')
 			time_vae.load_state(save_file)
 			#time_vae.test_epoch(loaders_for_prediction['test'])
-			loaders=[]
-			for ind,day in enumerate(realTrainDays):
-				print('Developmental day {} \n'.format(day))
-				part = get_window_partition([dsb_audio_dirs[ind]],[dsb_segment_dirs[ind]],1.0)
-				part['test'] = part['train']
-				loader = get_fixed_ordered_data_loaders_motif(part,segment_params)
-				loaders.append(loader)
+			time_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
+
 			
 			for ind, l in enumerate(loaders):
 				print('Developmental day {} \n'.format(realTrainDays[ind]))
