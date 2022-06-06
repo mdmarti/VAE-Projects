@@ -62,6 +62,22 @@ FS = 42000
 # if time after: increase window size, overlap
 # plot integrated trajectory on top of this
 
+def pca_analysis(model,loader):
+
+	latents = model.get_latent(loader)
+
+	#print(latents.shape)
+	latent_pca = PCA()
+
+	transformed_latents = latent_pca.fit_transform(latents)
+
+	v_explained_cumu = np.cumsum(latent_pca.explained_variance_ratio_)
+
+	ind = np.where(v_explained_cumu >= 0.99)[0][0]
+
+	print('Dimensionality of latents: {:d}'.format(ind + 1))
+
+	return transformed_latents, latents
 
 def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',datadir='',):
 
@@ -211,6 +227,17 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 		else:
 			print('loading vanilla')
 			vanilla_vae.load_state(save_file)
+			#vanilla_vae.test_epoch(loaders_for_prediction['test'])
+			loaders = []
+			for ind,day in enumerate(realTrainDays):
+				part = get_window_partition([dsb_audio_dirs[ind]],[dsb_segment_dirs[ind]],1.0)
+				part['test'] = part['train']
+				loader = get_fixed_ordered_data_loaders_motif(part,segment_params)
+				loaders.append(loader)
+			
+			for ind, l in enumerate(loaders):
+				print('Developmental day {} \n'.format(realTrainDays[ind]))
+				_,_ = pca_analysis(vanilla_vae,l['train'])
 
 	if smoothness_dir != '':
 		if not os.path.isdir(smoothness_dir):
@@ -226,43 +253,44 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 		else:
 			print('loading smooth')
 			smooth_prior_vae.load_state(save_file)
+			#smooth_prior_vae.test_epoch(loaders_for_prediction['test'])
+			loaders = []
+			for ind,day in enumerate(realTrainDays):
+				part = get_window_partition([dsb_audio_dirs[ind]],[dsb_segment_dirs[ind]],1.0)
+				part['test'] = part['train']
+				loader = get_fixed_ordered_data_loaders_motif(part,segment_params)
+				loaders.append(loader)
+			
+			for ind, l in enumerate(loaders):
+				print('Developmental day {} \n'.format(realTrainDays[ind]))
+				_,_ = pca_analysis(smooth_prior_vae,l['train'])
+
 	if time_recondir != '':
 		if not os.path.isdir(time_recondir):
 			os.mkdir(time_recondir)
-		save_file = os.path.join(time_recondir,'checkpoint_encoder_30.tar')
+		save_file = os.path.join(time_recondir,'checkpoint_encoder_150.tar')
 		time_encoder = encoder()
 		time_decoder = decoder()
 		time_vae = ReconstructTimeVae(time_encoder,time_decoder,time_recondir)
 
 		if not os.path.isfile(save_file):
 			print('training time')
-			time_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=10,vis_freq=10)
+			time_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
 		else:
 			print('loading time')
 			time_vae.load_state(save_file)
-
-	checkpoints = [] #glob.glob(os.path.join(root,'movie_vaeAR','*2[0-9][0-9].tar'))
-	names = [n.split('/')[-1] for n in checkpoints]
-	print(names)
-	all_latents = []
-	color_inds = []
-	ci = 0
-	print('loading checkpoints')
-	for c in checkpoints:
-		embedding_VAE.load_state(c)
-		indices = np.random.choice(np.arange(len(loaders_for_prediction['train'].dataset)),
-			size=100,replace=False)
-		(ims,days)=loaders_for_prediction['train'].dataset[indices]
-
-		with torch.no_grad():
-			for ti,traj in enumerate(ims):
-				latent_traj = torch.stack(traj).to(torch.device('cuda'))
-
-				mean_lat, _, _ = embedding_VAE.encode(latent_traj,[])
-
-				all_latents.append(mean_lat.detach().cpu().numpy())
-				color_inds.append(ci*np.ones(mean_lat.shape[0],))
-		ci += 1
+			#time_vae.test_epoch(loaders_for_prediction['test'])
+			loaders=[]
+			for ind,day in enumerate(realTrainDays):
+				print('Developmental day {} \n'.format(day))
+				part = get_window_partition([dsb_audio_dirs[ind]],[dsb_segment_dirs[ind]],1.0)
+				part['test'] = part['train']
+				loader = get_fixed_ordered_data_loaders_motif(part,segment_params)
+				loaders.append(loader)
+			
+			for ind, l in enumerate(loaders):
+				print('Developmental day {} \n'.format(realTrainDays[ind]))
+				_,_ = pca_analysis(time_vae,l['train'])
 	'''
 	print('umappin')
 	umap_latents = np.vstack(all_latents)

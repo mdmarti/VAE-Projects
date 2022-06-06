@@ -481,12 +481,13 @@ class VAE_Base(nn.Module):
 			(spec,day) = batch 
 			day = day.to(self.device)
 
-			spec = torch.stack(spec,axis=0)
+			spec = spec.to(self.device).squeeze().unsqueeze(1)
 			with torch.no_grad():
 				z_mu,_,_ = self.encoder.encode(spec)
 
 			latents.append(z_mu.detach().cpu().numpy())
 
+		latents = np.vstack(latents)
 		return latents
 
 	def save_state(self):
@@ -563,7 +564,7 @@ class ReconstructTimeVae(VAE_Base):
 
 		super(ReconstructTimeVae,self).__init__(encoder, decoder,save_dir,lr=1e-4)
 
-	def compute_loss(self,x,encode_times,return_recon = False,weight=128**2):
+	def compute_loss(self,x,encode_times,return_recon = False,weight=128**3):
 
 
 		mu,u,d = self.encoder.encode_with_time(x,encode_times)
@@ -782,7 +783,7 @@ class ReconstructTimeVae(VAE_Base):
 			(spec,day) = batch 
 			day = day.to(self.device)
 
-			spec = torch.stack(spec,axis=0).to(self.device)
+			spec = spec.to(self.device).squeeze().unsqueeze(1)
 			start_time = 0.0
 			end_time = dt * spec.shape[0]
 			encode_times = torch.arange(start_time,end_time,dt,device=self.device)
@@ -792,6 +793,7 @@ class ReconstructTimeVae(VAE_Base):
 
 			latents.append(z_mu.detach().cpu().numpy())
 
+		latents = np.vstack(latents)
 		return latents
 
 if __name__ == '__main__':
