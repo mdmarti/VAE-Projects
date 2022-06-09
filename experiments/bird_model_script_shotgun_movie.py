@@ -13,7 +13,7 @@ import matplotlib.pyplot as plt
 from colour import Color
 import numpy as np
 import os
-import copy
+import cv2
 from sklearn.cluster import KMeans, AgglomerativeClustering
 from sklearn.decomposition import PCA, FastICA
 from sklearn.tree import DecisionTreeRegressor
@@ -64,7 +64,7 @@ FS = 42000
 
 def pca_analysis(model,loader):
 
-	latents = model.get_latent(loader)
+	latents = np.vstack(model.get_latent(loader))
 
 	#print(latents.shape)
 	latent_pca = PCA()
@@ -78,6 +78,44 @@ def pca_analysis(model,loader):
 	print('Dimensionality of latents: {:d}'.format(ind + 1))
 
 	return transformed_latents, latents
+
+def smoothness_analysis(model,loaders):
+
+	## to implement: need to include loaders for all days.
+	## once you do so, implement MMD analysis for all days. visualize using UMAP, colored by MMD. 
+	## look at MMD distribution for each part of trajectory. maybe weight reconstruction by MMD also? 
+	## look at which vocalizations change the least (by MMD), which change the most positively, 
+	## which change the most negatively
+	
+	latents = model.get_latent(loader)
+
+	max_len_traj = max(list(map(len,latents)))
+
+	mean_traj_day = np.empty((len(latents),max_len_traj,32))
+
+	mean_traj_day[:,:,:] = np.nan
+
+	start_ind = 0
+
+	for ind,traj in enumerate(latents):
+
+		mean_traj_day[ind,0:traj.shape[0],:] = traj
+
+	mean_traj = np.nanmean(mean_traj_day,axis=0)
+
+	mean_recon_day = model.decoder.decode(numpy_to_tensor(mean_traj).to(model.device))
+
+	frames = []
+	for spec in mean_recon_day:
+		frames.append(spec)
+
+	stitcher = cv2.createStitcher()
+	(status,stitched) = stitcher.stitch(frames)
+
+
+
+	return mean_traj, stitched
+
 
 def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',datadir='',):
 

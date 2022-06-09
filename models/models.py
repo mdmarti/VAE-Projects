@@ -487,7 +487,7 @@ class VAE_Base(nn.Module):
 
 			latents.append(z_mu.detach().cpu().numpy())
 
-		latents = np.vstack(latents)
+		#latents = np.vstack(latents)
 		return latents
 
 	def save_state(self):
