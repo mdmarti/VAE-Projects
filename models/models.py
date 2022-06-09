@@ -22,30 +22,30 @@ class encoder(nn.Module):
 
 		self.encoder_conv = nn.Sequential(nn.BatchNorm2d(1),
 								nn.Conv2d(1, 8, 3,1,padding=1),
-								nn.Relu(),
+								nn.ReLU(),
 								nn.BatchNorm2d(8),
 								nn.Conv2d(8, 8, 3,2,padding=1),
-								nn.Relu(),
+								nn.ReLU(),
 								nn.BatchNorm2d(8),
 								nn.Conv2d(8, 16,3,1,padding=1),
-								nn.Relu(),
+								nn.ReLU(),
 								nn.BatchNorm2d(16),
 								nn.Conv2d(16,16,3,2,padding=1),
-								nn.Relu(),
+								nn.ReLU(),
 								nn.BatchNorm2d(16),
 								nn.Conv2d(16,24,3,1,padding=1),
-								nn.Relu(),
+								nn.ReLU(),
 								nn.BatchNorm2d(24),
 								nn.Conv2d(24,24,3,2,padding=1),
-								nn.Relu(),
+								nn.ReLU(),
 								nn.BatchNorm2d(24),
 								nn.Conv2d(24,32,3,1,padding=1),
-								nn.Relu())
+								nn.ReLU())
 
 		self.encoder_fc = nn.Sequential(nn.Linear(8193,1024),
-								nn.Relu(),
+								nn.ReLU(),
 								nn.Linear(1024,256),
-								nn.Relu())
+								nn.ReLU())
 
 		self.fc11 = nn.Linear(256,64)
 		self.fc12 = nn.Linear(256,64)
@@ -58,14 +58,18 @@ class encoder(nn.Module):
 
 		h = self.encoder_conv(x)
 		h = h.view(-1,8192)
-		h = torch.cat(h,torch.zeros(h.shape[0],1,device=h.device))
-		h = self.encoder_fc(x)
+		#print(h.shape)
+		#print(torch.zeros(h.shape[0],1,device=h.device).shape)
+		dummy = torch.zeros(h.shape[0],1,device=h.device)
+		h = torch.cat((h,dummy),dim=1)
+		#print(h.shape)
+		h = self.encoder_fc(h)
 		mu = F.relu(self.fc11(h))
 		u = F.relu(self.fc12(h))
 		d = F.relu(self.fc13(h))
-		mu = self.fc21(h)
-		u = self.fc22(h)
-		d = self.fc23(h)
+		mu = self.fc21(mu)
+		u = self.fc22(u)
+		d = self.fc23(d)
 		
 		return mu, u.unsqueeze(-1),d.exp()
 
@@ -73,14 +77,15 @@ class encoder(nn.Module):
 
 		h = self.encoder_conv(x)
 		h = h.view(-1,8192)
-		h = torch.cat(h,encode_times)
-		h = self.encoder_fc(x)
+		
+		h = torch.cat((h,encode_times.unsqueeze(1)),dim=1)
+		h = self.encoder_fc(h)
 		mu = F.relu(self.fc11(h))
 		u = F.relu(self.fc12(h))
 		d = F.relu(self.fc13(h))
-		mu = self.fc21(h)
-		u = self.fc22(h)
-		d = self.fc23(h)
+		mu = self.fc21(mu)
+		u = self.fc22(u)
+		d = self.fc23(d)
 		
 		return mu, u.unsqueeze(-1),d.exp()
 
@@ -93,7 +98,7 @@ class encoder(nn.Module):
 		return z_hat
 
 
-class decoder(nn.module):
+class decoder(nn.Module):
 
 	def __init__(self, z_dim=32,precision =1e4):
 		"""
@@ -112,27 +117,27 @@ class decoder(nn.module):
 		self.decoder_fc = nn.Sequential(nn.Linear(z_dim,64),
 										nn.Linear(64,256),
 										nn.Linear(256,1024),
-										nn.Relu(),
+										nn.ReLU(),
 										nn.Linear(1024,8193),
-										nn.Relu())
+										nn.ReLU())
 		self.decoder_convt = nn.Sequential(nn.BatchNorm2d(32),
 										nn.ConvTranspose2d(32,24,3,1,padding=1),
-										nn.Relu(),
+										nn.ReLU(),
 										nn.BatchNorm2d(24),
 										nn.ConvTranspose2d(24,24,3,2,padding=1,output_padding=1),
-										nn.Relu(),
+										nn.ReLU(),
 										nn.BatchNorm2d(24),
 										nn.ConvTranspose2d(24,16,3,1,padding=1),
-										nn.Relu(),
+										nn.ReLU(),
 										nn.BatchNorm2d(16),
 										nn.ConvTranspose2d(16,16,3,2,padding=1,output_padding=1),
-										nn.Relu(),
+										nn.ReLU(),
 										nn.BatchNorm2d(16),
 										nn.ConvTranspose2d(16,8,3,1,padding=1),
-										nn.Relu(),
+										nn.ReLU(),
 										nn.BatchNorm2d(8),
 										nn.ConvTranspose2d(8,8,3,2,padding=1,output_padding=1),
-										nn.Relu(),
+										nn.ReLU(),
 										nn.BatchNorm2d(8),
 										nn.ConvTranspose2d(8,1,3,1,padding=1))
 
@@ -170,11 +175,11 @@ class decoder(nn.module):
 		else:
 			return xhat
 
-class VAE_Base(nn.module):
+class VAE_Base(nn.Module):
 
 	def __init__(self, encoder, decoder,save_dir,lr=1e-4):
 
-		super(VAE_Base,self).init()
+		super(VAE_Base,self).__init__()
 
 		self.encoder = encoder 
 		self.decoder = decoder 
@@ -192,13 +197,13 @@ class VAE_Base(nn.module):
 
 	def _compute_reconstruction_loss(self,x,xhat):
 
-		constant = -0.5 * np.prod(x.shape[1:]) * np.log(2*np.pi/self.vae.precision)
+		constant = -0.5 * np.prod(x.shape[1:]) * np.log(2*np.pi/self.decoder.precision)
 
 		x = torch.reshape(x,(x.shape[0],-1))
 		xhat = torch.reshape(xhat,(xhat.shape[0],-1))
 		l2s = torch.sum(torch.pow(x - xhat,2),axis=1)
 
-		logprob = constant - 0.5 * self.vae.precision * torch.sum(l2s)
+		logprob = constant - 0.5 * self.decoder.precision * torch.sum(l2s)
 
 		return logprob
 
@@ -206,17 +211,25 @@ class VAE_Base(nn.module):
 
 		## uses matrix determinant lemma to compute logdet of covar
 		Ainv = torch.diag_embed(1/d)
-		term1 = torch.log(1 + u.T @ Ainv @ u)
+		#print(Ainv.shape)
+		#print(u.shape)
+		term1 = torch.log(1 + u.transpose(-2,-1) @ Ainv @ u)
 		term2 = torch.log(d).sum()
 
 		ld = term1 + term2 
-
+		ld = ld.squeeze()
 		mean = torch.pow(mu,2)
 
-		trace = torch.diag(u @ u.T + 1/Ainv)
+		#print((u @ u.transpose(-2,-1)).shape)
+		#print((torch.diag_embed(d)).shape)
+		trace = torch.diagonal((u @ u.transpose(-2,-1)) \
+					+ torch.diag_embed(d),dim1=-2,dim2=-1)
 
-		kl = 0.5 * ((trace + mean - 1).sum(axis=1) - ld)
-
+		kl = 0.5 * ((trace + mean - 1).sum(axis=1) - ld).sum()
+		#print(trace.shape)
+		#print(mean.shape)
+		#print(ld.shape)
+		#print(kl.shape)
 		return kl
 
 
@@ -233,9 +246,10 @@ class VAE_Base(nn.module):
 
 		kl = self._compute_kl_loss(mu,u,d)
 		logprob = self._compute_reconstruction_loss(x,xhat)
-
+		#print(kl.shape)
+		#print(logprob.shape)
 		elbo = logprob - kl 
-
+		
 		if return_recon:
 			return -elbo,logprob, kl, xhat.view(-1,128,128).detach().cpu().numpy() 
 		else:
@@ -251,13 +265,14 @@ class VAE_Base(nn.module):
 		train_lp = 0.0 
 
 		for ind, batch in enumerate(train_loader):
-
+			#print(batch)
 			self.optimizer.zero_grad()
 			(spec,day) = batch 
-			day = day.to(self.device)
-
-			spec = torch.stack(spec,axis=0)
-			spec = spec.to(self.device)
+			day = day.to(self.device).squeeze()
+			#print(day.shape)
+			#print(spec.shape)
+			#spec = torch.stack(spec,axis=0)
+			spec = spec.to(self.device).squeeze().unsqueeze(1)
 
 			loss,lp,kl = self.compute_loss(spec)
 
@@ -288,10 +303,10 @@ class VAE_Base(nn.module):
 		for ind, batch in enumerate(test_loader):
 
 			(spec,day) = batch 
-			day = day.to(self.device)
+			day = day.to(self.device).squeeze()
 
-			spec = torch.stack(spec,axis=0)
-			spec = spec.to(self.device)
+			#spec = torch.stack(spec,axis=0)
+			spec = spec.to(self.device).squeeze().unsqueeze(1)
 			with torch.no_grad():
 				loss,lp,kl = self.compute_loss(spec)
 
@@ -343,27 +358,71 @@ class VAE_Base(nn.module):
 		
 		(specs,days) = loader.dataset[indices]
 		for spec in specs:
-			spec = torch.stack(spec).to(self.device)
+			spec = spec.to(self.device).squeeze().unsqueeze(1)
 
 
 			# Retrieve spectrograms from the loader.
 			# Get resonstructions.
 			with torch.no_grad():
-				_, _, _,rec_specs = self.compute_loss(spec, return_latent_rec=True)
+				_, _, _,rec_specs = self.compute_loss(spec, return_recon=True)
 			spec = spec.detach().cpu().numpy()
 			nrows = 1 + spec.shape[0]//5
 			fig,axs = plt.subplots(nrows=nrows,ncols=5)
 			row_ind = 0
 			col_ind = 0
 
-			for im in range(spec.shape[0]):
+			for im in range(rec_specs.shape[0]):
 
-				axs[row_ind,col_ind].imshow(spec[im,:,:])
+				if col_ind >= 5:
+					row_ind += 1
+					col_ind = 0
+
+				axs[row_ind,col_ind].imshow(rec_specs[im,:,:],origin='lower')
+				axs[row_ind,col_ind].get_xaxis().set_visible(False)
+				axs[row_ind,col_ind].get_yaxis().set_visible(False)
+				col_ind += 1
+
+			for ii in range(col_ind,5):
+				axs[row_ind,ii].get_xaxis().set_visible(False)
+				axs[row_ind,ii].get_yaxis().set_visible(False)
+				axs[row_ind,ii].axis('square')
+
 
 			#all_specs = np.stack([specs, rec_specs])
 		# Plot.
 			save_fn = 'reconstruction_epoch_' + str(self.epoch) + '_' + str(im) + '.png' 
 			save_filename = os.path.join(self.save_dir, save_fn)
+
+			plt.savefig(save_filename)
+			plt.close('all')
+
+			fig,axs = plt.subplots(nrows=nrows,ncols=5)
+			row_ind = 0
+			col_ind = 0
+
+			for im in range(spec.shape[0]):
+
+				if col_ind >= 5:
+					row_ind += 1
+					col_ind = 0
+
+				axs[row_ind,col_ind].imshow(spec[im,:,:,:].squeeze(),origin='lower')
+				axs[row_ind,col_ind].get_xaxis().set_visible(False)
+				axs[row_ind,col_ind].get_yaxis().set_visible(False)
+				col_ind += 1
+
+			for ii in range(col_ind,5):
+				axs[row_ind,ii].get_xaxis().set_visible(False)
+				axs[row_ind,ii].get_yaxis().set_visible(False)
+				axs[row_ind,ii].axis('square')
+
+			#all_specs = np.stack([specs, rec_specs])
+		# Plot.
+			save_fn = 'real_epoch_' + str(self.epoch) + '_' + str(im) + '.png' 
+			save_filename = os.path.join(self.save_dir, save_fn)
+
+			plt.savefig(save_filename)
+			plt.close('all')
 
 		return 
 
@@ -406,10 +465,12 @@ class VAE_Base(nn.module):
 			if (save_freq is not None) and (epoch % save_freq == 0) and \
 					(epoch > 0):
 				filename = "checkpoint_"+str(epoch).zfill(3)+'.tar'
-				self.save_state(filename)
+				self.save_state()
 			# Plot reconstructions.
 			if (vis_freq is not None) and (epoch % vis_freq == 0):
 				self.visualize(loaders['test'])
+
+			self.epoch += 1
 
 	def get_latent(self,loader):
 
@@ -420,12 +481,13 @@ class VAE_Base(nn.module):
 			(spec,day) = batch 
 			day = day.to(self.device)
 
-			spec = torch.stack(spec,axis=0)
+			spec = spec.to(self.device).squeeze().unsqueeze(1)
 			with torch.no_grad():
 				z_mu,_,_ = self.encoder.encode(spec)
 
 			latents.append(z_mu.detach().cpu().numpy())
 
+		latents = np.vstack(latents)
 		return latents
 
 	def save_state(self):
@@ -461,7 +523,7 @@ class VAE_Base(nn.module):
 		#print(self.state_dict().keys())
 
 		checkpoint = torch.load(fn, map_location=self.device)
-		layer_1 = checkpoint['model_state_dict'].pop('layer_1')
+		#layer_1 = checkpoint['model_state_dict'].pop('layer_1')
 
 		self.load_state_dict(checkpoint['model_state_dict'])
 		self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
@@ -471,23 +533,28 @@ class SmoothnessPriorVae(VAE_Base):
 
 	def __init__(self, encoder, decoder,save_dir,lr=1e-4):
 
-		super(SmoothnessPriorVae,self).init(encoder, decoder,save_dir,lr=1e-4)
+		super(SmoothnessPriorVae,self).__init__(encoder, decoder,save_dir,lr=1e-4)
 
-	def _compute_kl_loss(self, mus, u, d):
-
+	def _compute_kl_loss(self, mu, u, d):
 
 		Ainv = torch.diag_embed(1/d)
-		term1 = torch.log(1 + u.T @ Ainv @ u)
+		#print(Ainv.shape)
+		#print(u.shape)
+		term1 = torch.log(1 + u.transpose(-2,-1) @ Ainv @ u)
 		term2 = torch.log(d).sum()
 
 		ld = term1 + term2 
+		ld = ld.squeeze()
 
-		mu = torch.stack([torch.zeros(1,mu.shape[1],device=self.device),mu])
+		mu = torch.cat([torch.zeros(1,mu.shape[1],device=self.device),mu],axis=0)
 		mean = torch.pow(mu[:-1,:] - mu[1:,:],2)
 
-		trace = torch.diag(u @ u.T + 1/Ainv)
+		#print((u @ u.transpose(-2,-1)).shape)
+		#print((torch.diag_embed(d)).shape)
+		trace = torch.diagonal((u @ u.transpose(-2,-1)) \
+					+ torch.diag_embed(d),dim1=-2,dim2=-1)
 
-		kl = 0.5 * ((trace + mean - 1).sum(axis=1) - ld)
+		kl = 0.5 * ((trace + mean - 1).sum(axis=1) - ld).sum()
 
 		return kl
 
@@ -495,9 +562,9 @@ class ReconstructTimeVae(VAE_Base):
 
 	def __init__(self, encoder, decoder,save_dir,lr=1e-4):
 
-		super(ReconstructTimeVae,self).init(encoder, decoder,save_dir,lr=1e-4)
+		super(ReconstructTimeVae,self).__init__(encoder, decoder,save_dir,lr=1e-4)
 
-	def compute_loss(self,x,encode_times,return_recon = False,weight=100):
+	def compute_loss(self,x,encode_times,return_recon = False,weight=128**3):
 
 
 		mu,u,d = self.encoder.encode_with_time(x,encode_times)
@@ -536,12 +603,12 @@ class ReconstructTimeVae(VAE_Base):
 
 			self.optimizer.zero_grad()
 			(spec,day) = batch 
-			day = day.to(self.device)
+			day = day.to(self.device).squeeze()
 
-			spec = torch.stack(spec,axis=0)
-			spec = spec.to(self.device)
+			#spec = torch.stack(spec,axis=0)
+			spec = spec.to(self.device).squeeze().unsqueeze(1)
 			start_time = 0.0
-			end_time = dt * spec.shape[0] + dt
+			end_time = dt * spec.shape[0]
 			encode_times = torch.arange(start_time,end_time,dt,device=self.device)
 			loss,lp,kl,tr = self.compute_loss(spec,encode_times)
 
@@ -577,12 +644,12 @@ class ReconstructTimeVae(VAE_Base):
 		for ind, batch in enumerate(test_loader):
 
 			(spec,day) = batch 
-			day = day.to(self.device)
+			day = day.to(self.device).squeeze()
 
-			spec = torch.stack(spec,axis=0)
-			spec = spec.to(self.device)
+			#spec = torch.stack(spec,axis=0)
+			spec = spec.to(self.device).squeeze().unsqueeze(1)
 			start_time = 0.0
-			end_time = dt * spec.shape[0] + dt
+			end_time = dt * spec.shape[0]
 			encode_times = torch.arange(start_time,end_time,dt,device=self.device)
 			with torch.no_grad():
 				loss,lp,kl,tr = self.compute_loss(spec,encode_times)
@@ -639,30 +706,71 @@ class ReconstructTimeVae(VAE_Base):
 		
 		(specs,days) = loader.dataset[indices]
 		for spec in specs:
-			spec = torch.stack(spec).to(self.device)
+			spec = spec.to(self.device).squeeze().unsqueeze(1)
 
 
 			# Retrieve spectrograms from the loader.
 			# Get resonstructions.
 			start_time = 0.0
-			end_time = dt * spec.shape[0] + dt
+			end_time = dt * spec.shape[0]
 			encode_times = torch.arange(start_time,end_time,dt,device=self.device)
 			with torch.no_grad():
-				_, _, _,_,rec_specs = self.compute_loss(spec, encode_times,return_latent_rec=True)
+				_, _, _,_,rec_specs = self.compute_loss(spec, encode_times,return_recon=True)
 			spec = spec.detach().cpu().numpy()
 			nrows = 1 + spec.shape[0]//5
 			fig,axs = plt.subplots(nrows=nrows,ncols=5)
 			row_ind = 0
 			col_ind = 0
 
-			for im in range(spec.shape[0]):
+			for im in range(rec_specs.shape[0]):
 
-				axs[row_ind,col_ind].imshow(spec[im,:,:])
+				if col_ind >= 5:
+					row_ind +=1
+					col_ind = 0
+				axs[row_ind,col_ind].imshow(rec_specs[im,:,:],origin='lower')
+				axs[row_ind,col_ind].get_xaxis().set_visible(False)
+				axs[row_ind,col_ind].get_yaxis().set_visible(False)
+				col_ind += 1
+
+			for ii in range(col_ind,5):
+				axs[row_ind,ii].get_xaxis().set_visible(False)
+				axs[row_ind,ii].get_yaxis().set_visible(False)
+				axs[row_ind,ii].axis('square')
 
 			#all_specs = np.stack([specs, rec_specs])
 		# Plot.
 			save_fn = 'reconstruction_epoch_' + str(self.epoch) + '_' + str(im) + '.png' 
 			save_filename = os.path.join(self.save_dir, save_fn)
+
+			plt.savefig(save_filename)
+			plt.close('all')
+
+			fig,axs = plt.subplots(nrows=nrows,ncols=5)
+			row_ind = 0
+			col_ind = 0
+
+			for im in range(spec.shape[0]):
+
+				if col_ind >= 5:
+					row_ind +=1
+					col_ind = 0
+				axs[row_ind,col_ind].imshow(spec[im,:,:,:].squeeze(),origin='lower')
+				axs[row_ind,col_ind].get_xaxis().set_visible(False)
+				axs[row_ind,col_ind].get_yaxis().set_visible(False)
+				col_ind += 1
+
+			for ii in range(col_ind,5):
+				axs[row_ind,ii].get_xaxis().set_visible(False)
+				axs[row_ind,ii].get_yaxis().set_visible(False)
+				axs[row_ind,ii].axis('square')
+
+			#all_specs = np.stack([specs, rec_specs])
+		# Plot.
+			save_fn = 'real_epoch_' + str(self.epoch) + '_' + str(im) + '.png' 
+			save_filename = os.path.join(self.save_dir, save_fn)
+
+			plt.savefig(save_filename)
+			plt.close('all')
 
 		return 
 	def get_latent(self,loader):
@@ -675,9 +783,9 @@ class ReconstructTimeVae(VAE_Base):
 			(spec,day) = batch 
 			day = day.to(self.device)
 
-			spec = torch.stack(spec,axis=0).to(self.device)
+			spec = spec.to(self.device).squeeze().unsqueeze(1)
 			start_time = 0.0
-			end_time = dt * spec.shape[0] + dt
+			end_time = dt * spec.shape[0]
 			encode_times = torch.arange(start_time,end_time,dt,device=self.device)
 
 			with torch.no_grad():
@@ -685,6 +793,7 @@ class ReconstructTimeVae(VAE_Base):
 
 			latents.append(z_mu.detach().cpu().numpy())
 
+		latents = np.vstack(latents)
 		return latents
 
 if __name__ == '__main__':

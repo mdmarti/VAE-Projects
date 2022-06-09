@@ -1,12 +1,19 @@
-from models import encoder,decoder,VAE_Base,SmoothnessPriorVae,ReconstructTimeVae
-from utils import rbf_dot,mmd_fxn,numpy_to_tensor
-from vae_bird import VAE
+import os
+import sys
+import inspect
+
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(os.path.dirname(currentdir))
+sys.path.insert(0, parentdir) 
+
+import fire
+from VAE_Projects.models.models import encoder,decoder,VAE_Base,SmoothnessPriorVae,ReconstructTimeVae
+from VAE_Projects.models.utils import rbf_dot,mmd_fxn,numpy_to_tensor
 import matplotlib.pyplot as plt
 from colour import Color
 import numpy as np
 import os
 import copy
-import h5py
 from sklearn.cluster import KMeans, AgglomerativeClustering
 from sklearn.decomposition import PCA, FastICA
 from sklearn.tree import DecisionTreeRegressor
@@ -15,22 +22,15 @@ from sklearn.linear_model import LinearRegression
 import scipy
 
 import torch
-import gzip
 import umap
-import pickle
-import glob
-import cv2
 
-import tensorflow as tf
 from torch.utils.data import Dataset, DataLoader
 from torch.distributions import LowRankMultivariateNormal
-from itertools import repeat
 from joblib import Parallel, delayed
 import numpy as np
 import os
-import imageio
 import numba
-import librosa
+
 
 from ava.data.data_container import DataContainer
 from ava.models.vae import X_SHAPE, VAE
@@ -40,14 +40,12 @@ from ava.preprocessing.preprocess import process_sylls, \
 	tune_syll_preprocessing_params
 from ava.preprocessing.utils import get_spec
 from ava.segmenting.refine_segments import refine_segments_pre_vae
-from ava.segmenting.segment import tune_segmenting_params, segment
+from ava.segmenting.segment import tune_segmenting_params
 from ava.segmenting.amplitude_segmentation import get_onsets_offsets
 from ava.segmenting.template_segmentation import get_template, segment_files, \
 	clean_collected_segments, segment_sylls_from_songs, read_segment_decisions
-from r_vae_utils import get_qps_km, qpvae_ds, calc_dkl, make_cleaned_plot, latents_motif_ds
 from ava.models.window_vae_dataset import get_window_partition, \
 				get_fixed_window_data_loaders, get_fixed_ordered_data_loaders_motif
-from ava.plotting.tooltip_plot import tooltip_plot
 
 FS = 42000
 
@@ -64,6 +62,22 @@ FS = 42000
 # if time after: increase window size, overlap
 # plot integrated trajectory on top of this
 
+def pca_analysis(model,loader):
+
+	latents = model.get_latent(loader)
+
+	#print(latents.shape)
+	latent_pca = PCA()
+
+	transformed_latents = latent_pca.fit_transform(latents)
+
+	v_explained_cumu = np.cumsum(latent_pca.explained_variance_ratio_)
+
+	ind = np.where(v_explained_cumu >= 0.99)[0][0]
+
+	print('Dimensionality of latents: {:d}'.format(ind + 1))
+
+	return transformed_latents, latents
 
 def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',datadir='',):
 
@@ -146,14 +160,14 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 		'spec_max_val': 7.0, # maximum log-spectrogram value
 		'fs': 44100, # audio samplerate
 		'get_spec': get_spec, # figure out what this is
-		'min_dur': 0.2, #0.015, # minimum syllable duration
-		'max_dur': 0.75, #0.25, #maximum syllable duration
+		'min_dur': 0.35, #0.015, # minimum syllable duration
+		'max_dur': 1.1, #0.25, #maximum syllable duration
 		'smoothing_timescale': 0.007, #amplitude
 		'temperature': 0.5, # softmax temperature parameter
 		'softmax': False, # apply softmax to frequency bins to calculate amplitude
-		'th_1': 20, # segmenting threshold 1
-		'th_2': 35, # segmenting threshold 2
-		'th_3': 60, # segmenting threshold 3
+		'th_1': 2.25, # segmenting threshold 1
+		'th_2': -1, # segmenting threshold 2
+		'th_3': 4.5, # segmenting threshold 3
 		'window_length': 0.10, # spec window, in s
 		'window_overlap':0.09, # overlap between spec windows, in s
 		'algorithm': get_onsets_offsets, #finding syllables
@@ -177,10 +191,11 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 #############################
 # 1) Amplitude segmentation #
 #############################
-	segment_params = tune_segmenting_params(dsb_audio_dirs,segment_params)
+	#segment_params = tune_segmenting_params(dsb_audio_dirs,segment_params)
 
-	for audio_dir, segment_dir in zip(dsb_audio_dirs, dsb_segment_dirs):
-		segment(audio_dir, segment_dir, segment_params)
+	#from ava.segmenting.segment import segment
+	#for audio_dir, segment_dir in zip(dsb_audio_dirs, dsb_segment_dirs):
+		#segment(audio_dir, segment_dir, segment_params)
 
 
 	# this is using full motifs, so it should be fine. if you want to use the actual youth song,
@@ -197,60 +212,76 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 #############################
 # 1) Train model            #
 #############################
-	if smoothness_dir != '':
-		save_file = os.path.join(smoothness_dir,'checkpoint_030.tar')
-		smooth_encoder = encoder()
-		smooth_decoder = decoder()
-		smooth_prior_vae = SmoothnessPriorVae(smooth_encoder,smooth_decoder,smoothness_dir)
-
-		if not os.path.isfile(save_file):
-			smooth_prior_vae.train_test_loop(loaders_for_prediction,epochs=31,test_freq=5,save_freq=10,vis_freq=10)
-		else:
-			smooth_prior_vae.load_state(save_file)
-	if time_recondir != '':
-		save_file = os.path.join(time_recondir,'checkpoint_030.tar')
-		time_encoder = encoder()
-		time_decoder = decoder()
-		time_vae = ReconstructTimeVae(time_encoder,time_decoder,time_recondir)
-
-		if not os.path.isfile(save_file):
-			time_vae.train_test_loop(loaders_for_prediction,epochs=31,test_freq=5,save_freq=10,vis_freq=10)
-		else:
-			time_vae.load_state(save_file)
 	if vanilla_dir != '':
-		save_file = os.path.join(vanilla_dir,'checkpoint_030.tar')
-
+		if not os.path.isdir(vanilla_dir):
+			os.mkdir(vanilla_dir)
+		save_file = os.path.join(vanilla_dir,'checkpoint_encoder_150.tar')
+		#print(save_file)
 		vanilla_encoder = encoder()
 		vanilla_decoder = decoder()
 		vanilla_vae = VAE_Base(vanilla_encoder,vanilla_decoder,vanilla_dir)
 
 		if not os.path.isfile(save_file):
-			vanilla_vae.train_test_loop(loaders_for_prediction,epochs=31,test_freq=5,save_freq=10,vis_freq=10)
+			print('training vanilla')
+			vanilla_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
 		else:
+			print('loading vanilla')
 			vanilla_vae.load_state(save_file)
+			vanilla_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
+			#vanilla_vae.test_epoch(loaders_for_prediction['test'])
+			loaders = []
+			for ind,day in enumerate(realTrainDays):
+				part = get_window_partition([dsb_audio_dirs[ind]],[dsb_segment_dirs[ind]],1.0)
+				part['test'] = part['train']
+				loader = get_fixed_ordered_data_loaders_motif(part,segment_params)
+				loaders.append(loader)
+			
+			for ind, l in enumerate(loaders):
+				print('Developmental day {} \n'.format(realTrainDays[ind]))
+				_,_ = pca_analysis(vanilla_vae,l['train'])
 
-	checkpoints = [] #glob.glob(os.path.join(root,'movie_vaeAR','*2[0-9][0-9].tar'))
-	names = [n.split('/')[-1] for n in checkpoints]
-	print(names)
-	all_latents = []
-	color_inds = []
-	ci = 0
-	print('loading checkpoints')
-	for c in checkpoints:
-		embedding_VAE.load_state(c)
-		indices = np.random.choice(np.arange(len(loaders_for_prediction['train'].dataset)),
-			size=100,replace=False)
-		(ims,days)=loaders_for_prediction['train'].dataset[indices]
+	if smoothness_dir != '':
+		if not os.path.isdir(smoothness_dir):
+			os.mkdir(smoothness_dir)
+		save_file = os.path.join(smoothness_dir,'checkpoint_encoder_150.tar')
+		smooth_encoder = encoder()
+		smooth_decoder = decoder()
+		smooth_prior_vae = SmoothnessPriorVae(smooth_encoder,smooth_decoder,smoothness_dir)
 
-		with torch.no_grad():
-			for ti,traj in enumerate(ims):
-				latent_traj = torch.stack(traj).to(torch.device('cuda'))
+		if not os.path.isfile(save_file):
+			print('training smooth')
+			smooth_prior_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
+		else:
+			print('loading smooth')
+			smooth_prior_vae.load_state(save_file)
+			smooth_prior_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
+			#smooth_prior_vae.test_epoch(loaders_for_prediction['test'])
+			
+			for ind, l in enumerate(loaders):
+				print('Developmental day {} \n'.format(realTrainDays[ind]))
+				_,_ = pca_analysis(smooth_prior_vae,l['train'])
 
-				mean_lat, _, _ = embedding_VAE.encode(latent_traj,[])
+	if time_recondir != '':
+		if not os.path.isdir(time_recondir):
+			os.mkdir(time_recondir)
+		save_file = os.path.join(time_recondir,'checkpoint_encoder_150.tar')
+		time_encoder = encoder()
+		time_decoder = decoder()
+		time_vae = ReconstructTimeVae(time_encoder,time_decoder,time_recondir)
 
-				all_latents.append(mean_lat.detach().cpu().numpy())
-				color_inds.append(ci*np.ones(mean_lat.shape[0],))
-		ci += 1
+		if not os.path.isfile(save_file):
+			print('training time')
+			time_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
+		else:
+			print('loading time')
+			time_vae.load_state(save_file)
+			#time_vae.test_epoch(loaders_for_prediction['test'])
+			time_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
+
+			
+			for ind, l in enumerate(loaders):
+				print('Developmental day {} \n'.format(realTrainDays[ind]))
+				_,_ = pca_analysis(time_vae,l['train'])
 	'''
 	print('umappin')
 	umap_latents = np.vstack(all_latents)
@@ -1294,4 +1325,4 @@ def time_weighted_distance(x,y,c = 10):
 if __name__ == '__main__':
 
 	root = '/home/mrmiews/Desktop/Pearson_Lab/'
-	bird_model_script(n_train_runs = 1, root = os.path.join(root,'model_for_movie'),figs=False)
+	fire.Fire(bird_model_script) #(n_train_runs = 1, root = os.path.join(root,'model_for_movie'),figs=False)
