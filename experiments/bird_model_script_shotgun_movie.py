@@ -349,6 +349,11 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 				print('Developmental day {} \n'.format(realTrainDays[ind]))
 				_,_ = pca_analysis(vanilla_vae,l['train'])
 			'''
+
+			'''
+			
+			Add in new analyses here!!!!
+			'''
 	if smoothness_dir != '':
 		if not os.path.isdir(smoothness_dir):
 			os.mkdir(smoothness_dir)
