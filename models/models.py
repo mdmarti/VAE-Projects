@@ -793,7 +793,7 @@ class ReconstructTimeVae(VAE_Base):
 
 			latents.append(z_mu.detach().cpu().numpy())
 
-		latents = np.vstack(latents)
+		#latents = np.vstack(latents)
 		return latents
 
 if __name__ == '__main__':

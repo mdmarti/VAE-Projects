@@ -79,14 +79,14 @@ def pca_analysis(model,loader):
 
 	return transformed_latents, latents
 
-def smoothness_analysis(model,loaders):
+def smoothness_analysis(model,loader):
 
 	## to implement: need to include loaders for all days.
 	## once you do so, implement MMD analysis for all days. visualize using UMAP, colored by MMD. 
 	## look at MMD distribution for each part of trajectory. maybe weight reconstruction by MMD also? 
 	## look at which vocalizations change the least (by MMD), which change the most positively, 
 	## which change the most negatively
-	
+
 	latents = model.get_latent(loader)
 
 	max_len_traj = max(list(map(len,latents)))
@@ -94,8 +94,6 @@ def smoothness_analysis(model,loaders):
 	mean_traj_day = np.empty((len(latents),max_len_traj,32))
 
 	mean_traj_day[:,:,:] = np.nan
-
-	start_ind = 0
 
 	for ind,traj in enumerate(latents):
 
@@ -113,8 +111,81 @@ def smoothness_analysis(model,loaders):
 	(status,stitched) = stitcher.stitch(frames)
 
 
+	ax = plt.gca()
+	im = ax.imshow(stitched,origin='lower',vmin=0,vmax=1)
+
+	plt.savefig('mean_image_.png')
 
 	return mean_traj, stitched
+
+def model_comparison_umap(vanilla,smoothprior,time_recon,loader,n_samples = 5):
+
+	print('getting vanilla latents')
+	latents_vanilla = vanilla.get_latent(loader)
+	print('getting smoothprior latents')
+	latents_smoothprior = smoothprior.get_latent(loader)
+	print('getting time latents')
+	latents_time = time_recon.get_latent(loader)
+
+	stacked_vanilla = np.vstack(latents_vanilla)
+	stacked_smooth = np.vstack(latents_smoothprior)
+	stacked_time = np.vstack(latents_time)
+	print(stacked_vanilla.shape)
+	print(stacked_smooth.shape)
+	print(stacked_time.shape)
+
+	latents_stacked = np.vstack([stacked_vanilla,stacked_smooth,stacked_time])
+
+
+	joint_umap = umap.UMAP(n_components=2, n_neighbors=20, min_dist=0.1, random_state=42)
+
+	print('fittin umap')
+	stacked_transformed = joint_umap.fit_transform(latents_stacked)
+	print('done!')
+	ax = plt.gca()
+
+	vanilla_shape = len(latents_vanilla)
+	smooth_shape = len(latents_smoothprior)
+	time_shape = len(latents_time)
+
+	vanilla_samps = np.random.choice(vanilla_shape,n_samples,replace=False)
+	smooth_samps = np.random.choice(smooth_shape,n_samples,replace=False)
+	time_samps = np.random.choice(time_shape,n_samples,replace=False)
+
+	print('plotting vanilla latents')
+	bg = ax.scatter(stacked_transformed[:,0],stacked_transformed[:,1],s=0.25,alpha=0.05,color='k')
+	for s in vanilla_samps:
+		tmp_samp = latents_vanilla[s]
+		tmp_umap = joint_umap.transform(tmp_samp)
+		ax.plot(tmp_umap[:,0],tmp_umap[:,1], color='r')
+
+	plt.savefig(os.path.join(vanilla.save_dir,'vanilla_latent_samples.png'))
+	plt.close('all')
+	ax = plt.gca()
+	print('plotting smooth prior latents')
+	bg = ax.scatter(stacked_transformed[:,0],stacked_transformed[:,1],s=0.25,alpha=0.05,color='k')
+	for s in smooth_samps:
+		tmp_samp = latents_smoothprior[s]
+		tmp_umap = joint_umap.transform(tmp_samp)
+		ax.plot(tmp_umap[:,0],tmp_umap[:,1], color='r')
+
+	plt.savefig(os.path.join(smoothprior.save_dir,'smoothprior_latent_samples.png'))
+	plt.close('all')
+	ax = plt.gca()
+	print('plotting time recon latents')
+	bg = ax.scatter(stacked_transformed[:,0],stacked_transformed[:,1],s=0.25,alpha=0.05,color='k')
+	for s in time_samps:
+		tmp_samp = latents_time[s]
+		tmp_umap = joint_umap.transform(tmp_samp)
+		ax.plot(tmp_umap[:,0],tmp_umap[:,1], color='r')
+
+	plt.savefig(os.path.join(time_recon.save_dir,'timerecon_latent_samples.png'))
+	plt.close('all')
+
+	return
+
+
+
 
 
 def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',datadir='',):
@@ -253,7 +324,7 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 	if vanilla_dir != '':
 		if not os.path.isdir(vanilla_dir):
 			os.mkdir(vanilla_dir)
-		save_file = os.path.join(vanilla_dir,'checkpoint_encoder_150.tar')
+		save_file = os.path.join(vanilla_dir,'checkpoint_encoder_300.tar')
 		#print(save_file)
 		vanilla_encoder = encoder()
 		vanilla_decoder = decoder()
@@ -265,7 +336,7 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 		else:
 			print('loading vanilla')
 			vanilla_vae.load_state(save_file)
-			vanilla_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
+			#vanilla_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
 			#vanilla_vae.test_epoch(loaders_for_prediction['test'])
 			loaders = []
 			for ind,day in enumerate(realTrainDays):
@@ -273,15 +344,15 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 				part['test'] = part['train']
 				loader = get_fixed_ordered_data_loaders_motif(part,segment_params)
 				loaders.append(loader)
-			
+			'''
 			for ind, l in enumerate(loaders):
 				print('Developmental day {} \n'.format(realTrainDays[ind]))
 				_,_ = pca_analysis(vanilla_vae,l['train'])
-
+			'''
 	if smoothness_dir != '':
 		if not os.path.isdir(smoothness_dir):
 			os.mkdir(smoothness_dir)
-		save_file = os.path.join(smoothness_dir,'checkpoint_encoder_150.tar')
+		save_file = os.path.join(smoothness_dir,'checkpoint_encoder_300.tar')
 		smooth_encoder = encoder()
 		smooth_decoder = decoder()
 		smooth_prior_vae = SmoothnessPriorVae(smooth_encoder,smooth_decoder,smoothness_dir)
@@ -292,17 +363,17 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 		else:
 			print('loading smooth')
 			smooth_prior_vae.load_state(save_file)
-			smooth_prior_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
+			#smooth_prior_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
 			#smooth_prior_vae.test_epoch(loaders_for_prediction['test'])
-			
+			'''
 			for ind, l in enumerate(loaders):
 				print('Developmental day {} \n'.format(realTrainDays[ind]))
 				_,_ = pca_analysis(smooth_prior_vae,l['train'])
-
+			'''
 	if time_recondir != '':
 		if not os.path.isdir(time_recondir):
 			os.mkdir(time_recondir)
-		save_file = os.path.join(time_recondir,'checkpoint_encoder_150.tar')
+		save_file = os.path.join(time_recondir,'checkpoint_encoder_300.tar')
 		time_encoder = encoder()
 		time_decoder = decoder()
 		time_vae = ReconstructTimeVae(time_encoder,time_decoder,time_recondir)
@@ -314,12 +385,16 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 			print('loading time')
 			time_vae.load_state(save_file)
 			#time_vae.test_epoch(loaders_for_prediction['test'])
-			time_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
+			#time_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
 
-			
+			'''
 			for ind, l in enumerate(loaders):
 				print('Developmental day {} \n'.format(realTrainDays[ind]))
 				_,_ = pca_analysis(time_vae,l['train'])
+			'''
+
+	print('doing model comparison')
+	model_comparison_umap(vanilla_vae,smooth_prior_vae,time_vae,loaders_for_prediction['test'])
 	'''
 	print('umappin')
 	umap_latents = np.vstack(all_latents)
