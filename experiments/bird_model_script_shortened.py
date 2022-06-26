@@ -103,18 +103,23 @@ def smoothness_analysis(model,loader):
 
 	mean_recon_day = model.decoder.decode(numpy_to_tensor(mean_traj).to(model.device))
 
+	mean_recon_day = mean_recon_day.detach().cpu().numpy()#.astype('uint8')
+	
 	frames = []
 	for spec in mean_recon_day:
-		frames.append(spec)
+		
+		frames.append(np.squeeze(spec))
 
-	stitcher = cv2.createStitcher()
+	frames = tuple(frames)
+	stitcher = cv2.Stitcher_create(cv2.Stitcher_PANORAMA)
+	stitcher.setPanoConfidenceThresh(0.02)
 	(status,stitched) = stitcher.stitch(frames)
-
-
+	print(status)
+	print(type(stitched))
 	ax = plt.gca()
 	im = ax.imshow(stitched,origin='lower',vmin=0,vmax=1)
 
-	plt.savefig(os.path.join(loader.save_dir,'mean_image_.png'))
+	plt.savefig(os.path.join(model.save_dir,'mean_image_.png'))
 
 	return mean_traj, stitched
 
@@ -344,6 +349,9 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 				part['test'] = part['train']
 				loader = get_fixed_ordered_data_loaders_motif(part,segment_params)
 				loaders.append(loader)
+			#print(loaders[0])
+			mean,_ = smoothness_analysis(vanilla_vae,loaders[0]['train'])
+
 			'''
 			for ind, l in enumerate(loaders):
 				print('Developmental day {} \n'.format(realTrainDays[ind]))
@@ -370,6 +378,7 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 			smooth_prior_vae.load_state(save_file)
 			#smooth_prior_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
 			#smooth_prior_vae.test_epoch(loaders_for_prediction['test'])
+			mean,_ = smoothness_analysis(smooth_prior_vae,loaders[0]['train'])
 			'''
 			for ind, l in enumerate(loaders):
 				print('Developmental day {} \n'.format(realTrainDays[ind]))
@@ -391,6 +400,7 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 			time_vae.load_state(save_file)
 			#time_vae.test_epoch(loaders_for_prediction['test'])
 			#time_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
+			mean,_ = smoothness_analysis(time_vae,loaders[0]['train'])
 
 			'''
 			for ind, l in enumerate(loaders):
