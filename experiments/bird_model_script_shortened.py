@@ -282,8 +282,8 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 		'th_1': 2.25, # segmenting threshold 1
 		'th_2': -1, # segmenting threshold 2
 		'th_3': 4.5, # segmenting threshold 3
-		'window_length': 0.10, # spec window, in s
-		'window_overlap':0.09, # overlap between spec windows, in s
+		'window_length': 0.12, # spec window, in s
+		'window_overlap':0.06, # overlap between spec windows, in s
 		'algorithm': get_onsets_offsets, #finding syllables
 		'num_freq_bins': X_SHAPE[0],
 		'num_time_bins': X_SHAPE[1],
@@ -337,7 +337,7 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 
 		if not os.path.isfile(save_file):
 			print('training vanilla')
-			vanilla_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
+			vanilla_vae.train_test_loop(loaders_for_prediction,epochs=301,test_freq=5,save_freq=50,vis_freq=25)
 		else:
 			print('loading vanilla')
 			vanilla_vae.load_state(save_file)
@@ -350,7 +350,7 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 				loader = get_fixed_ordered_data_loaders_motif(part,segment_params)
 				loaders.append(loader)
 			#print(loaders[0])
-			mean,_ = smoothness_analysis(vanilla_vae,loaders[0]['train'])
+			#mean,_ = smoothness_analysis(vanilla_vae,loaders[0]['train'])
 
 			'''
 			for ind, l in enumerate(loaders):
@@ -372,13 +372,13 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 
 		if not os.path.isfile(save_file):
 			print('training smooth')
-			smooth_prior_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
+			smooth_prior_vae.train_test_loop(loaders_for_prediction,epochs=301,test_freq=5,save_freq=50,vis_freq=25)
 		else:
 			print('loading smooth')
 			smooth_prior_vae.load_state(save_file)
 			#smooth_prior_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
 			#smooth_prior_vae.test_epoch(loaders_for_prediction['test'])
-			mean,_ = smoothness_analysis(smooth_prior_vae,loaders[0]['train'])
+			#mean,_ = smoothness_analysis(smooth_prior_vae,loaders[0]['train'])
 			'''
 			for ind, l in enumerate(loaders):
 				print('Developmental day {} \n'.format(realTrainDays[ind]))
@@ -394,13 +394,13 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 
 		if not os.path.isfile(save_file):
 			print('training time')
-			time_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
+			time_vae.train_test_loop(loaders_for_prediction,epochs=301,test_freq=5,save_freq=50,vis_freq=25)
 		else:
 			print('loading time')
 			time_vae.load_state(save_file)
 			#time_vae.test_epoch(loaders_for_prediction['test'])
 			#time_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
-			mean,_ = smoothness_analysis(time_vae,loaders[0]['train'])
+			#mean,_ = smoothness_analysis(time_vae,loaders[0]['train'])
 
 			'''
 			for ind, l in enumerate(loaders):

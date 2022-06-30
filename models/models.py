@@ -77,7 +77,6 @@ class encoder(nn.Module):
 
 		h = self.encoder_conv(x)
 		h = h.view(-1,8192)
-		
 		h = torch.cat((h,encode_times.unsqueeze(1)),dim=1)
 		h = self.encoder_fc(h)
 		mu = F.relu(self.fc11(h))
@@ -608,7 +607,7 @@ class ReconstructTimeVae(VAE_Base):
 			#spec = torch.stack(spec,axis=0)
 			spec = spec.to(self.device).squeeze().unsqueeze(1)
 			start_time = 0.0
-			end_time = dt * spec.shape[0]
+			end_time = dt * spec.shape[0] - dt/2
 			encode_times = torch.arange(start_time,end_time,dt,device=self.device)
 			loss,lp,kl,tr = self.compute_loss(spec,encode_times)
 
@@ -649,7 +648,7 @@ class ReconstructTimeVae(VAE_Base):
 			#spec = torch.stack(spec,axis=0)
 			spec = spec.to(self.device).squeeze().unsqueeze(1)
 			start_time = 0.0
-			end_time = dt * spec.shape[0]
+			end_time = dt * spec.shape[0] - dt/2
 			encode_times = torch.arange(start_time,end_time,dt,device=self.device)
 			with torch.no_grad():
 				loss,lp,kl,tr = self.compute_loss(spec,encode_times)
@@ -712,7 +711,7 @@ class ReconstructTimeVae(VAE_Base):
 			# Retrieve spectrograms from the loader.
 			# Get resonstructions.
 			start_time = 0.0
-			end_time = dt * spec.shape[0]
+			end_time = dt * spec.shape[0] - dt/2
 			encode_times = torch.arange(start_time,end_time,dt,device=self.device)
 			with torch.no_grad():
 				_, _, _,_,rec_specs = self.compute_loss(spec, encode_times,return_recon=True)
@@ -785,7 +784,7 @@ class ReconstructTimeVae(VAE_Base):
 
 			spec = spec.to(self.device).squeeze().unsqueeze(1)
 			start_time = 0.0
-			end_time = dt * spec.shape[0]
+			end_time = dt * spec.shape[0] - dt/2
 			encode_times = torch.arange(start_time,end_time,dt,device=self.device)
 
 			with torch.no_grad():
