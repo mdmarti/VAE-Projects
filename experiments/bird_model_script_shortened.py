@@ -104,7 +104,7 @@ def smoothness_analysis(model,loader):
 
 	return mean_traj, stitched
 
-def model_comparison_umap(vanilla,smoothprior,time_recon,loader,n_samples = 5):
+def model_comparison_umap(vanilla,smoothprior,time_recon,loader,n_samples = 5,day_name='',joint_umap = None,return_umap=True):
 
 	print('getting vanilla latents')
 	latents_vanilla = vanilla.get_latent(loader)
@@ -122,11 +122,17 @@ def model_comparison_umap(vanilla,smoothprior,time_recon,loader,n_samples = 5):
 
 	latents_stacked = np.vstack([stacked_vanilla,stacked_smooth,stacked_time])
 
+	if joint_umap is None:
+		joint_umap = umap.UMAP(n_components=2, n_neighbors=20, min_dist=0.1, random_state=42)
 
-	joint_umap = umap.UMAP(n_components=2, n_neighbors=20, min_dist=0.1, random_state=42)
+		print('fittin umap')
+		stacked_transformed = joint_umap.fit_transform(latents_stacked)
+	else:
+		stacked_transformed = joint_umap.transform(latents_stacked)
 
-	print('fittin umap')
-	stacked_transformed = joint_umap.fit_transform(latents_stacked)
+	vanilla_transformed = joint_umap.transform(stacked_vanilla)
+	smooth_transformed = joint_umap.transform(stacked_smooth)
+	time_transformed = joint_umap.transform(stacked_time)
 	print('done!')
 	ax = plt.gca()
 
@@ -140,35 +146,48 @@ def model_comparison_umap(vanilla,smoothprior,time_recon,loader,n_samples = 5):
 
 	print('plotting vanilla latents')
 	bg = ax.scatter(stacked_transformed[:,0],stacked_transformed[:,1],s=0.25,alpha=0.05,color='k')
+	fg = ax.scatter(vanilla_transformed[:,0],vanilla_transformed[:,1],s=0.25,alpha=0.05,color='#FAC559')
 	for s in vanilla_samps:
 		tmp_samp = latents_vanilla[s]
 		tmp_umap = joint_umap.transform(tmp_samp)
-		ax.plot(tmp_umap[:,0],tmp_umap[:,1], color='r')
-
-	plt.savefig(os.path.join(vanilla.save_dir,'vanilla_latent_samples.png'))
+		#ax.plot(tmp_umap[:,0],tmp_umap[:,1], color='r')
+	if day_name == '':
+		plt.savefig(os.path.join(vanilla.save_dir,'vanilla_latent_samples.png'))
+	else:
+		plt.savefig(os.path.join(vanilla.save_dir,'vanilla_latent_samples_' + day_name + '.png'))
 	plt.close('all')
 	ax = plt.gca()
 	print('plotting smooth prior latents')
 	bg = ax.scatter(stacked_transformed[:,0],stacked_transformed[:,1],s=0.25,alpha=0.05,color='k')
+	fg = ax.scatter(smooth_transformed[:,0],smooth_transformed[:,1],s=0.25,alpha=0.05,color='#E0B5D3')
 	for s in smooth_samps:
 		tmp_samp = latents_smoothprior[s]
 		tmp_umap = joint_umap.transform(tmp_samp)
-		ax.plot(tmp_umap[:,0],tmp_umap[:,1], color='r')
+		#ax.plot(tmp_umap[:,0],tmp_umap[:,1], color='r')
 
-	plt.savefig(os.path.join(smoothprior.save_dir,'smoothprior_latent_samples.png'))
+	if day_name == '':
+		plt.savefig(os.path.join(smoothprior.save_dir,'smoothprior_latent_samples.png'))
+	else:
+		plt.savefig(os.path.join(smoothprior.save_dir,'smoothprior_latent_samples_' + day_name + '.png'))
 	plt.close('all')
 	ax = plt.gca()
 	print('plotting time recon latents')
 	bg = ax.scatter(stacked_transformed[:,0],stacked_transformed[:,1],s=0.25,alpha=0.05,color='k')
+	fg = ax.scatter(time_transformed[:,0],time_transformed[:,1],s=0.25,alpha=0.05,color='#68A9CF')
 	for s in time_samps:
 		tmp_samp = latents_time[s]
 		tmp_umap = joint_umap.transform(tmp_samp)
-		ax.plot(tmp_umap[:,0],tmp_umap[:,1], color='r')
-
-	plt.savefig(os.path.join(time_recon.save_dir,'timerecon_latent_samples.png'))
+		#ax.plot(tmp_umap[:,0],tmp_umap[:,1], color='r')
+	if day_name == '':
+		plt.savefig(os.path.join(time_recon.save_dir,'timerecon_latent_samples.png'))
+	else:
+		plt.savefig(os.path.join(time_recon.save_dir,'timerecon_latent_samples_' + day_name + '.png'))
 	plt.close('all')
 
-	return
+	if return_umap:
+		return joint_umap
+	else:
+		return
 
 
 
@@ -391,7 +410,15 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 			'''
 
 	print('doing model comparison')
-	model_comparison_umap(vanilla_vae,smooth_prior_vae,time_vae,loaders_for_prediction['test'])
+	joint_umap = model_comparison_umap(vanilla_vae,smooth_prior_vae,time_vae,loaders_for_prediction['test'],day_name='')
+
+	for day in trainDays:
+		motif_part = get_window_partition([os.path.join(datadir,dsb[0],'audio',day)],[os.path.join(datadir,dsb[0],'syll_segs',day)],1.0)
+		motif_part['test'] = motif_part['train']
+		print('getting prediction loader')
+		loaders_for_prediction = get_fixed_ordered_data_loaders_motif(motif_part,segment_params)
+		model_comparison_umap(vanilla_vae,smooth_prior_vae,time_vae,loaders_for_prediction['test'],day_name=day,joint_umap=joint_umap,return_umap=False)
+
 	'''
 	print('umappin')
 	umap_latents = np.vstack(all_latents)
