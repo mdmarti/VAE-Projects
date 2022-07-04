@@ -14,40 +14,21 @@ from colour import Color
 import numpy as np
 import os
 import cv2
-from sklearn.cluster import KMeans, AgglomerativeClustering
-from sklearn.decomposition import PCA, FastICA
-from sklearn.tree import DecisionTreeRegressor
-from sklearn.datasets import make_moons
-from sklearn.linear_model import LinearRegression
-import scipy
-
-import torch
+from sklearn.decomposition import PCA
 import umap
-
-from torch.utils.data import Dataset, DataLoader
-from torch.distributions import LowRankMultivariateNormal
-from joblib import Parallel, delayed
 import numpy as np
 import os
-import numba
 
 
-from ava.data.data_container import DataContainer
-from ava.models.vae import X_SHAPE, VAE
-from ava.models.vae_dataset import get_syllable_partition, \
-	get_syllable_data_loaders
-from ava.preprocessing.preprocess import process_sylls, \
-	tune_syll_preprocessing_params
 from ava.preprocessing.utils import get_spec
-from ava.segmenting.refine_segments import refine_segments_pre_vae
 from ava.segmenting.segment import tune_segmenting_params
 from ava.segmenting.amplitude_segmentation import get_onsets_offsets
-from ava.segmenting.template_segmentation import get_template, segment_files, \
-	clean_collected_segments, segment_sylls_from_songs, read_segment_decisions
+
 from ava.models.window_vae_dataset import get_window_partition, \
-				get_fixed_window_data_loaders, get_fixed_ordered_data_loaders_motif
+				get_fixed_ordered_data_loaders_motif
 
 FS = 42000
+from ava.models.vae import X_SHAPE
 
 ##### TO-DO ##################
 # for all below points: just use a subset of data!!!! We don't need it all!!!
@@ -193,7 +174,7 @@ def model_comparison_umap(vanilla,smoothprior,time_recon,loader,n_samples = 5):
 
 
 
-def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',datadir='',):
+def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',datadir='',segment=False):
 
 ########## Setting up directory lists: separate into train, test dirs
 ############# Expected File Structure
@@ -305,11 +286,12 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 #############################
 # 1) Amplitude segmentation #
 #############################
-	#segment_params = tune_segmenting_params(dsb_audio_dirs,segment_params)
+	if segment:
+		segment_params = tune_segmenting_params(dsb_audio_dirs,segment_params)
 
-	#from ava.segmenting.segment import segment
-	#for audio_dir, segment_dir in zip(dsb_audio_dirs, dsb_segment_dirs):
-		#segment(audio_dir, segment_dir, segment_params)
+		from ava.segmenting.segment import segment
+		for audio_dir, segment_dir in zip(dsb_audio_dirs, dsb_segment_dirs):
+			segment(audio_dir, segment_dir, segment_params)
 
 
 	# this is using full motifs, so it should be fine. if you want to use the actual youth song,
