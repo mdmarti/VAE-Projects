@@ -533,9 +533,9 @@ class VAE_Base(nn.Module):
 
 class SmoothnessPriorVae(VAE_Base):
 
-	def __init__(self, encoder, decoder,save_dir,lr=1e-4):
+	def __init__(self, encoder, decoder,save_dir,lr=1e-4,plots_dir=''):
 
-		super(SmoothnessPriorVae,self).__init__(encoder, decoder,save_dir,lr=1e-4)
+		super(SmoothnessPriorVae,self).__init__(encoder, decoder,save_dir,lr=1e-4,plots_dir=plots_dir)
 
 	def _compute_kl_loss(self, mu, u, d):
 
@@ -562,9 +562,9 @@ class SmoothnessPriorVae(VAE_Base):
 
 class ReconstructTimeVae(VAE_Base):
 
-	def __init__(self, encoder, decoder,save_dir,lr=1e-4):
+	def __init__(self, encoder, decoder,save_dir,lr=1e-4,plots_dir=''):
 
-		super(ReconstructTimeVae,self).__init__(encoder, decoder,save_dir,lr=1e-4)
+		super(ReconstructTimeVae,self).__init__(encoder, decoder,save_dir,lr=1e-4,plots_dir=plots_dir)
 
 	def compute_loss(self,x,encode_times,return_recon = False,weight=128**3):
 

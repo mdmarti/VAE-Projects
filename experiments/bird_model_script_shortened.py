@@ -334,7 +334,7 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 		#print(save_file)
 		vanilla_encoder = encoder()
 		vanilla_decoder = decoder()
-		vanilla_vae = VAE_Base(vanilla_encoder,vanilla_decoder,vanilla_dirplots_dir=os.path.join(vanilla_dir,'plots_shortwindow'))
+		vanilla_vae = VAE_Base(vanilla_encoder,vanilla_decoder,vanilla_dir,plots_dir=os.path.join(vanilla_dir,'plots_shortwindow'))
 
 		if not os.path.isfile(save_file):
 			print('training vanilla')
@@ -391,7 +391,7 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 		save_file = os.path.join(time_recondir,'checkpoint_encoder_300.tar')
 		time_encoder = encoder()
 		time_decoder = decoder()
-		time_vae = ReconstructTimeVae(time_encoder,time_decoder,time_recondirplots_dir=os.path.join(time_recondir,'plots_shortwindow'))
+		time_vae = ReconstructTimeVae(time_encoder,time_decoder,time_recondir,plots_dir=os.path.join(time_recondir,'plots_shortwindow'))
 
 		if not os.path.isfile(save_file):
 			print('training time')
