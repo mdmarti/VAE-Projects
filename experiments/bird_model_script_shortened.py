@@ -152,9 +152,9 @@ def model_comparison_umap(vanilla,smoothprior,time_recon,loader,n_samples = 5,da
 		tmp_umap = joint_umap.transform(tmp_samp)
 		#ax.plot(tmp_umap[:,0],tmp_umap[:,1], color='r')
 	if day_name == '':
-		plt.savefig(os.path.join(vanilla.save_dir,'vanilla_latent_samples.png'))
+		plt.savefig(os.path.join(vanilla.plots_dir,'vanilla_latent_samples.png'))
 	else:
-		plt.savefig(os.path.join(vanilla.save_dir,'vanilla_latent_samples_' + day_name + '.png'))
+		plt.savefig(os.path.join(vanilla.plots_dir,'vanilla_latent_samples_' + day_name + '.png'))
 	plt.close('all')
 	ax = plt.gca()
 	print('plotting smooth prior latents')
@@ -166,9 +166,9 @@ def model_comparison_umap(vanilla,smoothprior,time_recon,loader,n_samples = 5,da
 		#ax.plot(tmp_umap[:,0],tmp_umap[:,1], color='r')
 
 	if day_name == '':
-		plt.savefig(os.path.join(smoothprior.save_dir,'smoothprior_latent_samples.png'))
+		plt.savefig(os.path.join(smoothprior.plots_dir,'smoothprior_latent_samples.png'))
 	else:
-		plt.savefig(os.path.join(smoothprior.save_dir,'smoothprior_latent_samples_' + day_name + '.png'))
+		plt.savefig(os.path.join(smoothprior.plots_dir,'smoothprior_latent_samples_' + day_name + '.png'))
 	plt.close('all')
 	ax = plt.gca()
 	print('plotting time recon latents')
@@ -179,9 +179,9 @@ def model_comparison_umap(vanilla,smoothprior,time_recon,loader,n_samples = 5,da
 		tmp_umap = joint_umap.transform(tmp_samp)
 		#ax.plot(tmp_umap[:,0],tmp_umap[:,1], color='r')
 	if day_name == '':
-		plt.savefig(os.path.join(time_recon.save_dir,'timerecon_latent_samples.png'))
+		plt.savefig(os.path.join(time_recon.plots_dir,'timerecon_latent_samples.png'))
 	else:
-		plt.savefig(os.path.join(time_recon.save_dir,'timerecon_latent_samples_' + day_name + '.png'))
+		plt.savefig(os.path.join(time_recon.plots_dir,'timerecon_latent_samples_' + day_name + '.png'))
 	plt.close('all')
 
 	if return_umap:
