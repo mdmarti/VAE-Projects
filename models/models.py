@@ -176,14 +176,17 @@ class decoder(nn.Module):
 
 class VAE_Base(nn.Module):
 
-	def __init__(self, encoder, decoder,save_dir,lr=1e-4):
+	def __init__(self, encoder, decoder,save_dir,lr=1e-4,plots_dir=''):
 
 		super(VAE_Base,self).__init__()
 
 		self.encoder = encoder 
 		self.decoder = decoder 
 		self.z_dim = self.encoder.z_dim
-		self.save_dir = save_dir 
+		self.save_dir = save_dir
+		if not os.path.isdir(plots_dir):
+			os.mkdir(plots_dir)
+		self.plots_dir = plots_dir 
 		self.epoch = 0
 		self.lr = lr
 		self.loss = {'train': {}, 'test': {}}
@@ -390,7 +393,7 @@ class VAE_Base(nn.Module):
 			#all_specs = np.stack([specs, rec_specs])
 		# Plot.
 			save_fn = 'reconstruction_epoch_' + str(self.epoch) + '_' + str(im) + '.png' 
-			save_filename = os.path.join(self.save_dir, save_fn)
+			save_filename = os.path.join(self.plots_dir, save_fn)
 
 			plt.savefig(save_filename)
 			plt.close('all')
@@ -418,7 +421,7 @@ class VAE_Base(nn.Module):
 			#all_specs = np.stack([specs, rec_specs])
 		# Plot.
 			save_fn = 'real_epoch_' + str(self.epoch) + '_' + str(im) + '.png' 
-			save_filename = os.path.join(self.save_dir, save_fn)
+			save_filename = os.path.join(self.plots_dir, save_fn)
 
 			plt.savefig(save_filename)
 			plt.close('all')
@@ -739,7 +742,7 @@ class ReconstructTimeVae(VAE_Base):
 			#all_specs = np.stack([specs, rec_specs])
 		# Plot.
 			save_fn = 'reconstruction_epoch_' + str(self.epoch) + '_' + str(im) + '.png' 
-			save_filename = os.path.join(self.save_dir, save_fn)
+			save_filename = os.path.join(self.plots_dir, save_fn)
 
 			plt.savefig(save_filename)
 			plt.close('all')
@@ -766,7 +769,7 @@ class ReconstructTimeVae(VAE_Base):
 			#all_specs = np.stack([specs, rec_specs])
 		# Plot.
 			save_fn = 'real_epoch_' + str(self.epoch) + '_' + str(im) + '.png' 
-			save_filename = os.path.join(self.save_dir, save_fn)
+			save_filename = os.path.join(self.plots_dir, save_fn)
 
 			plt.savefig(save_filename)
 			plt.close('all')

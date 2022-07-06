@@ -282,8 +282,8 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 		'th_1': 2.25, # segmenting threshold 1
 		'th_2': -1, # segmenting threshold 2
 		'th_3': 4.5, # segmenting threshold 3
-		'window_length': 0.12, # spec window, in s
-		'window_overlap':0.06, # overlap between spec windows, in s
+		'window_length': 0.10, # spec window, in s
+		'window_overlap':0.05, # overlap between spec windows, in s
 		'algorithm': get_onsets_offsets, #finding syllables
 		'num_freq_bins': X_SHAPE[0],
 		'num_time_bins': X_SHAPE[1],
@@ -334,7 +334,7 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 		#print(save_file)
 		vanilla_encoder = encoder()
 		vanilla_decoder = decoder()
-		vanilla_vae = VAE_Base(vanilla_encoder,vanilla_decoder,vanilla_dir)
+		vanilla_vae = VAE_Base(vanilla_encoder,vanilla_decoder,vanilla_dirplots_dir=os.path.join(vanilla_dir,'plots_shortwindow'))
 
 		if not os.path.isfile(save_file):
 			print('training vanilla')
@@ -369,7 +369,7 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 		save_file = os.path.join(smoothness_dir,'checkpoint_encoder_300.tar')
 		smooth_encoder = encoder()
 		smooth_decoder = decoder()
-		smooth_prior_vae = SmoothnessPriorVae(smooth_encoder,smooth_decoder,smoothness_dir)
+		smooth_prior_vae = SmoothnessPriorVae(smooth_encoder,smooth_decoder,smoothness_dir,plots_dir=os.path.join(smoothness_dir,'plots_shortwindow'))
 
 		if not os.path.isfile(save_file):
 			print('training smooth')
@@ -391,7 +391,7 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 		save_file = os.path.join(time_recondir,'checkpoint_encoder_300.tar')
 		time_encoder = encoder()
 		time_decoder = decoder()
-		time_vae = ReconstructTimeVae(time_encoder,time_decoder,time_recondir)
+		time_vae = ReconstructTimeVae(time_encoder,time_decoder,time_recondirplots_dir=os.path.join(time_recondir,'plots_shortwindow'))
 
 		if not os.path.isfile(save_file):
 			print('training time')
