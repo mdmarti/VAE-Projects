@@ -107,19 +107,25 @@ def smoothness_analysis(model,loader):
 def model_comparison_umap(vanilla,smoothprior,time_recon,loader,n_samples = 5,day_name='',joint_umap = None,return_umap=True):
 
 	print('getting vanilla latents')
-	latents_vanilla = vanilla.get_latent(loader)
+	latents_vanilla,et_vanilla = vanilla.get_latent(loader)
 	print('getting smoothprior latents')
-	latents_smoothprior = smoothprior.get_latent(loader)
+	latents_smoothprior,et_smoothprior = smoothprior.get_latent(loader)
 	print('getting time latents')
-	latents_time = time_recon.get_latent(loader)
+	latents_time,et_time = time_recon.get_latent(loader)
 
 	stacked_vanilla = np.vstack(latents_vanilla)
 	stacked_smooth = np.vstack(latents_smoothprior)
 	stacked_time = np.vstack(latents_time)
-	print(stacked_vanilla.shape)
-	print(stacked_smooth.shape)
-	print(stacked_time.shape)
-
+	vanilla_time = np.hstack(et_vanilla)
+	smooth_time = np.hstack(et_smoothprior)
+	time_time = np.hstack(et_time)
+	#print(stacked_vanilla.shape)
+	#print(stacked_smooth.shape)
+	#print(stacked_time.shape)
+	#print(vanilla_time.shape)
+	#print(smooth_time.shape)
+	#print(time_time.shape)
+	#assert False
 	latents_stacked = np.vstack([stacked_vanilla,stacked_smooth,stacked_time])
 
 	if joint_umap is None:
@@ -134,6 +140,21 @@ def model_comparison_umap(vanilla,smoothprior,time_recon,loader,n_samples = 5,da
 	smooth_transformed = joint_umap.transform(stacked_smooth)
 	time_transformed = joint_umap.transform(stacked_time)
 	print('done!')
+	
+	ax = plt.gca()
+	vanilla_fg = ax.scatter(vanilla_transformed[:,0],vanilla_transformed[:,1],\
+		s=0.25,marker='s',alpha=0.05,c=vanilla_time,cmap='winter')
+	smooth_fg = ax.scatter(smooth_transformed[:,0],smooth_transformed[:,1],\
+		s=0.25,marker='*',alpha=0.05,c=vanilla_time,cmap='winter')
+	time_fg = ax.scatter(time_transformed[:,0],time_transformed[:,1],\
+		s=0.25,marker='+',alpha=0.05,c=vanilla_time,cmap='winter')
+	if day_name == '':
+		plt.savefig(os.path.join(vanilla.plots_dir,'all_latent_samples_time_colored.png'))
+	else:
+		plt.savefig(os.path.join(vanilla.plots_dir,'all_latent_samples_time_colored_' + day_name + '.png'))
+	plt.close('all')
+
+	
 	ax = plt.gca()
 
 	vanilla_shape = len(latents_vanilla)
@@ -264,7 +285,10 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 	####################################
 	# 0.5) Define segmenting parameters #
 	#####################################
-
+	# now trained on window length 0.12, overlap 0.06
+	# short window is length 0.10, overlap 0.05
+	# shorter is length 0.08, overlap 0.04
+	#shortshorter is 0.06,overlap 0.03
 	segment_params = {
 		'min_freq': 10, # minimum frequency
 		'max_freq': 22000, #maximum frequency
@@ -282,8 +306,8 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 		'th_1': 2.25, # segmenting threshold 1
 		'th_2': -1, # segmenting threshold 2
 		'th_3': 4.5, # segmenting threshold 3
-		'window_length': 0.10, # spec window, in s
-		'window_overlap':0.05, # overlap between spec windows, in s
+		'window_length': 0.12, # spec window, in s
+		'window_overlap':0.06, # overlap between spec windows, in s
 		'algorithm': get_onsets_offsets, #finding syllables
 		'num_freq_bins': X_SHAPE[0],
 		'num_time_bins': X_SHAPE[1],

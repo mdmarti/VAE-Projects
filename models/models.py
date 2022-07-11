@@ -477,20 +477,27 @@ class VAE_Base(nn.Module):
 	def get_latent(self,loader):
 
 		latents = []
-
+		encode_times_all = []
 		for ind, batch in enumerate(loader):
-
+			dt = loader.dataset.dt
 			(spec,day) = batch 
 			day = day.to(self.device)
 
+			
+
 			spec = spec.to(self.device).squeeze().unsqueeze(1)
+			start_time = 0.0
+			end_time = dt * spec.shape[0] - dt/2
+			
+			encode_times = torch.arange(start_time,end_time,dt,device=self.device)
 			with torch.no_grad():
 				z_mu,_,_ = self.encoder.encode(spec)
 
+			assert z_mu.shape[0] == len(encode_times), print('zmu shape: {}, encode_times shape: {}'.format(z_mu.shape,encode_times.shape))
 			latents.append(z_mu.detach().cpu().numpy())
-
+			encode_times_all.append(encode_times.detach().cpu().numpy())
 		#latents = np.vstack(latents)
-		return latents
+		return latents,encode_times_all
 
 	def save_state(self):
 
@@ -778,6 +785,7 @@ class ReconstructTimeVae(VAE_Base):
 	def get_latent(self,loader):
 
 		latents = []
+		encode_times_all = []
 		dt = loader.dataset.dt
 
 		for ind, batch in enumerate(loader):
@@ -794,9 +802,9 @@ class ReconstructTimeVae(VAE_Base):
 				z_mu,_,_ = self.encoder.encode_with_time(spec,encode_times)
 
 			latents.append(z_mu.detach().cpu().numpy())
-
+			encode_times_all.append(encode_times.detach().cpu().numpy())
 		#latents = np.vstack(latents)
-		return latents
+		return latents, encode_times_all
 
 if __name__ == '__main__':
 
