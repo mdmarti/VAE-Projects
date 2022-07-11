@@ -147,15 +147,17 @@ def model_comparison_umap(vanilla,smoothprior,time_recon,loader,n_samples = 5,da
 	vanilla_choice = vanilla_transformed[v_ord,:]
 	smooth_choice = smooth_transformed[s_ord,:]
 	time_choice = time_transformed[t_ord,:]
+	all_times = np.hstack((vanilla_time,smooth_time,time_time))
+	time_max = np.max(all_times)
 	print('done!')
 	
 	ax = plt.gca()
 	vanilla_fg = ax.scatter(vanilla_choice[:,0],vanilla_choice[:,1],\
-		s=0.25,marker='s',c=vanilla_time[v_ord],cmap='magma',vmin=0,vmax=1)
+		s=0.7,marker='s',c=vanilla_time[v_ord],cmap='magma',vmin=0,vmax=time_max)
 	smooth_fg = ax.scatter(smooth_choice[:,0],smooth_choice[:,1],\
-		s=0.25,marker='*',c=smooth_time[s_ord],cmap='magma',vmin=0,vmax=1)
+		s=0.7,marker='*',c=smooth_time[s_ord],cmap='magma',vmin=0,vmax=time_max)
 	time_fg = ax.scatter(time_choice[:,0],time_choice[:,1],\
-		s=0.25,marker='+',c=time_time[t_ord],cmap='magma',vmin=0,vmax=1)
+		s=0.7,marker='+',c=time_time[t_ord],cmap='magma',vmin=0,vmax=time_max)
 	
 	plt.colorbar(time_fg)
 
