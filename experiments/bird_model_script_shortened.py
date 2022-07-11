@@ -143,11 +143,14 @@ def model_comparison_umap(vanilla,smoothprior,time_recon,loader,n_samples = 5,da
 	
 	ax = plt.gca()
 	vanilla_fg = ax.scatter(vanilla_transformed[:,0],vanilla_transformed[:,1],\
-		s=0.25,marker='s',alpha=0.05,c=vanilla_time,cmap='winter',vmin=0,vmax=1)
+		s=0.25,marker='s',alpha=0.05,c=vanilla_time,cmap='magma',vmin=0,vmax=1)
 	smooth_fg = ax.scatter(smooth_transformed[:,0],smooth_transformed[:,1],\
-		s=0.25,marker='*',alpha=0.05,c=vanilla_time,cmap='winter',vmin=0,vmax=1)
+		s=0.25,marker='*',alpha=0.05,c=vanilla_time,cmap='mmagma',vmin=0,vmax=1)
 	time_fg = ax.scatter(time_transformed[:,0],time_transformed[:,1],\
-		s=0.25,marker='+',alpha=0.05,c=vanilla_time,cmap='winter',vmin=0,vmax=1)
+		s=0.25,marker='+',alpha=0.05,c=vanilla_time,cmap='magma',vmin=0,vmax=1)
+	
+	plt.colorbar()
+
 	if day_name == '':
 		plt.savefig(os.path.join(vanilla.plots_dir,'all_latent_samples_time_colored.png'))
 	else:
