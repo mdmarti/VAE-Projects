@@ -139,15 +139,23 @@ def model_comparison_umap(vanilla,smoothprior,time_recon,loader,n_samples = 5,da
 	vanilla_transformed = joint_umap.transform(stacked_vanilla)
 	smooth_transformed = joint_umap.transform(stacked_smooth)
 	time_transformed = joint_umap.transform(stacked_time)
+
+	v_ord = np.random.choice(vanilla_transformed.shape[0],vanilla_transformed.shape[0]//10,replace=False)
+	s_ord = np.random.choice(smooth_transformed.shape[0],smooth_transformed.shape[0]//10,replace=False)
+	t_ord = np.random.choice(time_transformed.shape[0],time_transformed.shape[0]//10,replace=False)
+
+	vanilla_choice = vanilla_transformed[v_ord,:]
+	smooth_choice = smooth_transformed[s_ord,:]
+	time_choice = time_transformed[t_ord,:]
 	print('done!')
 	
 	ax = plt.gca()
-	vanilla_fg = ax.scatter(vanilla_transformed[:,0],vanilla_transformed[:,1],\
-		s=0.25,marker='s',c=vanilla_time,cmap='magma',vmin=0,vmax=1)
-	smooth_fg = ax.scatter(smooth_transformed[:,0],smooth_transformed[:,1],\
-		s=0.25,marker='*',c=vanilla_time,cmap='magma',vmin=0,vmax=1)
-	time_fg = ax.scatter(time_transformed[:,0],time_transformed[:,1],\
-		s=0.25,marker='+',c=vanilla_time,cmap='magma',vmin=0,vmax=1)
+	vanilla_fg = ax.scatter(vanilla_choice[:,0],vanilla_choice[:,1],\
+		s=0.25,marker='s',c=vanilla_time[v_ord],cmap='magma',vmin=0,vmax=1)
+	smooth_fg = ax.scatter(smooth_choice[:,0],smooth_choice[:,1],\
+		s=0.25,marker='*',c=smooth_time[s_ord],cmap='magma',vmin=0,vmax=1)
+	time_fg = ax.scatter(time_choice[:,0],time_choice[:,1],\
+		s=0.25,marker='+',c=time_time[t_ord],cmap='magma',vmin=0,vmax=1)
 	
 	plt.colorbar(time_fg)
 
