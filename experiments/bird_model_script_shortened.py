@@ -145,7 +145,7 @@ def model_comparison_umap(vanilla,smoothprior,time_recon,loader,n_samples = 5,da
 	vanilla_fg = ax.scatter(vanilla_transformed[:,0],vanilla_transformed[:,1],\
 		s=0.25,marker='s',alpha=0.05,c=vanilla_time,cmap='magma',vmin=0,vmax=1)
 	smooth_fg = ax.scatter(smooth_transformed[:,0],smooth_transformed[:,1],\
-		s=0.25,marker='*',alpha=0.05,c=vanilla_time,cmap='mmagma',vmin=0,vmax=1)
+		s=0.25,marker='*',alpha=0.05,c=vanilla_time,cmap='magma',vmin=0,vmax=1)
 	time_fg = ax.scatter(time_transformed[:,0],time_transformed[:,1],\
 		s=0.25,marker='+',alpha=0.05,c=vanilla_time,cmap='magma',vmin=0,vmax=1)
 	
