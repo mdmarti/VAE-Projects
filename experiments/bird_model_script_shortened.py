@@ -149,7 +149,7 @@ def model_comparison_umap(vanilla,smoothprior,time_recon,loader,n_samples = 5,da
 	time_fg = ax.scatter(time_transformed[:,0],time_transformed[:,1],\
 		s=0.25,marker='+',alpha=0.05,c=vanilla_time,cmap='magma',vmin=0,vmax=1)
 	
-	plt.colorbar()
+	plt.colorbar(time_fg)
 
 	if day_name == '':
 		plt.savefig(os.path.join(vanilla.plots_dir,'all_latent_samples_time_colored.png'))
