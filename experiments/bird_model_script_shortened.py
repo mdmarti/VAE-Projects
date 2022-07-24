@@ -400,7 +400,7 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 			
 			Add in new analyses here!!!!
 			'''
-        if smoothness_dir != '':
+	if smoothness_dir != '':
 		if not os.path.isdir(smoothness_dir):
 			os.mkdir(smoothness_dir)
 		save_file = os.path.join(smoothness_dir,'checkpoint_encoder_300.tar')
