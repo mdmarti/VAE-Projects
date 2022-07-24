@@ -319,8 +319,8 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 		'th_1': 2.25, # segmenting threshold 1
 		'th_2': -1, # segmenting threshold 2
 		'th_3': 4.5, # segmenting threshold 3
-		'window_length': 0.12, # spec window, in s
-		'window_overlap':0.06, # overlap between spec windows, in s
+		'window_length': 0.04, # spec window, in s
+		'window_overlap':0.02, # overlap between spec windows, in s
 		'algorithm': get_onsets_offsets, #finding syllables
 		'num_freq_bins': X_SHAPE[0],
 		'num_time_bins': X_SHAPE[1],
@@ -400,7 +400,7 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 			
 			Add in new analyses here!!!!
 			'''
-	if smoothness_dir != '':
+        if smoothness_dir != '':
 		if not os.path.isdir(smoothness_dir):
 			os.mkdir(smoothness_dir)
 		save_file = os.path.join(smoothness_dir,'checkpoint_encoder_300.tar')
