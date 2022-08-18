@@ -7,7 +7,7 @@ parentdir = os.path.dirname(os.path.dirname(currentdir))
 sys.path.insert(0, parentdir) 
 
 import fire
-from VAE_Projects.models.models import encoder,decoder,VAE_Base,SmoothnessPriorVae,ReconstructTimeVae
+from VAE_Projects.models.models import encoder,decoder,encoder_timedim,VAE_Base,SmoothnessPriorVae,ReconstructTimeVae
 from VAE_Projects.models.utils import rbf_dot,mmd_fxn,numpy_to_tensor
 import matplotlib.pyplot as plt
 from colour import Color
@@ -227,7 +227,7 @@ def model_comparison_umap(vanilla,smoothprior,time_recon,loader,n_samples = 5,da
 
 
 
-def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',datadir='',segment=False):
+def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',datadir='',latent_time_dir='',segment=False):
 
 ########## Setting up directory lists: separate into train, test dirs
 ############# Expected File Structure
@@ -436,6 +436,30 @@ def bird_model_script(vanilla_dir='',smoothness_dir = '',time_recondir = '',data
 		else:
 			print('loading time')
 			time_vae.load_state(save_file)
+			#time_vae.test_epoch(loaders_for_prediction['test'])
+			#time_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
+			#mean,_ = smoothness_analysis(time_vae,loaders[0]['train'])
+
+			'''
+			for ind, l in enumerate(loaders):
+				print('Developmental day {} \n'.format(realTrainDays[ind]))
+				_,_ = pca_analysis(time_vae,l['train'])
+			'''
+
+	if latent_time_dir != '':
+		if not os.path.isdir(latent_time_dir):
+			os.mkdir(latent_time_dir)
+		save_file = os.path.join(latent_time_dir,'checkpoint_encoder_300.tar')
+		lt_encoder = encoder_timedim()
+		lt_decoder = decoder()
+		lt_vae = ReconstructTimeVae(lt_encoder,lt_decoder,latent_time_dir,plots_dir=os.path.join(latent_time_dir,'plots_shortwindow'))
+
+		if not os.path.isfile(save_file):
+			print('training time')
+			lt_vae.train_test_loop(loaders_for_prediction,epochs=301,test_freq=5,save_freq=50,vis_freq=25)
+		else:
+			print('loading time')
+			lt_vae.load_state(save_file)
 			#time_vae.test_epoch(loaders_for_prediction['test'])
 			#time_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
 			#mean,_ = smoothness_analysis(time_vae,loaders[0]['train'])

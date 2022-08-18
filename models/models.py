@@ -96,6 +96,94 @@ class encoder(nn.Module):
 
 		return z_hat
 
+class encoder_timedim(encoder):
+
+	def __init__(self,z_dim=32):
+
+		"""
+		encoder for birdsong VAEs
+		"""
+
+		super(encoder,self).__init__()
+
+		self.z_dim = z_dim
+
+		self.encoder_conv = nn.Sequential(nn.BatchNorm2d(1),
+								nn.Conv2d(1, 8, 3,1,padding=1),
+								nn.ReLU(),
+								nn.BatchNorm2d(8),
+								nn.Conv2d(8, 8, 3,2,padding=1),
+								nn.ReLU(),
+								nn.BatchNorm2d(8),
+								nn.Conv2d(8, 16,3,1,padding=1),
+								nn.ReLU(),
+								nn.BatchNorm2d(16),
+								nn.Conv2d(16,16,3,2,padding=1),
+								nn.ReLU(),
+								nn.BatchNorm2d(16),
+								nn.Conv2d(16,24,3,1,padding=1),
+								nn.ReLU(),
+								nn.BatchNorm2d(24),
+								nn.Conv2d(24,24,3,2,padding=1),
+								nn.ReLU(),
+								nn.BatchNorm2d(24),
+								nn.Conv2d(24,32,3,1,padding=1),
+								nn.ReLU())
+
+		self.encoder_fc = nn.Sequential(nn.Linear(8193,1024),
+								nn.ReLU(),
+								nn.Linear(1024,256),
+								nn.ReLU())
+
+		self.fc11 = nn.Linear(256,64)
+		self.fc12 = nn.Linear(256,64)
+		self.fc13 = nn.Linear(256,64)
+		self.fc21 = nn.Linear(64,self.z_dim + 1)
+		self.fc22 = nn.Linear(64,self.z_dim)
+		self.fc23 = nn.Linear(64,self.z_dim)
+		
+	def encode(self,x):
+
+		h = self.encoder_conv(x)
+		h = h.view(-1,8192)
+		#print(h.shape)
+		#print(torch.zeros(h.shape[0],1,device=h.device).shape)
+		dummy = torch.zeros(h.shape[0],1,device=h.device)
+		h = torch.cat((h,dummy),dim=1)
+		#print(h.shape)
+		h = self.encoder_fc(h)
+		mu = F.relu(self.fc11(h))
+		u = F.relu(self.fc12(h))
+		d = F.relu(self.fc13(h))
+		mu = self.fc21(mu)
+		u = self.fc22(u)
+		d = self.fc23(d)
+		
+		return mu, u.unsqueeze(-1),d.exp()
+
+	def encode_with_time(self,x,encode_times):
+
+		h = self.encoder_conv(x)
+		h = h.view(-1,8192)
+		h = torch.cat((h,encode_times.unsqueeze(1)),dim=1)
+		h = self.encoder_fc(h)
+		mu = F.relu(self.fc11(h))
+		u = F.relu(self.fc12(h))
+		d = F.relu(self.fc13(h))
+		mu = self.fc21(mu)
+		u = self.fc22(u)
+		d = self.fc23(d)
+		
+		return mu, u.unsqueeze(-1),d.exp()
+
+	def sample_z(self,mu,u,d):
+
+		dist = LowRankMultivariateNormal(mu,u,d)
+
+		z_hat = dist.rsample()
+
+		return z_hat
+
 
 class decoder(nn.Module):
 
@@ -814,9 +902,255 @@ class TimeAsLatentVAE(VAE_Base):
 
 	def __init__(self, encoder, decoder,save_dir,lr=1e-4,plots_dir=''):
 
+		# requires an encoder with a time dimension output
+
 		super(TimeAsLatentVAE,self).__init__(encoder, decoder,save_dir,lr=1e-4,plots_dir=plots_dir)
 
-	
+	def _compute_time_kl(self,encode_times,times_hat):
+
+		lambda_prior = 1/encode_times
+		lambda_q = 1/(times_hat + 1e-5) # to ensure we never divide by zero
+
+		kl = torch.log(lambda_prior/lambda_q) + lambda_q/lambda_prior - 1
+
+		return kl 
+
+	def compute_loss(self,x,encode_times,dt,return_recon = False):
+
+
+		mu,u,d = self.encoder.encode(x)
+
+		times_hat = F.relu(mu[:,-1]) + dt
+
+		mu = mu[:,:-1]
+
+		dist = LowRankMultivariateNormal(mu,u,d)
+
+		zhat = dist.rsample()
+
+		xhat = self.decoder.decode(zhat)
+
+		kl = self._compute_kl_loss(mu,u,d)
+		kl_t = self._compute_time_kl(encode_times,times_hat)
+		logprob = self._compute_reconstruction_loss(x,xhat)
+		#print(kl.shape)
+		#print(logprob.shape)
+		elbo = logprob - kl - kl_t
+		
+		if return_recon:
+			return -elbo,logprob, kl, xhat.view(-1,128,128).detach().cpu().numpy() 
+		else:
+			return -elbo,logprob, kl
+
+
+	def train_epoch(self,train_loader):
+
+		self.train()
+
+		train_loss = 0.0
+		train_kl = 0.0
+		train_lp = 0.0
+		#train_tr = 0.0
+
+		dt = train_loader.dataset.dt 
+
+		for ind, batch in enumerate(train_loader):
+
+			self.optimizer.zero_grad()
+			(spec,day) = batch 
+			day = day.to(self.device).squeeze()
+
+			#spec = torch.stack(spec,axis=0)
+			spec = spec.to(self.device).squeeze().unsqueeze(1)
+			start_time = 0.0
+			end_time = dt * spec.shape[0] - dt/2
+			encode_times = torch.arange(start_time,end_time,dt,device=self.device)
+			loss,lp,kl = self.compute_loss(spec,encode_times,dt)
+
+			train_loss += loss.item()
+			train_kl += kl.item()
+			train_lp += lp.item()
+			#train_tr += tr.item()
+
+			loss.backward()
+			self.optimizer.step()
+
+		train_loss /= len(train_loader)
+		train_kl /= len(train_loader)
+		train_lp /= len(train_loader)
+		#train_tr /= len(train_loader)
+
+		print('Epoch {0:d} average train loss: {1:.3f}'.format(self.epoch,train_loss))
+		print('Epoch {0:d} average train kl: {1:.3f}'.format(self.epoch,train_kl))
+		print('Epoch {0:d} average train lp: {1:.3f}'.format(self.epoch,train_lp))
+		#print('Epoch {0:d} average train time rec: {1:.3f}'.format(self.epoch,train_tr))
+
+		return train_loss
+
+	def test_epoch(self,test_loader):
+
+		self.eval()
+		test_loss = 0.0
+		test_kl = 0.0
+		test_lp = 0.0 
+		#test_tr = 0.0
+		dt = test_loader.dataset.dt
+
+		for ind, batch in enumerate(test_loader):
+
+			(spec,day) = batch 
+			day = day.to(self.device).squeeze()
+
+			#spec = torch.stack(spec,axis=0)
+			spec = spec.to(self.device).squeeze().unsqueeze(1)
+			start_time = 0.0
+			end_time = dt * spec.shape[0] - dt/2
+			encode_times = torch.arange(start_time,end_time,dt,device=self.device)
+			with torch.no_grad():
+				loss,lp,kl = self.compute_loss(spec,encode_times,dt)
+
+			test_loss += loss.item()
+			test_kl += kl.item()
+			test_lp += lp.item()
+			#test_tr += tr.item()
+
+			
+		test_loss /= len(test_loader)
+		test_kl /= len(test_loader)
+		test_lp /= len(test_loader)
+		#test_tr /= len(test_loader)
+
+		print('Epoch {0:d} average test loss: {1:.3f}'.format(self.epoch,test_loss))
+		print('Epoch {0:d} average test kl: {1:.3f}'.format(self.epoch,test_kl))
+		print('Epoch {0:d} average test lp: {1:.3f}'.format(self.epoch,test_lp))
+		#print('Epoch {0:d} average test tr: {1:.3f}'.format(self.epoch,test_tr))
+
+		return test_loss
+
+	def visualize(self, loader, num_specs=5):
+		"""
+		Plot spectrograms and their reconstructions.
+
+		Spectrograms are chosen at random from the Dataloader Dataset.
+
+		Parameters
+		----------
+		loader : torch.utils.data.Dataloader
+			Spectrogram Dataloader
+		num_specs : int, optional
+			Number of spectrogram pairs to plot. Defaults to ``5``.
+		gap : int or tuple of two ints, optional
+			The vertical and horizontal gap between images, in pixels. Defaults
+			to ``(2,6)``.
+		save_filename : str, optional
+			Where to save the plot, relative to `self.save_dir`. Defaults to
+			``'temp.pdf'``.
+
+		Returns
+		-------
+		specs : numpy.ndarray
+			Spectgorams from `loader`.
+		rec_specs : numpy.ndarray
+			Corresponding spectrogram reconstructions.
+		"""
+		# Collect random indices.
+		dt = loader.dataset.dt
+		assert num_specs <= len(loader.dataset) and num_specs >= 1
+		indices = np.random.choice(np.arange(len(loader.dataset)),
+			size=num_specs,replace=False)
+		
+		(specs,days) = loader.dataset[indices]
+		for spec in specs:
+			spec = spec.to(self.device).squeeze().unsqueeze(1)
+
+
+			# Retrieve spectrograms from the loader.
+			# Get resonstructions.
+			start_time = 0.0
+			end_time = dt * spec.shape[0] - dt/2
+			encode_times = torch.arange(start_time,end_time,dt,device=self.device)
+			with torch.no_grad():
+				_, _, _,rec_specs = self.compute_loss(spec, encode_times,dt,return_recon=True)
+			spec = spec.detach().cpu().numpy()
+			nrows = 1 + spec.shape[0]//5
+			fig,axs = plt.subplots(nrows=nrows,ncols=5)
+			row_ind = 0
+			col_ind = 0
+
+			for im in range(rec_specs.shape[0]):
+
+				if col_ind >= 5:
+					row_ind +=1
+					col_ind = 0
+				axs[row_ind,col_ind].imshow(rec_specs[im,:,:],origin='lower')
+				axs[row_ind,col_ind].get_xaxis().set_visible(False)
+				axs[row_ind,col_ind].get_yaxis().set_visible(False)
+				col_ind += 1
+
+			for ii in range(col_ind,5):
+				axs[row_ind,ii].get_xaxis().set_visible(False)
+				axs[row_ind,ii].get_yaxis().set_visible(False)
+				axs[row_ind,ii].axis('square')
+
+			#all_specs = np.stack([specs, rec_specs])
+		# Plot.
+			save_fn = 'reconstruction_epoch_' + str(self.epoch) + '_' + str(im) + '.png' 
+			save_filename = os.path.join(self.plots_dir, save_fn)
+
+			plt.savefig(save_filename)
+			plt.close('all')
+
+			fig,axs = plt.subplots(nrows=nrows,ncols=5)
+			row_ind = 0
+			col_ind = 0
+
+			for im in range(spec.shape[0]):
+
+				if col_ind >= 5:
+					row_ind +=1
+					col_ind = 0
+				axs[row_ind,col_ind].imshow(spec[im,:,:,:].squeeze(),origin='lower')
+				axs[row_ind,col_ind].get_xaxis().set_visible(False)
+				axs[row_ind,col_ind].get_yaxis().set_visible(False)
+				col_ind += 1
+
+			for ii in range(col_ind,5):
+				axs[row_ind,ii].get_xaxis().set_visible(False)
+				axs[row_ind,ii].get_yaxis().set_visible(False)
+				axs[row_ind,ii].axis('square')
+
+			#all_specs = np.stack([specs, rec_specs])
+		# Plot.
+			save_fn = 'real_epoch_' + str(self.epoch) + '_' + str(im) + '.png' 
+			save_filename = os.path.join(self.plots_dir, save_fn)
+
+			plt.savefig(save_filename)
+			plt.close('all')
+
+		return 
+	def get_latent(self,loader):
+
+		latents = []
+		encode_times_all = []
+		dt = loader.dataset.dt
+
+		for ind, batch in enumerate(loader):
+
+			(spec,day) = batch 
+			day = day.to(self.device)
+
+			spec = spec.to(self.device).squeeze().unsqueeze(1)
+			start_time = 0.0
+			end_time = dt * spec.shape[0] - dt/2
+			encode_times = torch.arange(start_time,end_time,dt,device=self.device)
+
+			with torch.no_grad():
+				z_mu,_,_ = self.encoder.encode(spec)
+
+			latents.append(z_mu.detach().cpu().numpy())
+			encode_times_all.append(encode_times.detach().cpu().numpy())
+		#latents = np.vstack(latents)
+		return latents, encode_times_all
 
 if __name__ == '__main__':
 
