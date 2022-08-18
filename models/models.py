@@ -576,7 +576,11 @@ class ReconstructTimeVae(VAE_Base):
 	def compute_loss(self,x,encode_times,return_recon = False,weight=128**3):
 
 
-		mu,u,d = self.encoder.encode_with_time(x,encode_times)
+		# this line below gives the network time, then reconstructs.
+		# as it stands, network is trying to reconstruct time from
+		# spectrograms alone
+		#mu,u,d = self.encoder.encode_with_time(x,encode_times)
+		mu,u,d = self.encoder.encode(x)
 
 		dist = LowRankMultivariateNormal(mu,u,d)
 
@@ -805,6 +809,14 @@ class ReconstructTimeVae(VAE_Base):
 			encode_times_all.append(encode_times.detach().cpu().numpy())
 		#latents = np.vstack(latents)
 		return latents, encode_times_all
+
+class TimeAsLatentVAE(VAE_Base):
+
+	def __init__(self, encoder, decoder,save_dir,lr=1e-4,plots_dir=''):
+
+		super(TimeAsLatentVAE,self).__init__(encoder, decoder,save_dir,lr=1e-4,plots_dir=plots_dir)
+
+	
 
 if __name__ == '__main__':
 
