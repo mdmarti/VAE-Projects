@@ -7,8 +7,8 @@ parentdir = os.path.dirname(os.path.dirname(currentdir))
 sys.path.insert(0, parentdir) 
 
 import fire
-from VAE_Projects.models.models import encoder,decoder,encoder_timedim,VAE_Base,SmoothnessPriorVae,ReconstructTimeVae
-from VAE_Projects.models.utils import get_window_partition,get_simsiam_loaders_motif
+from VAE_Projects.models.utils import get_window_partition,get_simsiam_loaders_motif,batch_cos_sim
+from VAE_Projects.models.simsiam_models import encoder,predictor,simsiam
 import matplotlib.pyplot as plt
 from colour import Color
 import numpy as np
@@ -168,31 +168,23 @@ def bird_model_script(simsiam_dir='',segment=False):
 #############################
 # 1) Train model            #
 #############################
-	if vanilla_dir != '':
-		if not os.path.isdir(vanilla_dir):
-			os.mkdir(vanilla_dir)
-		save_file = os.path.join(vanilla_dir,'checkpoint_encoder_300.tar')
+	if simsiam_dir != '':
+		if not os.path.isdir(simsiam_dir):
+			os.mkdir(simsiam_dir)
+		save_file = os.path.join(simsiam_dir,'checkpoint_encoder_300.tar')
 		#print(save_file)
-		vanilla_encoder = encoder()
-		vanilla_decoder = decoder()
-		vanilla_vae = VAE_Base(vanilla_encoder,vanilla_decoder,vanilla_dir,plots_dir=os.path.join(vanilla_dir,'plots_shortwindow'))
+		simsiam_encoder = encoder()
+		simsiam_predictor = predictor()
+		vanilla_simsiam = simsiam(simsiam_encoder,simsiam_predictor,save_dir=simsiam_dir,sim_func=batch_cos_sim)
 
 		if not os.path.isfile(save_file):
 			print('training vanilla')
-			vanilla_vae.train_test_loop(loaders_for_prediction,epochs=301,test_freq=5,save_freq=50,vis_freq=25)
+			vanilla_simsiam.train_test_loop(loaders_for_prediction,epochs=301,test_freq=5,save_freq=50,vis_freq=25)
 		else:
 			print('loading vanilla')
-			vanilla_vae.load_state(save_file)
+			vanilla_simsiam.load_state(save_file)
 			#vanilla_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
 			#vanilla_vae.test_epoch(loaders_for_prediction['test'])
-			loaders = []
-			for ind,day in enumerate(realTrainDays):
-				part = get_window_partition([dsb_audio_dirs[ind]],[dsb_segment_dirs[ind]],1.0)
-				part['test'] = part['train']
-				loader = get_fixed_ordered_data_loaders_motif(part,segment_params)
-				loaders.append(loader)
-			#print(loaders[0])
-			#mean,_ = smoothness_analysis(vanilla_vae,loaders[0]['train'])
 
 			'''
 			for ind, l in enumerate(loaders):
@@ -204,86 +196,6 @@ def bird_model_script(simsiam_dir='',segment=False):
 			
 			Add in new analyses here!!!!
 			'''
-	if smoothness_dir != '':
-		if not os.path.isdir(smoothness_dir):
-			os.mkdir(smoothness_dir)
-		save_file = os.path.join(smoothness_dir,'checkpoint_encoder_300.tar')
-		smooth_encoder = encoder()
-		smooth_decoder = decoder()
-		smooth_prior_vae = SmoothnessPriorVae(smooth_encoder,smooth_decoder,smoothness_dir,plots_dir=os.path.join(smoothness_dir,'plots_shortwindow'))
-
-		if not os.path.isfile(save_file):
-			print('training smooth')
-			smooth_prior_vae.train_test_loop(loaders_for_prediction,epochs=301,test_freq=5,save_freq=50,vis_freq=25)
-		else:
-			print('loading smooth')
-			smooth_prior_vae.load_state(save_file)
-			#smooth_prior_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
-			#smooth_prior_vae.test_epoch(loaders_for_prediction['test'])
-			#mean,_ = smoothness_analysis(smooth_prior_vae,loaders[0]['train'])
-			'''
-			for ind, l in enumerate(loaders):
-				print('Developmental day {} \n'.format(realTrainDays[ind]))
-				_,_ = pca_analysis(smooth_prior_vae,l['train'])
-			'''
-	if time_recondir != '':
-		if not os.path.isdir(time_recondir):
-			os.mkdir(time_recondir)
-		save_file = os.path.join(time_recondir,'checkpoint_encoder_300.tar')
-		time_encoder = encoder()
-		time_decoder = decoder()
-		time_vae = ReconstructTimeVae(time_encoder,time_decoder,time_recondir,plots_dir=os.path.join(time_recondir,'plots_shortwindow'))
-
-		if not os.path.isfile(save_file):
-			print('training time')
-			time_vae.train_test_loop(loaders_for_prediction,epochs=301,test_freq=5,save_freq=50,vis_freq=25)
-		else:
-			print('loading time')
-			time_vae.load_state(save_file)
-			#time_vae.test_epoch(loaders_for_prediction['test'])
-			#time_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
-			#mean,_ = smoothness_analysis(time_vae,loaders[0]['train'])
-
-			'''
-			for ind, l in enumerate(loaders):
-				print('Developmental day {} \n'.format(realTrainDays[ind]))
-				_,_ = pca_analysis(time_vae,l['train'])
-			'''
-
-	if latent_time_dir != '':
-		if not os.path.isdir(latent_time_dir):
-			os.mkdir(latent_time_dir)
-		save_file = os.path.join(latent_time_dir,'checkpoint_encoder_300.tar')
-		lt_encoder = encoder_timedim()
-		lt_decoder = decoder()
-		lt_vae = ReconstructTimeVae(lt_encoder,lt_decoder,latent_time_dir,plots_dir=os.path.join(latent_time_dir,'plots_shortwindow'))
-
-		if not os.path.isfile(save_file):
-			print('training time')
-			lt_vae.train_test_loop(loaders_for_prediction,epochs=301,test_freq=5,save_freq=50,vis_freq=25)
-		else:
-			print('loading time')
-			lt_vae.load_state(save_file)
-			#time_vae.test_epoch(loaders_for_prediction['test'])
-			#time_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
-			#mean,_ = smoothness_analysis(time_vae,loaders[0]['train'])
-
-			'''
-			for ind, l in enumerate(loaders):
-				print('Developmental day {} \n'.format(realTrainDays[ind]))
-				_,_ = pca_analysis(time_vae,l['train'])
-			'''
-
-	print('doing model comparison')
-	joint_umap = model_comparison_umap(vanilla_vae,smooth_prior_vae,time_vae,loaders_for_prediction['test'],day_name='')
-
-	for day in trainDays:
-		motif_part = get_window_partition([os.path.join(datadir,dsb[0],'audio',day)],[os.path.join(datadir,dsb[0],'syll_segs',day)],1.0)
-		motif_part['test'] = motif_part['train']
-		print('getting prediction loader')
-		loaders_for_prediction = get_fixed_ordered_data_loaders_motif(motif_part,segment_params)
-		model_comparison_umap(vanilla_vae,smooth_prior_vae,time_vae,loaders_for_prediction['test'],day_name=day,joint_umap=joint_umap,return_umap=False)
-
 	'''
 	print('umappin')
 	umap_latents = np.vstack(all_latents)

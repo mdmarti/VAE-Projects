@@ -14,6 +14,22 @@ from scipy.io.wavfile import WavFileWarning
 
 X_SHAPE = (128,128)
 
+############## math ###################################
+
+def batch_cos_sim(x,y):
+
+	if len(x.shape) < 3:
+		x = x[:,:,None]
+	if len(y.shape) < 3:
+		y = y[:,:,None]
+	
+	norm_x = torch.linalg.norm(x,dim=1,keepdim=True)
+	norm_y = torch.linalg.norm(y,dim=1,keepdim=True)
+
+	cs = ((x/norm_x) @ (y/norm_y).transpose(1,2)).squeeze()
+
+	return cs
+
 
 ############## dataloaders #############################
 def _get_wavs_from_dir(dir):
@@ -215,65 +231,100 @@ class simsiamSet(Dataset):
 			index = [index]
 			single_index = True
 		np.random.seed(seed)
-		for i in index:
-			st = []
-			# First find the file, then the ROI.
-			roi_index = i#np.random.choice(np.arange(len(self.filenames)), \
+		if self.train_augment:
+			for i in index:
+				while True:
+					# First find the file, then the ROI.
+					file_index = np.random.choice(np.arange(len(self.filenames)), \
+						p=self.file_weights)
+					load_filename = self.filenames[file_index]
+					roi_index = \
+						np.random.choice(np.arange(len(self.roi_weights[file_index])),
+						p=self.roi_weights[file_index])
+					roi = self.rois[file_index][roi_index]
+					# Then choose a chunk of audio uniformly at random.
+					onset = roi[0] + (roi[1] - roi[0] - self.p['window_length']) \
+						* np.random.rand()
+					offset = onset + self.p['window_length']
+					target_times = np.linspace(onset, offset, \
+						self.p['num_time_bins'])
+					# Then make a spectrogram.
+					spec, flag = self.p['get_spec'](max(0.0, onset-shoulder), \
+						offset+shoulder, self.audio[file_index], self.p, \
+						fs=self.fs, target_times=target_times)
+					if not flag:
+						continue
+				# Remake the spectrogram if it's silent.
+					if self.min_spec_val is not None and \
+						np.max(spec) < self.min_spec_val:
+						continue
+					if self.transform:
+						spec = self.transform(spec)
+					specs.append(spec)
+					file_indices.append(file_index)
+					onsets.append(onset)
+					offsets.append(offset)
+					break
+		else:
+			for i in index:
+				st = []
+				# First find the file, then the ROI.
+				roi_index = i#np.random.choice(np.arange(len(self.filenames)), \
 				#p=self.file_weights)
 
 
-			file_index = np.where(i <= self.fsum)[0][0]
-			#print('file index: ',file_index)
-			#print('selected cumsum: ', self.fsum[file_index])
-			#print('next cumsum: ',self.fsum[file_index + 1])
-			#print('index: ', i)
-			load_filename = self.filenames[file_index]
-			if self.adult:
-				day = 1
-			else:
-				day = int(load_filename.split('/')[-3]) # or something like this. deal with this later
-			rois = self.rois[file_index]
-			#print('index:', i)
-			#print('cumsum:',self.fsum[file_index])
-			in_file_ind = len(rois) - 1 - (self.fsum[file_index] - i)
-			#print('Index in file:',in_file_ind)
-			#print(len(rois))
-			#print('Actual index:',i)
-			#print('cumsum of files:',self.fsum[file_index])
-			onset = rois[in_file_ind][0]
-			offset = rois[in_file_ind][1]
-			if offset-self.p['window_length']-onset < 0:
-				ons = [onset]
-			else:
-				ons = np.linspace(onset,offset-self.p['window_length'],\
+				file_index = np.where(i <= self.fsum)[0][0]
+				#print('file index: ',file_index)
+				#print('selected cumsum: ', self.fsum[file_index])
+				#print('next cumsum: ',self.fsum[file_index + 1])
+				#print('index: ', i)
+				load_filename = self.filenames[file_index]
+				if self.adult:
+					day = 1
+				else:
+					day = int(load_filename.split('/')[-3]) # or something like this. deal with this later
+				rois = self.rois[file_index]
+				#print('index:', i)
+				#print('cumsum:',self.fsum[file_index])
+				in_file_ind = len(rois) - 1 - (self.fsum[file_index] - i)
+				#print('Index in file:',in_file_ind)
+				#print(len(rois))
+				#print('Actual index:',i)
+				#print('cumsum of files:',self.fsum[file_index])
+				onset = rois[in_file_ind][0]
+				offset = rois[in_file_ind][1]
+				if offset-self.p['window_length']-onset < 0:
+					ons = [onset]
+				else:
+					ons = np.linspace(onset,offset-self.p['window_length'],\
 						num = int((offset-onset)//(self.p['window_length'] - self.p['window_overlap'])))
-				ons = ons[:len(ons)]
-					# Then choose a chunk of audio uniformly at random.
-			for ton in ons:
+					ons = ons[:len(ons)]
+						# Then choose a chunk of audio uniformly at random.
+				for ton in ons:
 
-				toff = ton + self.p['window_length']
-				#offset = roi[1]
-				target_times = np.linspace(ton, toff, \
+					toff = ton + self.p['window_length']
+					#offset = roi[1]
+					target_times = np.linspace(ton, toff, \
 						self.p['num_time_bins'])
-				# Then make a spectrogram.
-				spec, flag = self.p['get_spec'](max(0.0, ton-shoulder), \
+					# Then make a spectrogram.
+					spec, flag = self.p['get_spec'](max(0.0, ton-shoulder), \
 						toff+shoulder, self.audio[file_index], self.p, \
 						fs=self.fs, target_times=target_times)
-				if self.transform:
-					spec = self.transform(spec)
+					if self.transform:
+						spec = self.transform(spec)
 
-				st.append(spec)
+					st.append(spec)
 
-			specs.append(st)
-			file_indices.append(file_index)
-			onsets.append(onset)
-			offsets.append(offset)
-			days.append(day)
+				specs.append(st)
+				file_indices.append(file_index)
+				onsets.append(onset)
+				offsets.append(offset)
+				days.append(day)
 
 		np.random.seed(None)
 		if return_seg_info:
 			if single_index:
-				return specs[0], file_indices[0], onsets[0], offsets[0]
+					return specs[0], file_indices[0], onsets[0], offsets[0]
 			return specs, file_indices, onsets, offsets
 		if single_index:
 			return (specs[0],days[0])
