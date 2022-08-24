@@ -5,9 +5,279 @@ from colour import Color
 import pickle 
 import glob
 import math
-
+from torch.utils.data import Dataset, DataLoader
+import warnings
+from scipy.interpolate import interp1d
+from scipy.io import wavfile
+from scipy import signal
+from scipy.io.wavfile import WavFileWarning
 
 X_SHAPE = (128,128)
+
+
+############## dataloaders #############################
+def _get_wavs_from_dir(dir):
+	"""Return a sorted list of wave files from a directory."""
+	return [os.path.join(dir, f) for f in sorted(os.listdir(dir)) if \
+			_is_wav_file(f)]
+
+def _is_wav_file(filename):
+	"""Is the given filename a wave file?"""
+	return len(filename) > 4 and filename[-4:] == '.wav'
+
+
+def get_window_partition(audio_dirs, roi_dirs, split=0.8, shuffle=True, \
+	exclude_empty_roi_files=True):
+	"""
+	Get a train/test split for fixed-duration shotgun VAE.
+
+	Parameters
+	----------
+	audio_dirs : list of str
+		Audio directories.
+	roi_dirs : list of str
+		ROI (segment) directories.
+	split : float, optional
+		Train/test split. Defaults to ``0.8``, indicating an 80/20 train/test
+		split.
+	shuffle : bool, optional
+		Whether to shuffle at the audio file level. Defaults to ``True``.
+	exclude_empty_roi_files : bool, optional
+		Defaults to ``True``.
+
+	Returns
+	-------
+	partition : dict
+		Defines the test/train split. The keys ``'test'`` and ``'train'`` each
+		map to a dictionary with keys ``'audio'`` and ``'rois'``, which both
+		map to numpy arrays containing filenames.
+	"""
+	assert(split > 0.0 and split <= 1.0)
+	# Collect filenames.
+	audio_filenames, roi_filenames = [], []
+	for audio_dir, roi_dir in zip(audio_dirs, roi_dirs):
+		temp_wavs = _get_wavs_from_dir(audio_dir)
+		temp_rois = [os.path.join(roi_dir, os.path.split(i)[-1][:-4]+'.txt') \
+				for i in temp_wavs]
+		if exclude_empty_roi_files:
+			for i in reversed(range(len(temp_wavs))):
+				segs = np.loadtxt(temp_rois[i])
+				if len(segs) == 0:
+					del temp_wavs[i]
+					del temp_rois[i]
+		audio_filenames += temp_wavs
+		roi_filenames += temp_rois
+	# Reproducibly shuffle.
+	audio_filenames = np.array(audio_filenames)
+	roi_filenames = np.array(roi_filenames)
+	perm = np.argsort(audio_filenames)
+	audio_filenames, roi_filenames = audio_filenames[perm], roi_filenames[perm]
+	if shuffle:
+		np.random.seed(42)
+		perm = np.random.permutation(len(audio_filenames))
+		audio_filenames = audio_filenames[perm]
+		roi_filenames = roi_filenames[perm]
+		np.random.seed(None)
+	# Split.
+	i = int(round(split * len(audio_filenames)))
+	return { \
+		'train': { \
+			'audio': audio_filenames[:i], 'rois': roi_filenames[:i]}, \
+		'test': { \
+			'audio': audio_filenames[i:], 'rois': roi_filenames[i:]} \
+		}
+
+def get_simsiam_loaders_motif(partition, p, batch_size=64, \
+	shuffle=(True, False), num_workers=4, n_samples=2048,min_spec_val=None):
+	"""
+	Get DataLoaders for training and testing: fixed-duration shotgun VAE
+
+	Parameters
+	----------
+	partition : dict
+		Output of ``ava.models.window_vae_dataset.get_window_partition``.
+	p : dict
+		Preprocessing parameters. Must contain keys: ...
+	batch_size : int, optional
+		Defaults to ``64``.
+	shuffle : tuple of bool, optional
+		Whether to shuffle train and test sets, respectively. Defaults to
+		``(True, False)``.
+	num_workers : int, optional
+		Number of CPU workers to feed data to the network. Defaults to ``4``.
+
+	Returns
+	-------
+	loaders : dict
+		Maps the keys ``'train'`` and ``'test'`` to their respective
+		DataLoaders.
+	"""
+	train_dataset = simsiamSet(partition['train']['audio'], \
+			partition['train']['rois'], p, transform=numpy_to_tensor, \
+			min_spec_val=min_spec_val)
+	train_dataloader = DataLoader(train_dataset, batch_size=batch_size, \
+			shuffle=shuffle[0], num_workers=num_workers)
+	if not partition['test']:
+		return {'train':train_dataloader, 'test':None}
+	test_dataset = simsiamSet(partition['test']['audio'], \
+			partition['test']['rois'], p, transform=numpy_to_tensor, \
+			min_spec_val=min_spec_val)
+	test_dataloader = DataLoader(test_dataset, batch_size=batch_size, \
+			shuffle=shuffle[1], num_workers=num_workers)
+	return {'train':train_dataloader, 'test':test_dataloader}
+
+class simsiamSet(Dataset):
+
+	def __init__(self, audio_filenames, roi_filenames, p, transform=None,
+		dataset_length=2048, min_spec_val=None,max_len = 300,adult=True):
+		"""
+		Create a torch.utils.data.Dataset for chunks of animal vocalization.
+
+		Parameters
+		----------
+		audio_filenames : list of str
+			List of wav files.
+		roi_filenames : list of str
+			List of files containing animal vocalization times.
+		transform : {``None``, function}, optional
+			Transformation to apply to each item. Defaults to ``None`` (no
+			transformation).
+		dataset_length : int, optional
+			Arbitrary number that determines batch size. Defaults to ``2048``.
+		min_spec_val : {float, None}, optional
+			Used to disregard silence. If not `None`, spectrogram with a maximum
+			value less than `min_spec_val` will be disregarded.
+		"""
+		self.filenames = np.array(sorted(audio_filenames))
+		#print(self.filenames[0])
+		self.adult = adult
+		with warnings.catch_warnings():
+			warnings.filterwarnings("ignore", category=WavFileWarning)
+			self.audio = [wavfile.read(fn)[1] for fn in self.filenames]
+			self.fs = wavfile.read(audio_filenames[0])[0]
+		self.roi_filenames = roi_filenames
+		self.min_spec_val = min_spec_val
+		self.p = p
+		self.train_augment=p['train_augment']
+		self.rois = [np.loadtxt(i, ndmin=2) for i in roi_filenames]
+		self.file_weights = np.array([np.sum(np.diff(i)) for i in self.rois])
+		self.file_weights /= np.sum(self.file_weights)
+		self.roi_weights = []
+		self.max_len = max_len
+		curr_sum = -1
+		self.fsum = np.zeros(len(self.roi_filenames)).astype(np.int32)
+		self.dt = self.p['window_length'] - self.p['window_overlap']
+		for i in range(len(self.rois)):
+			temp = np.diff(self.rois[i]).flatten()
+			self.roi_weights.append(temp/np.sum(temp))
+			curr_sum += len(self.rois[i])
+			#print(curr_sum)
+			self.fsum[i] = int(abs(curr_sum))
+
+		self.transform = transform
+		#print(self.fsum)
+		self.dataset_length_real = int(self.fsum[-1])
+		self.dataset_length_fake = dataset_length
+		#print(self.dataset_length)
+
+	def __len__(self):
+		"""NOTE: length is arbitrary"""
+		if self.train_augment:
+			return self.dataset_length_fake
+		else:
+			return self.dataset_length_real
+
+
+	def __getitem__(self, index, seed=None, shoulder=0.05, \
+		return_seg_info=False):
+		"""
+		Get spectrograms.
+
+		Parameters
+		----------
+		index :
+		seed :
+		shoulder :
+		return_seg_info :
+
+		Returns
+		-------
+		specs :
+		file_indices :
+		onsets :
+		offsets :
+		"""
+		specs, file_indices, onsets, offsets,days = [], [], [], [],[]
+		single_index = False
+		try:
+			iterator = iter(index)
+		except TypeError:
+			index = [index]
+			single_index = True
+		np.random.seed(seed)
+		for i in index:
+			st = []
+			# First find the file, then the ROI.
+			roi_index = i#np.random.choice(np.arange(len(self.filenames)), \
+				#p=self.file_weights)
+
+
+			file_index = np.where(i <= self.fsum)[0][0]
+			#print('file index: ',file_index)
+			#print('selected cumsum: ', self.fsum[file_index])
+			#print('next cumsum: ',self.fsum[file_index + 1])
+			#print('index: ', i)
+			load_filename = self.filenames[file_index]
+			if self.adult:
+				day = 1
+			else:
+				day = int(load_filename.split('/')[-3]) # or something like this. deal with this later
+			rois = self.rois[file_index]
+			#print('index:', i)
+			#print('cumsum:',self.fsum[file_index])
+			in_file_ind = len(rois) - 1 - (self.fsum[file_index] - i)
+			#print('Index in file:',in_file_ind)
+			#print(len(rois))
+			#print('Actual index:',i)
+			#print('cumsum of files:',self.fsum[file_index])
+			onset = rois[in_file_ind][0]
+			offset = rois[in_file_ind][1]
+			if offset-self.p['window_length']-onset < 0:
+				ons = [onset]
+			else:
+				ons = np.linspace(onset,offset-self.p['window_length'],\
+						num = int((offset-onset)//(self.p['window_length'] - self.p['window_overlap'])))
+				ons = ons[:len(ons)]
+					# Then choose a chunk of audio uniformly at random.
+			for ton in ons:
+
+				toff = ton + self.p['window_length']
+				#offset = roi[1]
+				target_times = np.linspace(ton, toff, \
+						self.p['num_time_bins'])
+				# Then make a spectrogram.
+				spec, flag = self.p['get_spec'](max(0.0, ton-shoulder), \
+						toff+shoulder, self.audio[file_index], self.p, \
+						fs=self.fs, target_times=target_times)
+				if self.transform:
+					spec = self.transform(spec)
+
+				st.append(spec)
+
+			specs.append(st)
+			file_indices.append(file_index)
+			onsets.append(onset)
+			offsets.append(offset)
+			days.append(day)
+
+		np.random.seed(None)
+		if return_seg_info:
+			if single_index:
+				return specs[0], file_indices[0], onsets[0], offsets[0]
+			return specs, file_indices, onsets, offsets
+		if single_index:
+			return (specs[0],days[0])
+		return (specs, days)
 
 ############## Smoothness analysis functions ###########
 
