@@ -184,8 +184,7 @@ class simsiam(nn.Module):
 		return test_loss 
 
 
-	def train_test_loop(self,loaders, epochs=100, test_freq=2, save_freq=10,
-		vis_freq=1):
+	def train_test_loop(self,loaders, epochs=100, test_freq=2, save_freq=10):
 		"""
 		Train the model for multiple epochs, testing and saving along the way.
 
@@ -233,6 +232,7 @@ class simsiam(nn.Module):
 		this requires a loader that does NOT augment images beforehand
 		'''
 		latents = []
+		loader.latents=True
 
 		for ind, batch in enumerate(loader):
 
