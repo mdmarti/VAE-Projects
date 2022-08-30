@@ -11,6 +11,8 @@ from scipy.interpolate import interp1d
 from scipy.io import wavfile
 from scipy import signal
 from scipy.io.wavfile import WavFileWarning
+import random
+import matplotlib.pyplot as plt
 
 X_SHAPE = (128,128)
 
@@ -28,7 +30,7 @@ def batch_cos_sim(x,y):
 
 	cs = ((x/norm_x) @ (y/norm_y).transpose(1,2)).squeeze()
 
-	return cs
+	return -cs.mean()
 
 
 ############## dataloaders #############################
@@ -130,14 +132,14 @@ def get_simsiam_loaders_motif(partition, p, batch_size=64, \
 	"""
 	train_dataset = simsiamSet(partition['train']['audio'], \
 			partition['train']['rois'], p, transform=numpy_to_tensor, \
-			min_spec_val=min_spec_val)
+			min_spec_val=min_spec_val,dataset_length=n_samples)
 	train_dataloader = DataLoader(train_dataset, batch_size=batch_size, \
 			shuffle=shuffle[0], num_workers=num_workers)
 	if not partition['test']:
 		return {'train':train_dataloader, 'test':None}
 	test_dataset = simsiamSet(partition['test']['audio'], \
 			partition['test']['rois'], p, transform=numpy_to_tensor, \
-			min_spec_val=min_spec_val)
+			min_spec_val=min_spec_val,dataset_length=n_samples)
 	test_dataloader = DataLoader(test_dataset, batch_size=batch_size, \
 			shuffle=shuffle[1], num_workers=num_workers)
 	return {'train':train_dataloader, 'test':test_dataloader}
@@ -175,6 +177,7 @@ class simsiamSet(Dataset):
 		self.min_spec_val = min_spec_val
 		self.p = p
 		self.train_augment=p['train_augment']
+		self.max_tau = p['max_tau']
 		self.rois = [np.loadtxt(i, ndmin=2) for i in roi_filenames]
 		self.file_weights = np.array([np.sum(np.diff(i)) for i in self.rois])
 		self.file_weights /= np.sum(self.file_weights)
@@ -223,7 +226,7 @@ class simsiamSet(Dataset):
 		onsets :
 		offsets :
 		"""
-		specs, file_indices, onsets, offsets,days = [], [], [], [],[]
+		specs1, file_indices, onsets, offsets,specs2 = [], [], [], [],[]
 		single_index = False
 		try:
 			iterator = iter(index)
@@ -245,25 +248,39 @@ class simsiamSet(Dataset):
 					# Then choose a chunk of audio uniformly at random.
 					onset = roi[0] + (roi[1] - roi[0] - self.p['window_length']) \
 						* np.random.rand()
+					onset2 = onset + random.uniform(-self.max_tau,self.max_tau)
 					offset = onset + self.p['window_length']
+					offset2 = onset2 + self.p['window_length']
 					target_times = np.linspace(onset, offset, \
+						self.p['num_time_bins'])
+					target_times2 = np.linspace(onset2, offset2, \
 						self.p['num_time_bins'])
 					# Then make a spectrogram.
 					spec, flag = self.p['get_spec'](max(0.0, onset-shoulder), \
 						offset+shoulder, self.audio[file_index], self.p, \
 						fs=self.fs, target_times=target_times)
+					spec2, flag2 = self.p['get_spec'](max(0.0, onset2-shoulder), \
+						offset2+shoulder, self.audio[file_index], self.p, \
+						fs=self.fs, target_times=target_times2)
 					if not flag:
+						continue
+					if not flag2:
 						continue
 				# Remake the spectrogram if it's silent.
 					if self.min_spec_val is not None and \
 						np.max(spec) < self.min_spec_val:
 						continue
+					if self.min_spec_val is not None and \
+						np.max(spec2) < self.min_spec_val:
+						continue
 					if self.transform:
 						spec = self.transform(spec)
-					specs.append(spec)
+						spec2 = self.transform(spec2)
+					specs1.append(spec)
 					file_indices.append(file_index)
 					onsets.append(onset)
 					offsets.append(offset)
+					specs2.append(spec2)
 					break
 		else:
 			for i in index:
@@ -315,20 +332,20 @@ class simsiamSet(Dataset):
 
 					st.append(spec)
 
-				specs.append(st)
+				specs1.append(st)
 				file_indices.append(file_index)
 				onsets.append(onset)
 				offsets.append(offset)
-				days.append(day)
+				#days.append(day)
 
 		np.random.seed(None)
 		if return_seg_info:
 			if single_index:
-					return specs[0], file_indices[0], onsets[0], offsets[0]
-			return specs, file_indices, onsets, offsets
+					return specs1[0], file_indices[0], onsets[0], offsets[0]
+			return specs1, file_indices, onsets, offsets
 		if single_index:
-			return (specs[0],days[0])
-		return (specs, days)
+			return (specs1[0],specs2[0])
+		return (specs1,specs2)
 
 ############## Smoothness analysis functions ###########
 

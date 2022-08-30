@@ -4,13 +4,54 @@ import torch.nn.functional as F
 from torch.optim import Adam
 from torch.distributions import Normal, MultivariateNormal, LowRankMultivariateNormal
 import os
-import numpy as np
-import matplotlib.pyplot as plt
 
+
+class resnet_encoder(nn.Module):
+
+	def __init__(self):
+
+		"""
+		resnet encoder
+		"""
+		super().__init__()
+		self.model = torch.hub.load('pytorch/vision:v0.10.0', 'resnet50', pretrained=True)
+		self.f = nn.Sequential(nn.BatchNorm1d(1000),
+								nn.Linear(1000,2048),
+								nn.ReLU(),
+								nn.BatchNorm1d(2048),
+								nn.Linear(2048,2048),
+								nn.ReLU(),
+								nn.BatchNorm1d(2048),
+								nn.Linear(2048,2048))
+		
+	def encode(self,x):
+
+		z = self.model(x)
+		z = z.view(-1,8192)
+
+		z = self.f(z)
+		
+		return z
+
+class resnet_predictor(nn.Module):
+
+	def __init__(self) -> None:
+		super(resnet_predictor,self).__init__()	
+	
+		self.h = nn.Sequential(nn.BatchNorm1d(2048),
+								nn.Linear(2048,512),
+								nn.ReLU(),
+								nn.Linear(512,2048))
+
+	def predict(self, z):
+
+		p = self.h(z)
+
+		return p 
 
 class encoder(nn.Module):
 
-	def __init__(self,z_dim=32):
+	def __init__(self,z_dim=128):
 
 		"""
 		encoder for birdsong VAEs
@@ -56,30 +97,30 @@ class encoder(nn.Module):
 		
 	def encode(self,x):
 
-		h = self.encoder_conv(x)
-		h = h.view(-1,8192)
+		z = self.encoder_conv(x)
+		z = z.view(-1,8192)
 
-		h = self.encoder_fc(h)
+		z = self.encoder_fc(z)
 		
-		return h
+		return z
 
 class predictor(nn.Module):
 
-	def __init__(self,z_dim=32,h_dim=18):
+	def __init__(self,z_dim=128,h_dim=64):
 
 		"""
 		encoder for birdsong VAEs
 		"""
 
-		super(encoder,self).__init__()
+		super(predictor,self).__init__()
 		
 		self.z_dim = z_dim 
 		self.h_dim = h_dim 
 
 		self.predictor_fc = nn.Sequential(nn.Linear(self.z_dim,self.h_dim),
-									nn.Relu(),
+									nn.ReLU(),
 									nn.Linear(self.h_dim,self.z_dim),
-									nn.Relu())
+									nn.ReLU())
 
 	def predict(self, z):
 
@@ -94,14 +135,14 @@ class simsiam(nn.Module):
 	def __init__(self,encoder=None,predictor=None,sim_func=None,save_dir='',lr=1e-4):
 
 		"""
-		encoder for birdsong VAEs
+		simsiam for birdsong VAEs
 		"""
 
-		super(encoder,self).__init__()
+		super(simsiam,self).__init__()
 
 		self.encoder=encoder 
 		self.predictor=predictor
-		self.sim_func=None
+		self.sim_func=sim_func
 
 		self.save_dir = save_dir 
 		self.epoch = 0
@@ -133,12 +174,12 @@ class simsiam(nn.Module):
 
 		self.train()
 		train_loss = 0.0
-
+		loader.train_augment=True
 		for ii, batch in enumerate(loader):
 
 			(x1,x2) = batch
-
-			x1,x2 = x1.to(self.device),x2.to(self.device)
+			
+			x1,x2 = x1.unsqueeze(1).to(self.device),x2.unsqueeze(1).to(self.device)
 
 			z1,p1 = self.encode(x1)
 			z2,p2 = self.encode(x2)
@@ -150,7 +191,7 @@ class simsiam(nn.Module):
 			L.backward()
 			self.optimizer.step()
 
-		train_loss/len(loader)
+		train_loss /= len(loader)
 
 		print('Epoch {0:d} average train loss: {1:.3f}'.format(self.epoch,train_loss))
 
@@ -160,14 +201,14 @@ class simsiam(nn.Module):
 
 		self.eval()
 
-		self.test()
+		loader.train_augment=True
 		test_loss = 0.0
 
 		for ii,batch in enumerate(loader):
 
 			(x1,x2) = batch
-
-			x1,x2 = x1.to(self.device),x2.to(self.device)
+			
+			x1,x2 = x1.unsqueeze(1).to(self.device),x2.unsqueeze(1).to(self.device)
 
 			with torch.no_grad():
 				z1,p1 = self.encode(x1)
@@ -179,7 +220,7 @@ class simsiam(nn.Module):
 
 		test_loss /= len(loader)
 
-		print('Epoch {0:d} average train loss: {1:.3f}'.format(self.epoch,test_loss))
+		print('Epoch {0:d} average test loss: {1:.3f}'.format(self.epoch,test_loss))
 
 		return test_loss 
 
@@ -232,14 +273,14 @@ class simsiam(nn.Module):
 		this requires a loader that does NOT augment images beforehand
 		'''
 		latents = []
-		loader.latents=True
+		loader.train_augment=False
 
 		for ind, batch in enumerate(loader):
 
 			(x1,_) = batch 
 			
 
-			x1 = x1.to(self.device)
+			x1 = x1.unsqueeze(1).to(self.device)
 			with torch.no_grad():
 				z = self.encoder.encode(x1)
 
@@ -287,7 +328,72 @@ class simsiam(nn.Module):
 		self.epoch = checkpoint['epoch']
 
 	 
+class image_simsiam(simsiam):
 
+	def __init__(self, encoder=None, predictor=None, sim_func=None, save_dir='', lr=0.0001,transforms=()):
+		super(image_simsiam,self).__init__(encoder, predictor, sim_func, save_dir, lr)
 
+		self.transforms=transforms
 
+	def apply_transforms(self,x):
+
+		tx = self.transforms(x)
+
+		return tx
+
+	def train_epoch(self, loader):
+
+		self.train()
+		train_loss = 0.0
+		loader.train_augment=True
+		for ii, batch in enumerate(loader):
+
+			(x1,x2) = batch
+			
+			x1,x2 = x1.unsqueeze(1).to(self.device),x2.unsqueeze(1).to(self.device)
+
+			x1,x2 = self.apply_transforms(x1),self.apply_transforms(x2)
+			z1,p1 = self.encode(x1)
+			z2,p2 = self.encode(x2)
+
+			L = self.compute_loss(z1,p2)/2 + self.compute_loss(z2,p1)/2
+
+			train_loss += L.item()
+			
+			L.backward()
+			self.optimizer.step()
+
+		train_loss/len(loader)
+
+		print('Epoch {0:d} average train loss: {1:.3f}'.format(self.epoch,train_loss))
+
+		return train_loss 
+
+	def test_epoch(self,loader):
+
+		self.eval()
+
+		loader.train_augment=True
+		test_loss = 0.0
+
+		for ii,batch in enumerate(loader):
+
+			(x1,x2) = batch
+			
+			x1,x2 = x1.unsqueeze(1).to(self.device),x2.unsqueeze(1).to(self.device)
+
+			with torch.no_grad():
+				x1,x2 = self.apply_transforms(x1),self.apply_transforms(x2)
+				z1,p1 = self.encode(x1)
+				z2,p2 = self.encode(x2)
+
+				L = self.compute_loss(z1,p2)/2 + self.compute_loss(z2,p1)/2
+
+				test_loss += L.item()
+
+		test_loss /= len(loader)
+
+		print('Epoch {0:d} average test loss: {1:.3f}'.format(self.epoch,test_loss))
+
+		return test_loss 
 

@@ -18,6 +18,10 @@ from sklearn.decomposition import PCA
 import umap
 import numpy as np
 import os
+import seaborn as sns
+from torchvision import transforms
+from torchvision.datasets import ImageNet
+from torch.utils.data import DataLoader
 
 
 from ava.preprocessing.utils import get_spec
@@ -29,6 +33,72 @@ from ava.models.window_vae_dataset import get_window_partition, \
 
 FS = 42000
 from ava.models.vae import X_SHAPE
+
+def imagenet_script(imagenetdir = '',simsiam_dir='',batch_size=128,shuffle=(True,False),num_workers=4):
+
+	ts=transforms.Compose([transforms.RandomApply(transforms.ColorJitter(brightness=0.4,contrast=0.4,saturation=0.4,hue=0.1),p=0.8),\
+				transforms.RandomResizedCrop(size=(32,32),scale=(0.2,1.0)),\
+				transforms.RandomHorizontalFlip(),\
+				transforms.RandomGrayscale(p=0.2),\
+				transforms.GaussianBlur(kernel_size=3,sigma=(0.1,2.0))])
+	
+	ds_train = ImageNet(root=os.path.join(imagenetdir,'train'),split='train')
+	ds_val = ImageNet(root=os.path.join(imagenetdir,'val'),split='val')
+
+	
+	dls = {'train':DataLoader(ds_train,batch_size=batch_size, \
+			shuffle=shuffle[0], num_workers=num_workers),\
+			'test':DataLoader(ds_train,batch_size=batch_size, \
+			shuffle=shuffle[1], num_workers=num_workers)}
+
+
+	if simsiam_dir != '':
+		if not os.path.isdir(simsiam_dir):
+			os.mkdir(simsiam_dir)
+		save_file = os.path.join(simsiam_dir,'checkpoint_encoder_300.tar')
+		#print(save_file)
+		simsiam_encoder = encoder()
+		simsiam_predictor = predictor()
+		vanilla_simsiam = simsiam(simsiam_encoder,simsiam_predictor,save_dir=simsiam_dir,sim_func=batch_cos_sim)
+
+		if not os.path.isfile(save_file):
+			print('training vanilla')
+			vanilla_simsiam.train_test_loop(dls,epochs=301,test_freq=5,save_freq=50)
+			train_latents = vanilla_simsiam.get_latent(dls['train'])
+			test_latents = vanilla_simsiam.get_latent(dls['test'])
+
+			l_umap = umap.UMAP(n_components=2, n_neighbors=20, min_dist=0.1, random_state=42)
+
+			train_umap = l_umap.fit_transform(np.vstack(train_latents))
+			test_umap = l_umap.transform(np.vstack(test_latents))
+
+
+			ax = plt.gca()
+			sns.scatterplot(x=train_umap[:,0],y=train_umap[:,1],markers='+',ax=ax)
+			sns.scatterplot(x=test_umap[:,0],y=test_umap[:,1],markers='o',ax=ax)
+
+			plt.savefig(os.path.join(simsiam_dir,'latents.png'))
+			plt.close('all')
+		else:
+			print('loading vanilla')
+			vanilla_simsiam.load_state(save_file)
+			train_latents = vanilla_simsiam.get_latent(dls['train'])
+			test_latents = vanilla_simsiam.get_latent(dls['test'])
+
+			l_umap = umap.UMAP(n_components=2, n_neighbors=20, min_dist=0.1, random_state=42)
+
+			train_umap = l_umap.fit_transform(np.vstack(train_latents))
+			test_umap = l_umap.transform(np.vstack(test_latents))
+
+
+			ax = plt.gca()
+			sns.scatterplot(x=train_umap[:,0],y=train_umap[:,1],markers='+',ax=ax)
+			sns.scatterplot(x=test_umap[:,0],y=test_umap[:,1],markers='o',ax=ax)
+
+			plt.savefig(os.path.join(simsiam_dir,'latents.png'))
+			plt.close('all')
+
+	return
 
 def bird_model_script(simsiam_dir='',segment=False):
 
@@ -122,8 +192,8 @@ def bird_model_script(simsiam_dir='',segment=False):
 		'th_1': 2.25, # segmenting threshold 1
 		'th_2': -1, # segmenting threshold 2
 		'th_3': 4.5, # segmenting threshold 3
-		'window_length': 0.04, # spec window, in s
-		'window_overlap':0.02, # overlap between spec windows, in s
+		'window_length': 0.1, # spec window, in s
+		'window_overlap':0.01, # overlap between spec windows, in s
 		'algorithm': get_onsets_offsets, #finding syllables
 		'num_freq_bins': X_SHAPE[0],
 		'num_time_bins': X_SHAPE[1],
@@ -134,7 +204,8 @@ def bird_model_script(simsiam_dir='',segment=False):
 			'spec_max_val'), #I'm sure this does somethinglatent_path
 		'int_preprocess_params': tuple([]), #i'm ALSO sure this does something
 		'binary_preprocess_params': ('mel', 'within_syll_normalize'), #shrug
-        'train_augment': True
+        'train_augment': True, # whether or not we are training simsiam
+		'max_tau':0.01 # max horizontal time shift for our window
 		}
 
 	#template_b1 = get_template(template_b1_dir,segment_params)
@@ -160,7 +231,7 @@ def bird_model_script(simsiam_dir='',segment=False):
 	motif_part = get_window_partition(adult_audio_dirs,adult_motif_dirs,0.8)
 	#motif_part['test'] = motif_part['train']
 	print('getting prediction loader')
-	loaders_for_prediction = get_simsiam_loaders_motif(motif_part,segment_params)
+	loaders_for_prediction = get_simsiam_loaders_motif(motif_part,segment_params,n_samples=20000)
 	# this is used for the shotgun VAE, as opposed to the shotgun-dynamics VAE
 	#partition = get_window_partition(dsb_audio_dirs, dsb_segment_dirs, split)
 	#loaders = get_fixed_window_data_loaders(partition, segment_params)
@@ -173,16 +244,31 @@ def bird_model_script(simsiam_dir='',segment=False):
 			os.mkdir(simsiam_dir)
 		save_file = os.path.join(simsiam_dir,'checkpoint_encoder_300.tar')
 		#print(save_file)
-		simsiam_encoder = encoder()
-		simsiam_predictor = predictor()
+		simsiam_encoder = encoder(z_dim=512)
+		simsiam_predictor = predictor(z_dim=512,h_dim=256)
 		vanilla_simsiam = simsiam(simsiam_encoder,simsiam_predictor,save_dir=simsiam_dir,sim_func=batch_cos_sim)
 
 		if not os.path.isfile(save_file):
 			print('training vanilla')
-			vanilla_simsiam.train_test_loop(loaders_for_prediction,epochs=301,test_freq=5,save_freq=50,vis_freq=25)
+			vanilla_simsiam.train_test_loop(loaders_for_prediction,epochs=301,test_freq=5,save_freq=50)
 		else:
 			print('loading vanilla')
 			vanilla_simsiam.load_state(save_file)
+			train_latents = vanilla_simsiam.get_latent(loaders_for_prediction['train'])
+			test_latents = vanilla_simsiam.get_latent(loaders_for_prediction['test'])
+
+			l_umap = umap.UMAP(n_components=2, n_neighbors=20, min_dist=0.1, random_state=42)
+
+			train_umap = l_umap.fit_transform(np.vstack(train_latents))
+			test_umap = l_umap.transform(np.vstack(test_latents))
+
+
+			ax = plt.gca()
+			sns.scatterplot(x=train_umap[:,0],y=train_umap[:,1],markers='+',ax=ax)
+			sns.scatterplot(x=test_umap[:,0],y=test_umap[:,1],markers='o',ax=ax)
+
+			plt.savefig(os.path.join(simsiam_dir,'latents.png'))
+			plt.close('all')
 			#vanilla_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
 			#vanilla_vae.test_epoch(loaders_for_prediction['test'])
 
@@ -257,3 +343,4 @@ if __name__ == '__main__':
 
 	root = '/home/mrmiews/Desktop/Pearson_Lab/'
 	fire.Fire(bird_model_script) #(n_train_runs = 1, root = os.path.join(root,'model_for_movie'),figs=False)
+	#fire.Fire(imagenet_script)
