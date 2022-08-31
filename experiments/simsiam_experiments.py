@@ -9,6 +9,7 @@ sys.path.insert(0, parentdir)
 import fire
 from VAE_Projects.models.utils import get_window_partition,get_simsiam_loaders_motif,batch_cos_sim
 from VAE_Projects.models.simsiam_models import encoder,predictor,simsiam
+from VAE_Projects.experiments.simsiam_analysis import lookin_at_latents
 import matplotlib.pyplot as plt
 from colour import Color
 import numpy as np
@@ -66,6 +67,8 @@ def imagenet_script(imagenetdir = '',simsiam_dir='',batch_size=128,shuffle=(True
 			vanilla_simsiam.train_test_loop(dls,epochs=301,test_freq=5,save_freq=50)
 			train_latents = vanilla_simsiam.get_latent(dls['train'])
 			test_latents = vanilla_simsiam.get_latent(dls['test'])
+			print('here')
+			lookin_at_latents(vanilla_simsiam,dls['train'])
 
 			l_umap = umap.UMAP(n_components=2, n_neighbors=20, min_dist=0.1, random_state=42)
 
@@ -84,6 +87,7 @@ def imagenet_script(imagenetdir = '',simsiam_dir='',batch_size=128,shuffle=(True
 			vanilla_simsiam.load_state(save_file)
 			train_latents = vanilla_simsiam.get_latent(dls['train'])
 			test_latents = vanilla_simsiam.get_latent(dls['test'])
+			lookin_at_latents(vanilla_simsiam,dls['train'])
 
 			l_umap = umap.UMAP(n_components=2, n_neighbors=20, min_dist=0.1, random_state=42)
 
@@ -192,8 +196,8 @@ def bird_model_script(simsiam_dir='',segment=False):
 		'th_1': 2.25, # segmenting threshold 1
 		'th_2': -1, # segmenting threshold 2
 		'th_3': 4.5, # segmenting threshold 3
-		'window_length': 0.1, # spec window, in s
-		'window_overlap':0.01, # overlap between spec windows, in s
+		'window_length': 0.12, # spec window, in s
+		'window_overlap':0.11, # overlap between spec windows, in s
 		'algorithm': get_onsets_offsets, #finding syllables
 		'num_freq_bins': X_SHAPE[0],
 		'num_time_bins': X_SHAPE[1],
@@ -251,12 +255,15 @@ def bird_model_script(simsiam_dir='',segment=False):
 		if not os.path.isfile(save_file):
 			print('training vanilla')
 			vanilla_simsiam.train_test_loop(loaders_for_prediction,epochs=301,test_freq=5,save_freq=50)
+			lookin_at_latents(vanilla_simsiam,loaders_for_prediction['train'])
 		else:
 			print('loading vanilla')
 			vanilla_simsiam.load_state(save_file)
 			train_latents = vanilla_simsiam.get_latent(loaders_for_prediction['train'])
+			#print(len(train_latents))
 			test_latents = vanilla_simsiam.get_latent(loaders_for_prediction['test'])
-
+			#print(len(test))
+			lookin_at_latents(vanilla_simsiam,loaders_for_prediction['train'])
 			l_umap = umap.UMAP(n_components=2, n_neighbors=20, min_dist=0.1, random_state=42)
 
 			train_umap = l_umap.fit_transform(np.vstack(train_latents))

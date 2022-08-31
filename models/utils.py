@@ -283,6 +283,7 @@ class simsiamSet(Dataset):
 					specs2.append(spec2)
 					break
 		else:
+			
 			for i in index:
 				st = []
 				# First find the file, then the ROI.
@@ -315,6 +316,8 @@ class simsiamSet(Dataset):
 				else:
 					ons = np.linspace(onset,offset-self.p['window_length'],\
 						num = int((offset-onset)//(self.p['window_length'] - self.p['window_overlap'])))
+					num = int((offset-onset)//(self.p['window_length'] - self.p['window_overlap']))
+					
 					ons = ons[:len(ons)]
 						# Then choose a chunk of audio uniformly at random.
 				for ton in ons:
@@ -344,7 +347,7 @@ class simsiamSet(Dataset):
 					return specs1[0], file_indices[0], onsets[0], offsets[0]
 			return specs1, file_indices, onsets, offsets
 		if single_index:
-			return (specs1[0],specs2[0])
+			return (specs1[0],specs2)
 		return (specs1,specs2)
 
 ############## Smoothness analysis functions ###########

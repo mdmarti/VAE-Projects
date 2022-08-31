@@ -2,8 +2,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.optim import Adam
-from torch.distributions import Normal, MultivariateNormal, LowRankMultivariateNormal
 import os
+from torch.utils.data import DataLoader
 
 
 class resnet_encoder(nn.Module):
@@ -174,7 +174,7 @@ class simsiam(nn.Module):
 
 		self.train()
 		train_loss = 0.0
-		loader.train_augment=True
+		loader.dataset.train_augment=True
 		for ii, batch in enumerate(loader):
 
 			(x1,x2) = batch
@@ -201,7 +201,7 @@ class simsiam(nn.Module):
 
 		self.eval()
 
-		loader.train_augment=True
+		loader.dataset.train_augment=True
 		test_loss = 0.0
 
 		for ii,batch in enumerate(loader):
@@ -273,19 +273,25 @@ class simsiam(nn.Module):
 		this requires a loader that does NOT augment images beforehand
 		'''
 		latents = []
-		loader.train_augment=False
-
-		for ind, batch in enumerate(loader):
+		#print(len(loader))#.dataset.train_augment)
+		tmpdl = DataLoader(loader.dataset, batch_size=1, \
+			shuffle=False, num_workers=loader.num_workers)
+		tmpdl.dataset.train_augment=False
+		#print(len(loader))
+		#assert False
+		
+		for ind, batch in enumerate(tmpdl):
 
 			(x1,_) = batch 
 			
 
-			x1 = x1.unsqueeze(1).to(self.device)
+			x1 = torch.vstack(x1).unsqueeze(1).to(self.device)
 			with torch.no_grad():
 				z = self.encoder.encode(x1)
 
 			latents.append(z.detach().cpu().numpy())
 
+		
 		return latents
 
 	def save_state(self):
