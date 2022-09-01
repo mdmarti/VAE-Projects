@@ -4,6 +4,7 @@ import torch.nn.functional as F
 from torch.optim import Adam
 import os
 from torch.utils.data import DataLoader
+from torch.utils.tensorboard import SummaryWriter
 
 
 class resnet_encoder(nn.Module):
@@ -145,6 +146,8 @@ class simsiam(nn.Module):
 		self.sim_func=sim_func
 
 		self.save_dir = save_dir 
+		self.writer = SummaryWriter(log_dir=os.path.join(self.save_dir,'runs'))
+
 		self.epoch = 0
 		self.lr = lr
 		self.loss = {'train': {}, 'test': {}}
@@ -174,13 +177,14 @@ class simsiam(nn.Module):
 
 		self.train()
 		train_loss = 0.0
-		loader.dataset.train_augment=True
+		#loader.dataset.train_augment=True
 		for ii, batch in enumerate(loader):
 
 			(x1,x2) = batch
 			
 			x1,x2 = x1.unsqueeze(1).to(self.device),x2.unsqueeze(1).to(self.device)
 
+			
 			z1,p1 = self.encode(x1)
 			z2,p2 = self.encode(x2)
 
@@ -201,7 +205,7 @@ class simsiam(nn.Module):
 
 		self.eval()
 
-		loader.dataset.train_augment=True
+		#loader.dataset.train_augment=True
 		test_loss = 0.0
 
 		for ii,batch in enumerate(loader):
@@ -351,7 +355,7 @@ class image_simsiam(simsiam):
 
 		self.train()
 		train_loss = 0.0
-		loader.train_augment=True
+		loader.dataset.train_augment=True
 		for ii, batch in enumerate(loader):
 
 			(x1,x2) = batch
@@ -379,7 +383,7 @@ class image_simsiam(simsiam):
 
 		self.eval()
 
-		loader.train_augment=True
+		loader.dataset.train_augment=True
 		test_loss = 0.0
 
 		for ii,batch in enumerate(loader):
@@ -403,3 +407,255 @@ class image_simsiam(simsiam):
 
 		return test_loss 
 
+class simsiam_l1(simsiam):
+
+	def __init__(self,encoder=None,predictor=None,sim_func=None,save_dir='',lr=1e-4,lamb=1e-10):
+
+		"""
+		simsiam for birdsong VAEs
+		"""
+
+		super(simsiam_l1,self).__init__(encoder=encoder,predictor=predictor,sim_func=sim_func,save_dir=save_dir,lr=lr)
+		self.lamb = lamb
+		self.writer = SummaryWriter(log_dir=os.path.join(self.save_dir,'runs'))
+
+	def compute_loss(self,z,p):
+
+		z_loss = z.detach()
+		l = self.sim_func(p,z_loss)
+
+		l1_term_z = torch.abs(z_loss).sum(axis=1).mean()
+		l1_term_p = torch.abs(p).sum(axis=1).mean()
+
+		return l, l1_term_z, l1_term_p
+
+
+	def train_epoch(self, loader):
+
+		self.train()
+		train_loss = 0.0
+		train_sim = 0.0
+		train_l1_z = 0.0
+		train_l1_p = 0.0
+		#loader.dataset.train_augment=True
+		for ii, batch in enumerate(loader):
+
+			(x1,x2) = batch
+			
+			x1,x2 = x1.unsqueeze(1).to(self.device),x2.unsqueeze(1).to(self.device)
+
+			
+			z1,p1 = self.encode(x1)
+			z2,p2 = self.encode(x2)
+
+			sim1,l1_z1,l1_p1 = self.compute_loss(z1,p2)
+			sim2,l1_z2,l1_p2 = self.compute_loss(z2,p1)
+			sim = (sim1 + sim2)/2
+			l1_z = (l1_z1 + l1_z2)/2
+			l1_p = (l1_p1 + l1_p2)/2
+
+			L = sim + self.lamb * l1_p
+			train_loss += L.item()
+			train_sim += sim.item()
+			train_l1_z += l1_z.item()
+			train_l1_p += l1_p.item()
+			
+			L.backward()
+			self.optimizer.step()
+
+		train_loss /= len(loader)
+		train_sim /= len(loader)
+		train_l1_z /= len(loader)
+		train_l1_p /= len(loader)
+
+
+		self.writer.add_scalar('train/total',train_loss,self.epoch)
+		self.writer.add_scalar('train/sim',train_sim,self.epoch)
+		self.writer.add_scalar('train/l1_z',train_l1_z,self.epoch)
+		self.writer.add_scalar('train/l1_p',train_l1_p,self.epoch)
+
+		
+		print('Epoch {0:d} average train loss: {1:.3f}'.format(self.epoch,train_loss))
+		print('Epoch {0:d} average train sim: {1:.3f}'.format(self.epoch,train_sim))
+		print('Epoch {0:d} average train l1 (z): {1:.3f}'.format(self.epoch,train_l1_z))
+		print('Epoch {0:d} average train l1 (p): {1:.3f}'.format(self.epoch,train_l1_p))
+
+		return train_loss 
+
+	def test_epoch(self,loader):
+
+		self.eval()
+
+		#loader.dataset.train_augment=True
+		test_loss = 0.0
+		test_sim = 0.0
+		test_l1_z = 0.0
+		test_l1_p = 0.0
+
+		for ii,batch in enumerate(loader):
+
+			(x1,x2) = batch
+			
+			x1,x2 = x1.unsqueeze(1).to(self.device),x2.unsqueeze(1).to(self.device)
+
+			with torch.no_grad():
+				z1,p1 = self.encode(x1)
+				z2,p2 = self.encode(x2)
+
+				sim1,l1_z1,l1_p1 = self.compute_loss(z1,p2)
+				sim2,l1_z2,l1_p2 = self.compute_loss(z2,p1)
+				sim = (sim1 + sim2)/2
+				l1_z = (l1_z1 + l1_z2)/2
+				l1_p = (l1_p1 + l1_p2)/2
+
+				L = sim +  l1_p
+				test_loss += L.item()
+				test_sim += sim.item()
+				test_l1_z += l1_z.item()
+				test_l1_p += l1_p.item()
+
+				test_loss += L.item()
+
+		test_loss /= len(loader)
+		test_sim /= len(loader)
+		test_l1_z /= len(loader)
+		test_l1_p /= len(loader)
+
+		self.writer.add_scalar('test/total',test_loss,self.epoch)
+		self.writer.add_scalar('test/sim',test_sim,self.epoch)
+		self.writer.add_scalar('test/l1_z',test_l1_z,self.epoch)
+		self.writer.add_scalar('test/l1_p',test_l1_p,self.epoch)
+
+		print('Epoch {0:d} average test loss: {1:.3f}'.format(self.epoch,test_loss))
+		print('Epoch {0:d} average test sim: {1:.3f}'.format(self.epoch,test_sim))
+		print('Epoch {0:d} average test l1 (z): {1:.3f}'.format(self.epoch,test_l1_z))
+		print('Epoch {0:d} average test l1 (p): {1:.3f}'.format(self.epoch,test_l1_p))
+
+		return test_loss 
+
+
+class masked_simsiam(simsiam):
+
+	def __init__(self,encoder=None,predictor=None,sim_func=None,save_dir='',lr=1e-4,lamb=1e-10):
+
+		"""
+		simsiam for birdsong VAEs
+		"""
+
+		super(simsiam_l1,self).__init__(encoder=encoder,predictor=predictor,sim_func=sim_func,save_dir=save_dir,lr=lr)
+		self.lamb = lamb
+		self.writer = SummaryWriter(log_dir=os.path.join(self.save_dir,'runs'))
+
+	def compute_loss(self,z,p):
+
+		z_loss = z.detach()
+		l = self.sim_func(p,z_loss)
+
+		l1_term_z = torch.abs(z_loss).sum(axis=1).mean()
+		l1_term_p = torch.abs(p).sum(axis=1).mean()
+
+		return l, l1_term_z, l1_term_p
+
+
+	def train_epoch(self, loader):
+
+		self.train()
+		train_loss = 0.0
+		train_sim = 0.0
+		train_l1_z = 0.0
+		train_l1_p = 0.0
+		#loader.dataset.train_augment=True
+		for ii, batch in enumerate(loader):
+
+			(x1,x2) = batch
+			
+			x1,x2 = x1.unsqueeze(1).to(self.device),x2.unsqueeze(1).to(self.device)
+
+			
+			z1,p1 = self.encode(x1)
+			z2,p2 = self.encode(x2)
+
+			sim1,l1_z1,l1_p1 = self.compute_loss(z1,p2)
+			sim2,l1_z2,l1_p2 = self.compute_loss(z2,p1)
+			sim = (sim1 + sim2)/2
+			l1_z = (l1_z1 + l1_z2)/2
+			l1_p = (l1_p1 + l1_p2)/2
+
+			L = sim + self.lamb * l1_p
+			train_loss += L.item()
+			train_sim += sim.item()
+			train_l1_z += l1_z.item()
+			train_l1_p += l1_p.item()
+			
+			L.backward()
+			self.optimizer.step()
+
+		train_loss /= len(loader)
+		train_sim /= len(loader)
+		train_l1_z /= len(loader)
+		train_l1_p /= len(loader)
+
+
+		self.writer.add_scalar('train/total',train_loss,self.epoch)
+		self.writer.add_scalar('train/sim',train_sim,self.epoch)
+		self.writer.add_scalar('train/l1_z',train_l1_z,self.epoch)
+		self.writer.add_scalar('train/l1_p',train_l1_p,self.epoch)
+
+		
+		print('Epoch {0:d} average train loss: {1:.3f}'.format(self.epoch,train_loss))
+		print('Epoch {0:d} average train sim: {1:.3f}'.format(self.epoch,train_sim))
+		print('Epoch {0:d} average train l1 (z): {1:.3f}'.format(self.epoch,train_l1_z))
+		print('Epoch {0:d} average train l1 (p): {1:.3f}'.format(self.epoch,train_l1_p))
+
+		return train_loss 
+
+	def test_epoch(self,loader):
+
+		self.eval()
+
+		#loader.dataset.train_augment=True
+		test_loss = 0.0
+		test_sim = 0.0
+		test_l1_z = 0.0
+		test_l1_p = 0.0
+
+		for ii,batch in enumerate(loader):
+
+			(x1,x2) = batch
+			
+			x1,x2 = x1.unsqueeze(1).to(self.device),x2.unsqueeze(1).to(self.device)
+
+			with torch.no_grad():
+				z1,p1 = self.encode(x1)
+				z2,p2 = self.encode(x2)
+
+				sim1,l1_z1,l1_p1 = self.compute_loss(z1,p2)
+				sim2,l1_z2,l1_p2 = self.compute_loss(z2,p1)
+				sim = (sim1 + sim2)/2
+				l1_z = (l1_z1 + l1_z2)/2
+				l1_p = (l1_p1 + l1_p2)/2
+
+				L = sim +  l1_p
+				test_loss += L.item()
+				test_sim += sim.item()
+				test_l1_z += l1_z.item()
+				test_l1_p += l1_p.item()
+
+				test_loss += L.item()
+
+		test_loss /= len(loader)
+		test_sim /= len(loader)
+		test_l1_z /= len(loader)
+		test_l1_p /= len(loader)
+
+		self.writer.add_scalar('test/total',test_loss,self.epoch)
+		self.writer.add_scalar('test/sim',test_sim,self.epoch)
+		self.writer.add_scalar('test/l1_z',test_l1_z,self.epoch)
+		self.writer.add_scalar('test/l1_p',test_l1_p,self.epoch)
+
+		print('Epoch {0:d} average test loss: {1:.3f}'.format(self.epoch,test_loss))
+		print('Epoch {0:d} average test sim: {1:.3f}'.format(self.epoch,test_sim))
+		print('Epoch {0:d} average test l1 (z): {1:.3f}'.format(self.epoch,test_l1_z))
+		print('Epoch {0:d} average test l1 (p): {1:.3f}'.format(self.epoch,test_l1_p))
+
+		return test_loss 	

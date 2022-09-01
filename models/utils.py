@@ -336,6 +336,7 @@ class simsiamSet(Dataset):
 					st.append(spec)
 
 				specs1.append(st)
+				specs2.append(1)
 				file_indices.append(file_index)
 				onsets.append(onset)
 				offsets.append(offset)
@@ -347,7 +348,7 @@ class simsiamSet(Dataset):
 					return specs1[0], file_indices[0], onsets[0], offsets[0]
 			return specs1, file_indices, onsets, offsets
 		if single_index:
-			return (specs1[0],specs2)
+			return (specs1[0],specs2[0])
 		return (specs1,specs2)
 
 ############## Smoothness analysis functions ###########
