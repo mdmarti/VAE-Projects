@@ -105,7 +105,7 @@ def imagenet_script(imagenetdir = '',simsiam_dir='',batch_size=128,shuffle=(True
 
 	return
 
-def bird_model_script(simsiam_dir='',simsiam_l1_dir='',segment=False):
+def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',segment=False):
 
 ########## Setting up directory lists: separate into train, test dirs
 ############# Expected File Structure
@@ -304,6 +304,46 @@ def bird_model_script(simsiam_dir='',simsiam_l1_dir='',segment=False):
 			#print(len(test))
 			lookin_at_latents(l1_simsiam,loaders_for_prediction['train'])
 			z_plots(l1_simsiam,loaders_for_prediction['train'])
+
+			l_umap = umap.UMAP(n_components=2, n_neighbors=20, min_dist=0.1, random_state=42)
+
+			train_umap = l_umap.fit_transform(np.vstack(train_latents))
+			test_umap = l_umap.transform(np.vstack(test_latents))
+
+
+			ax = plt.gca()
+			sns.scatterplot(x=train_umap[:,0],y=train_umap[:,1],markers='+',ax=ax)
+			sns.scatterplot(x=test_umap[:,0],y=test_umap[:,1],markers='o',ax=ax)
+
+			plt.savefig(os.path.join(simsiam_dir,'latents.png'))
+			plt.close('all')
+			#vanilla_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
+			#vanilla_vae.test_epoch(loaders_for_prediction['test'])
+
+	if simsiam_masked_dir != '':
+		if not os.path.isdir(simsiam_masked_dir):
+			os.mkdir(simsiam_masked_dir)
+		save_file = os.path.join(simsiam_masked_dir,'checkpoint_encoder_300.tar')
+		#print(save_file)
+		simsiam_mask_encoder = encoder(z_dim=128)
+		simsiam_mask_predictor = predictor(z_dim=128,h_dim=64)
+		mask_simsiam = simsiam_l1(simsiam_mask_encoder,simsiam_mask_predictor,save_dir=simsiam_masked_dir,sim_func=batch_cos_sim,lamb=1e-12)
+
+		if not os.path.isfile(save_file):
+			print('training vanilla')
+			mask_simsiam.train_test_loop(loaders_for_prediction,epochs=5001,test_freq=5,save_freq=25)
+			lookin_at_latents(mask_simsiam,loaders_for_prediction['train'])
+			#lookin_at_latents(l1_simsiam,loaders_for_prediction['test'])
+			z_plots(mask_simsiam,loaders_for_prediction['train'])
+		else:
+			print('loading vanilla')
+			mask_simsiam.load_state(save_file)
+			train_latents = mask_simsiam.get_latent(loaders_for_prediction['train'])
+			#print(len(train_latents))
+			test_latents = mask_simsiam.get_latent(loaders_for_prediction['test'])
+			#print(len(test))
+			lookin_at_latents(mask_simsiam,loaders_for_prediction['train'])
+			z_plots(mask_simsiam,loaders_for_prediction['train'])
 
 			l_umap = umap.UMAP(n_components=2, n_neighbors=20, min_dist=0.1, random_state=42)
 

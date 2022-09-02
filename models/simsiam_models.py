@@ -543,15 +543,19 @@ class masked_simsiam(simsiam):
 		"""
 
 		super(simsiam_l1,self).__init__(encoder=encoder,predictor=predictor,sim_func=sim_func,save_dir=save_dir,lr=lr)
+		self.m = nn.Parameter(torch.empty(1,encoder.z_dim))
+		nn.init.xavier_normal_(self.m)
 		self.lamb = lamb
 		self.writer = SummaryWriter(log_dir=os.path.join(self.save_dir,'runs'))
+		self.m.to(self.device)
 
 	def compute_loss(self,z,p):
 
 		z_loss = z.detach()
 		l = self.sim_func(p,z_loss)
 
-		l1_term_z = torch.abs(z_loss).sum(axis=1).mean()
+		tiled_m = torch.tile(self.m,(z.shape[0],1))
+		l1_term_z = torch.abs(tiled_m * z_loss).sum(axis=1).mean()
 		l1_term_p = torch.abs(p).sum(axis=1).mean()
 
 		return l, l1_term_z, l1_term_p
@@ -581,7 +585,7 @@ class masked_simsiam(simsiam):
 			l1_z = (l1_z1 + l1_z2)/2
 			l1_p = (l1_p1 + l1_p2)/2
 
-			L = sim + self.lamb * l1_p
+			L = sim + self.lamb * l1_z
 			train_loss += L.item()
 			train_sim += sim.item()
 			train_l1_z += l1_z.item()
@@ -635,7 +639,7 @@ class masked_simsiam(simsiam):
 				l1_z = (l1_z1 + l1_z2)/2
 				l1_p = (l1_p1 + l1_p2)/2
 
-				L = sim +  l1_p
+				L = sim + self.lamb*l1_z
 				test_loss += L.item()
 				test_sim += sim.item()
 				test_l1_z += l1_z.item()
