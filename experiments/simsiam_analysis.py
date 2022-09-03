@@ -33,7 +33,7 @@ def z_plots(model=None, loader=None):
 
 	corr = covar/denom 
 
-	_, (ax1,ax2) = plt.subplots(nrows=1,ncols=2,figsize=(6,12))
+	_, (ax1,ax2) = plt.subplots(nrows=1,ncols=2,figsize=(12,6))
 
 	sns.heatmap(data=covar,ax=ax1,cbar_kws={'label':'variance/covariance'})
 	sns.heatmap(data=corr,ax=ax2,vmin=0.0,vmax=1.0,cbar_kws={'label':'correlation'})
