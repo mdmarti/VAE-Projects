@@ -265,6 +265,7 @@ def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',sim
 			test_latents = vanilla_simsiam.get_latent(loaders_for_prediction['test'])
 			#print(len(test))
 			lookin_at_latents(vanilla_simsiam,loaders_for_prediction['train'])
+			z_plots(vanilla_simsiam,loaders_for_prediction['train'])
 			l_umap = umap.UMAP(n_components=2, n_neighbors=20, min_dist=0.1, random_state=42)
 
 			train_umap = l_umap.fit_transform(np.vstack(train_latents))
