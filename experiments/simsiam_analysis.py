@@ -34,31 +34,16 @@ def z_plots(model=None, loader=None):
 
 	corr = covar/denom 
 
-	_, (ax1,ax2) = plt.subplots(nrows=1,ncols=2,figsize=(15,6))
+	#_, (ax1,ax2) = plt.subplots(nrows=1,ncols=2,figsize=(15,6))
 
-	sns.clustermap(data=covar,ax=ax1,cbar_kws={'label':'variance/covariance'})
-	sns.clustermap(data=corr,ax=ax2,vmin=0.0,vmax=1.0,cbar_kws={'label':'correlation'})
-
-	ax1.set_title('Covariance between latent dims')
-	ax2.set_title('Correlation between latent dims')
-	ax1.set_ylabel('latent dims')
-	ax1.set_xlabel('also latent dims')
-
-	ax2.set_xlabel('also latent dims')
-
-
-	plt.tick_params(
-    	axis='both',          # changes apply to the both-axes
-    	which='both',      # both major and minor ticks are affected
-    	bottom=False,      # ticks along the bottom edge are off
-    	top=False,         # ticks along the top edge are off
-    	labelbottom=False) # labels along the bottom edge are off
-
-	plt.savefig(os.path.join(model.save_dir, 'corr_and_cov.png'))
+	sns.clustermap(data=covar,cbar_kws={'label':'variance/covariance'})
+	plt.savefig(os.path.join(model.save_dir, 'cov.png'))
 	plt.close('all')
-
+	sns.clustermap(data=corr,vmin=0.0,vmax=1.0,cbar_kws={'label':'correlation'})
+	plt.savefig(os.path.join(model.save_dir, 'corr.png'))
+	plt.close('all')
+	
 	max_length = max(map(len, latents))
-
 	latents = list(map(lambda x: x if x.shape[0] == max_length else \
 								np.vstack((x,np.ones((max_length - x.shape[0],x.shape[1]))*np.nan)),latents))
 
