@@ -21,6 +21,7 @@ def z_plots(model=None, loader=None):
 
 	
 	stacked_for_transforms = np.vstack(latents)
+	stacked_for_transforms /= 1e9
 	#print(stacked_for_transforms.shape)
 	
 
@@ -61,7 +62,7 @@ def z_plots(model=None, loader=None):
 	latents = list(map(lambda x: x if x.shape[0] == max_length else \
 								np.vstack((x,np.ones((max_length - x.shape[0],x.shape[1]))*np.nan)),latents))
 
-	stacked_lats_traj = np.stack(latents,axis=0)
+	stacked_lats_traj = np.stack(latents,axis=0)/1e9
 	mean_traj = np.nanmean(stacked_lats_traj,axis=1)
 	sd_traj = np.nanstd(stacked_lats_traj,axis=1)
 
@@ -92,7 +93,7 @@ def lookin_at_latents(model=None,loader=None):
 
 	latents = model.get_latent(loader)
 
-	stacked_for_transforms = np.vstack(latents)
+	stacked_for_transforms = np.vstack(latents)/1e9
 
 	l_umap = umap.UMAP(n_components=2, n_neighbors=20, min_dist=0.1, random_state=42)
 	l_pca = PCA()
@@ -117,7 +118,7 @@ def lookin_at_latents(model=None,loader=None):
 	background34_pca = sns.scatterplot(x=latents_pca[:,2],y=latents_pca[:,3],color='k',ax=ax3)
 
 	for s in sample_inds:
-		tmp_latents = latents[s]
+		tmp_latents = latents[s]/1e9
 
 		umap_tmp = l_umap.transform(tmp_latents)
 		pca_tmp = l_pca.transform(tmp_latents)
