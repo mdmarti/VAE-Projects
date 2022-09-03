@@ -9,7 +9,7 @@ sys.path.insert(0, parentdir)
 
 import fire
 from VAE_Projects.models.utils import get_window_partition,get_simsiam_loaders_motif,batch_cos_sim
-from VAE_Projects.models.simsiam_models import encoder,predictor,simsiam,simsiam_l1
+from VAE_Projects.models.simsiam_models import encoder,predictor,simsiam,simsiam_l1,simsiam_l2
 from VAE_Projects.experiments.simsiam_analysis import lookin_at_latents,z_plots
 import matplotlib.pyplot as plt
 from colour import Color
@@ -105,7 +105,7 @@ def imagenet_script(imagenetdir = '',simsiam_dir='',batch_size=128,shuffle=(True
 
 	return
 
-def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',segment=False):
+def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',simsiam_l2_dir='',segment=False):
 
 ########## Setting up directory lists: separate into train, test dirs
 ############# Expected File Structure
@@ -249,8 +249,8 @@ def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',seg
 			os.mkdir(simsiam_dir)
 		save_file = os.path.join(simsiam_dir,'checkpoint_encoder_300.tar')
 		#print(save_file)
-		simsiam_encoder = encoder(z_dim=512)
-		simsiam_predictor = predictor(z_dim=512,h_dim=256)
+		simsiam_encoder = encoder(z_dim=64)
+		simsiam_predictor = predictor(z_dim=64,h_dim=32)
 		vanilla_simsiam = simsiam(simsiam_encoder,simsiam_predictor,save_dir=simsiam_dir,sim_func=batch_cos_sim)
 
 		if not os.path.isfile(save_file):
@@ -315,7 +315,7 @@ def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',seg
 			sns.scatterplot(x=train_umap[:,0],y=train_umap[:,1],markers='+',ax=ax)
 			sns.scatterplot(x=test_umap[:,0],y=test_umap[:,1],markers='o',ax=ax)
 
-			plt.savefig(os.path.join(simsiam_dir,'latents.png'))
+			plt.savefig(os.path.join(simsiam_l1_dir,'latents.png'))
 			plt.close('all')
 			#vanilla_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
 			#vanilla_vae.test_epoch(loaders_for_prediction['test'])
@@ -355,12 +355,48 @@ def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',seg
 			sns.scatterplot(x=train_umap[:,0],y=train_umap[:,1],markers='+',ax=ax)
 			sns.scatterplot(x=test_umap[:,0],y=test_umap[:,1],markers='o',ax=ax)
 
-			plt.savefig(os.path.join(simsiam_dir,'latents.png'))
+			plt.savefig(os.path.join(simsiam_masked_dir,'latents.png'))
 			plt.close('all')
 			#vanilla_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
 			#vanilla_vae.test_epoch(loaders_for_prediction['test'])
 
+	if simsiam_l2_dir != '':
+		if not os.path.isdir(simsiam_l2_dir):
+			os.mkdir(simsiam_l2_dir)
+		save_file = os.path.join(simsiam_l2_dir,'checkpoint_encoder_300.tar')
+		#print(save_file)
+		simsiam_l2_encoder = encoder(z_dim=128)
+		simsiam_l2_predictor = predictor(z_dim=128,h_dim=64)
+		l2_simsiam = simsiam_l2(simsiam_l2_encoder,simsiam_l2_predictor,save_dir=simsiam_l2_dir,sim_func=batch_cos_sim,lamb=1e-12)
 
+		if not os.path.isfile(save_file):
+			print('training vanilla')
+			l2_simsiam.train_test_loop(loaders_for_prediction,epochs=5001,test_freq=5,save_freq=25)
+			lookin_at_latents(l2_simsiam,loaders_for_prediction['train'])
+			#lookin_at_latents(l1_simsiam,loaders_for_prediction['test'])
+			z_plots(l2_simsiam,loaders_for_prediction['train'])
+		else:
+			print('loading vanilla')
+			l2_simsiam.load_state(save_file)
+			train_latents = l2_simsiam.get_latent(loaders_for_prediction['train'])
+			#print(len(train_latents))
+			test_latents = l2_simsiam.get_latent(loaders_for_prediction['test'])
+			#print(len(test))
+			lookin_at_latents(l2_simsiam,loaders_for_prediction['train'])
+			z_plots(l2_simsiam,loaders_for_prediction['train'])
+
+			l_umap = umap.UMAP(n_components=2, n_neighbors=20, min_dist=0.1, random_state=42)
+
+			train_umap = l_umap.fit_transform(np.vstack(train_latents))
+			test_umap = l_umap.transform(np.vstack(test_latents))
+
+
+			ax = plt.gca()
+			sns.scatterplot(x=train_umap[:,0],y=train_umap[:,1],markers='+',ax=ax)
+			sns.scatterplot(x=test_umap[:,0],y=test_umap[:,1],markers='o',ax=ax)
+
+			plt.savefig(os.path.join(simsiam_l2_dir,'latents.png'))
+			plt.close('all')
 			'''
 			for ind, l in enumerate(loaders):
 				print('Developmental day {} \n'.format(realTrainDays[ind]))

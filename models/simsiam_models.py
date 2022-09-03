@@ -663,3 +663,26 @@ class masked_simsiam(simsiam):
 		print('Epoch {0:d} average test l1 (p): {1:.3f}'.format(self.epoch,test_l1_p))
 
 		return test_loss 	
+
+
+class simsiam_l2(simsiam_l1):
+
+	def __init__(self,encoder=None,predictor=None,sim_func=None,save_dir='',lr=1e-4,lamb=1e-10):
+
+		"""
+		simsiam for birdsong VAEs
+		"""
+
+		super(simsiam_l1,self).__init__(encoder=encoder,predictor=predictor,sim_func=sim_func,save_dir=save_dir,lr=lr)
+		self.lamb = lamb
+		self.writer = SummaryWriter(log_dir=os.path.join(self.save_dir,'runs'))
+
+	def compute_loss(self,z,p):
+
+		z_loss = z.detach()
+		l = self.sim_func(p,z_loss)
+
+		l2_term_z = ((torch.pow(z_loss,2).sum(axis=1).sqrt() - 1)**2).mean()
+		l2_term_p = ((torch.pow(p,2).sum(axis=1).sqrt() - 1)**2).mean()
+
+		return l, l2_term_z, l2_term_p
