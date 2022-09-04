@@ -128,7 +128,7 @@ def lookin_at_latents(model=None,loader=None):
 	background34_pca = sns.scatterplot(x=latents_pca[:,2],y=latents_pca[:,3],color='k',ax=ax3)
 
 	for s in sample_inds:
-		tmp_latents = latents[s]/1e9
+		tmp_latents = latents[s]/1e12
 
 		umap_tmp = l_umap.transform(tmp_latents)
 		pca_tmp = l_pca.transform(tmp_latents)
