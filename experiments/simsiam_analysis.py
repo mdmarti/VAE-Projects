@@ -48,7 +48,7 @@ def z_plots(model=None, loader=None):
 
 		corr_inds_dim = corr[ii,:] >= 0.9
 	
-	corr_inds.append(corr_inds_dim)
+		corr_inds.append(corr_inds_dim)
 
 	
 	max_length = max(map(len, latents))
@@ -56,11 +56,12 @@ def z_plots(model=None, loader=None):
 								np.vstack((x,np.ones((max_length - x.shape[0],x.shape[1]))*np.nan)),latents))
 
 	stacked_lats_traj = np.stack(latents,axis=0)/1e11
-	mean_traj = np.nanmean(stacked_lats_traj,axis=1)
-	sd_traj = np.nanstd(stacked_lats_traj,axis=1)
+	mean_traj = np.nanmean(stacked_lats_traj,axis=0)
+	sd_traj = np.nanstd(stacked_lats_traj,axis=0)
+
 	print(stacked_lats_traj.shape)
 	print(mean_traj.shape)
-
+	print(sd_traj.shape)
 	time = np.array(range(1,mean_traj.shape[0]+1))/44100
 	for ii in range(mean_traj.shape[1]):
 		c = mean_traj[:,ii]
@@ -77,7 +78,16 @@ def z_plots(model=None, loader=None):
 		tmp_inds = corr_inds[ii]
 
 		ax = plt.gca()
-		tmp_trajs = stacked_lats_traj[:,]
+		tmp_trajs = stacked_lats_traj[:,:,tmp_inds]
+		mean_trajs = np.nanmean(tmp_trajs,axis=(0,2))
+		sd_trajs = np.nanstd(tmp_trajs,axis=(0,2))
+
+		plt.plot(time,mean_trajs,'b-',label='daily_mean')
+		plt.fill_between(time,c - sd_trajs,c+sd_trajs,color='b',alpha=0.2)
+		plt.ylabel('latent value')
+		plt.xlabel('Time relative to motif onset')
+		plt.savefig(os.path.join(model.save_dir,'component_' + str(ii+1) + '_plus_corr_voc_trace.png'))
+		plt.close('all')
 
 	return
 
