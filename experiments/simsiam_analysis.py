@@ -21,7 +21,7 @@ def z_plots(model=None, loader=None):
 
 	
 	stacked_for_transforms = np.vstack(latents)
-	stacked_for_transforms /= 1e9
+	stacked_for_transforms /= 1e11
 	#print(stacked_for_transforms.shape)
 	
 
@@ -42,27 +42,42 @@ def z_plots(model=None, loader=None):
 	sns.clustermap(data=corr,vmin=0.0,vmax=1.0,cbar_kws={'label':'correlation'})
 	plt.savefig(os.path.join(model.save_dir, 'corr.png'))
 	plt.close('all')
+
+	corr_inds = []
+	for ii in range(corr.shape[0]):
+
+		corr_inds_dim = corr[ii,:] >= 0.9
+	
+	corr_inds.append(corr_inds_dim)
+
 	
 	max_length = max(map(len, latents))
 	latents = list(map(lambda x: x if x.shape[0] == max_length else \
 								np.vstack((x,np.ones((max_length - x.shape[0],x.shape[1]))*np.nan)),latents))
 
-	stacked_lats_traj = np.stack(latents,axis=0)/1e9
+	stacked_lats_traj = np.stack(latents,axis=0)/1e11
 	mean_traj = np.nanmean(stacked_lats_traj,axis=1)
 	sd_traj = np.nanstd(stacked_lats_traj,axis=1)
+	print(stacked_lats_traj.shape)
+	print(mean_traj.shape)
 
 	time = np.array(range(1,mean_traj.shape[0]+1))/44100
 	for ii in range(mean_traj.shape[1]):
-			c = mean_traj[:,ii]
-			cs = sd_traj[:,ii]
-			ax=plt.gca()
-			plt.plot(time,c,'b-',label='daily_mean')
-			plt.fill_between(time,c - cs,c+cs,color='b',alpha=0.2)
-			plt.ylabel('latent value')
-			plt.xlabel('Time relative to motif onset')
-			plt.savefig(os.path.join(model.save_dir,'component_' + str(ii+1) + '_voc_trace.png'))
+		c = mean_traj[:,ii]
+		cs = sd_traj[:,ii]
+		ax=plt.gca()
+		plt.plot(time,c,'b-',label='daily_mean')
+		plt.fill_between(time,c - cs,c+cs,color='b',alpha=0.2)
+		plt.ylabel('latent value')
+		plt.xlabel('Time relative to motif onset')
+		plt.savefig(os.path.join(model.save_dir,'component_' + str(ii+1) + '_voc_trace.png'))
 
-			plt.close('all')
+		plt.close('all')
+
+		tmp_inds = corr_inds[ii]
+
+		ax = plt.gca()
+		tmp_trajs = stacked_lats_traj[:,]
 
 	return
 
