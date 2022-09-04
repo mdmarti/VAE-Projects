@@ -21,7 +21,7 @@ def z_plots(model=None, loader=None):
 
 	
 	stacked_for_transforms = np.vstack(latents)
-	stacked_for_transforms /= 1e11
+	stacked_for_transforms /= 1e12
 	#print(stacked_for_transforms.shape)
 	
 
@@ -55,14 +55,14 @@ def z_plots(model=None, loader=None):
 	latents = list(map(lambda x: x if x.shape[0] == max_length else \
 								np.vstack((x,np.ones((max_length - x.shape[0],x.shape[1]))*np.nan)),latents))
 
-	stacked_lats_traj = np.stack(latents,axis=0)/1e11
+	stacked_lats_traj = np.stack(latents,axis=0)/1e12
 	mean_traj = np.nanmean(stacked_lats_traj,axis=0)
 	sd_traj = np.nanstd(stacked_lats_traj,axis=0)
 
 	print(stacked_lats_traj.shape)
 	print(mean_traj.shape)
 	print(sd_traj.shape)
-	time = np.array(range(1,mean_traj.shape[0]+1))/44100
+	time = np.array(range(1,mean_traj.shape[0]+1))/loader.dataset.p['window_overlap']
 	for ii in range(mean_traj.shape[1]):
 		c = mean_traj[:,ii]
 		cs = sd_traj[:,ii]
@@ -83,7 +83,7 @@ def z_plots(model=None, loader=None):
 		sd_trajs = np.nanstd(tmp_trajs,axis=(0,2))
 
 		plt.plot(time,mean_trajs,'b-',label='daily_mean')
-		plt.fill_between(time,c - sd_trajs,c+sd_trajs,color='b',alpha=0.2)
+		plt.fill_between(time,mean_trajs - sd_trajs,mean_trajs+sd_trajs,color='b',alpha=0.2)
 		plt.ylabel('latent value')
 		plt.xlabel('Time relative to motif onset')
 		plt.savefig(os.path.join(model.save_dir,'component_' + str(ii+1) + '_plus_corr_voc_trace.png'))
@@ -103,7 +103,7 @@ def lookin_at_latents(model=None,loader=None):
 
 	latents = model.get_latent(loader)
 
-	stacked_for_transforms = np.vstack(latents)/1e9
+	stacked_for_transforms = np.vstack(latents)/1e12
 
 	l_umap = umap.UMAP(n_components=2, n_neighbors=20, min_dist=0.1, random_state=42)
 	l_pca = PCA()
