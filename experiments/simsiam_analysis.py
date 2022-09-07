@@ -126,7 +126,7 @@ def z_plots(model=None, loader=None):
 
 	_, axs = plt.subplots(nrows=n_dims_big//3,ncols=3,figsize=(30,30))
 
-	print(axs)
+	#print(axs)
 	for ii,ax1 in enumerate(axs.reshape(-1)):
 		tmp_trajs = block2[:,:,ii]
 		for row in tmp_trajs:
