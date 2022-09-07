@@ -128,9 +128,11 @@ def z_plots(model=None, loader=None):
 
 	#print(axs)
 	for ii,ax1 in enumerate(axs.reshape(-1)):
-		tmp_trajs = block2[:,:,ii]
-		for row in tmp_trajs:
-			sns.lineplot(x=time,y=row,ax=ax1)
+		
+		for l in latents:
+			traj_dims = l[:,neg_inds]
+			traj_dims = traj_dims[:,ii]
+			sns.lineplot(x=time,y=traj_dims,ax=ax1)
 
 	plt.savefig(os.path.join(model.save_dir,'correlated_latent_components_time.png'))
 	plt.close('all')
