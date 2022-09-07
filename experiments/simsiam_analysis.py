@@ -132,8 +132,8 @@ def z_plots(model=None, loader=None):
 		for row in tmp_trajs:
 			sns.lineplot(x=time,y=row,ax=ax1)
 
-		plt.savefig(os.path.join(model.save_dir,'correlated_latent_components_time.png'))
-		plt.close('all')
+	plt.savefig(os.path.join(model.save_dir,'correlated_latent_components_time.png'))
+	plt.close('all')
 
 
 	return
