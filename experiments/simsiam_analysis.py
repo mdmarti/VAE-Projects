@@ -124,6 +124,17 @@ def z_plots(model=None, loader=None):
 	plt.savefig(os.path.join(model.save_dir,'correlated_latent_components_time.png'))
 	plt.close('all')
 
+	_, axs = plt.subplots(nrows=n_dims_big//3,ncols=3,figsize=(30,30))
+
+	for ii,ax in enumerate(axs):
+		tmp_trajs = block2[:,:,ii]
+		
+		sns.lineplot(x=time,y=tmp_trajs,ax=ax)
+
+		plt.savefig(os.path.join(model.save_dir,'correlated_latent_components_time.png'))
+		plt.close('all')
+
+
 	return
 
 	
