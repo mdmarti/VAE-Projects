@@ -686,3 +686,22 @@ class simsiam_l2(simsiam_l1):
 		l2_term_p = ((torch.pow(p,2).sum(axis=1).sqrt() - 1)**2).mean()
 
 		return l, l2_term_z, l2_term_p
+
+class simsiam_normal_prior(simsiam):
+
+        def __init__(self,encoder=None,predictor=None,sim_func=None,save_dir='',lr=1e-4):
+
+
+                """
+                simsiam with a standard normal prior
+                """
+                self.writer = SummaryWriter(log_dir=os.path.join(self.save_dir,'runs'))
+
+        def compute_loss(self,z,p):
+
+                """
+                the idea here is that simsiam with a standard normal prior will push things to have roughly zero mean, effectively normalizing our model
+
+                TO DO
+                Work out the math lm a o
+                """

@@ -75,8 +75,9 @@ def z_plots(model=None, loader=None):
 	'''
 	tmp_inds = corr_inds[0]
 	neg_inds = 1 - tmp_inds
-	print(sum(tmp_inds))
-	print(sum(neg_inds))
+	
+	n_dims_big = sum(neg_inds)
+	n_dims_small = sum(tmp_inds)
 	print(stacked_lats_traj.shape)
 
 	block1 = stacked_lats_traj[:,:,tmp_inds]
@@ -85,57 +86,42 @@ def z_plots(model=None, loader=None):
 	#print(block1)
 	print(block1.shape)
 	print(block2.shape)
-	weird_coords = np.nanmean(stacked_lats_traj,axis=2)
-	whats = np.nanmean(stacked_lats_traj,axis=1)
-	happening = np.nanmean(stacked_lats_traj,axis=0)
+	
 	coord_1s = np.nanmean(block1,axis=2)
 	coord_2s = np.nanmean(block2,axis=2)
 
-	print(coord_1s.shape)
-
 	bg1,bg2 = coord_1s[:],coord_2s[:]
-
-	print(bg1.shape)
-	print(bg2.shape)
+	
 	mean_c1, mean_c2 = np.nanmean(mean_traj[:,tmp_inds],axis=-1), np.nanmean(mean_traj[:,neg_inds],axis=-1)
-	print(mean_c1.shape)
-
 
 	### 
 	# something is going on here figure it out later
 	#####
-	sample_inds = np.random.choice(mean_c1.shape[0],5)
-	ax = plt.gca()
-	tmp_trajs = stacked_lats_traj[:,:,tmp_inds]
-	mean_trajs = np.nanmean(tmp_trajs,axis=(0,2))
-	sd_trajs = np.nanstd(tmp_trajs,axis=(0,2))
-
-	#bg = sns.scatterplot(x=coord_1s.flatten(),y=coord_2s.flatten(),label='all points',alpha=0.5,size=0.5,ax=ax)
-	mean = sns.lineplot(x=mean_c1,y=mean_c2,color='k',marker='o',ax=ax)
-	#for ii in sample_inds:
-	#	sns.lineplot(x=coord_1s[ii,:],y=coord_2s[ii,:],ax=ax)
-	#plt.fill_between(time,mean_trajs - sd_trajs,mean_trajs+sd_trajs,color='b',alpha=0.2)
-	plt.ylabel('Averaged coordinate 2')
-	plt.xlabel('Averaged coordinate 1')
-	plt.savefig(os.path.join(model.save_dir,'average_correlated_latent_components.png'))
-	plt.close('all')
-
 	time = np.array(range(1,len(mean_c1) + 1))
 	_,(ax1,ax2) = plt.subplots(nrows=2,ncols=1,figsize=(20,20))
 
 	#bg = sns.scatterplot(x=coord_1s.flatten(),y=coord_2s.flatten(),label='all points',alpha=0.5,size=0.5,ax=ax)
-	sns.lineplot(x=time,y=mean_c1,color='k',marker='o',ax=ax1)
-	sns.lineplot(x=time,y=mean_c2,color='k',marker='o',ax=ax2)
+
+	for ii in range(n_dims_big):
+		tmp_trajs = block2[:,:,ii]
+		mean_tmp = np.nanmean(tmp_trajs,axis=0)
+		sns.lineplot(x=time,y=mean_tmp,ax=ax1)
+
+	for ii in range(n_dims_small):
+		tmp_trajs=block1[:,:,ii]
+		mean_tmp = np.nanmean(tmp_trajs,axis=0)
+		sns.lineplot(x=time,y=mean_tmp,ax=ax2)
+	#sns.lineplot(x=time,y=mean_c2,color='k',marker='o',ax=ax2)
 	#for ii in sample_inds:
 	#	sns.lineplot(x=coord_1s[ii,:],y=coord_2s[ii,:],ax=ax)
 	#plt.fill_between(time,mean_trajs - sd_trajs,mean_trajs+sd_trajs,color='b',alpha=0.2)
-	ax1.set_ylabel('Averaged coordinate 1')
-	ax2.set_ylabel('averaged coordinate 2')
+	ax1.set_ylabel('Average trajs in block 1')
+	ax2.set_ylabel('averaged trajs in block 2')
 	ax2.set_xlabel('time')
-	ax1.set_ylim((-1,1))
-	ax2.set_ylim((-0.01,0.01))
+	#ax1.set_ylim((-1,1))
+	#ax2.set_ylim((-0.01,0.01))
 	#plt.xlabel('Time')
-	plt.savefig(os.path.join(model.save_dir,'average_correlated_latent_components_time.png'))
+	plt.savefig(os.path.join(model.save_dir,'correlated_latent_components_time.png'))
 	plt.close('all')
 
 	return
