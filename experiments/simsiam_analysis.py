@@ -21,7 +21,7 @@ def z_plots(model=None, loader=None):
 
 	
 	stacked_for_transforms = np.vstack(latents)
-	stacked_for_transforms /= 1e12
+	stacked_for_transforms /= 1e10
 	#print(stacked_for_transforms.shape)
 	
 
@@ -55,13 +55,11 @@ def z_plots(model=None, loader=None):
 	latents = list(map(lambda x: x if x.shape[0] == max_length else \
 								np.vstack((x,np.ones((max_length - x.shape[0],x.shape[1]))*np.nan)),latents))
 
-	stacked_lats_traj = np.stack(latents,axis=0)/1e12
+	stacked_lats_traj = np.stack(latents,axis=0)
 	mean_traj = np.nanmean(stacked_lats_traj,axis=0)
 	sd_traj = np.nanstd(stacked_lats_traj,axis=0)
 
-	print(stacked_lats_traj.shape)
-	print(mean_traj.shape)
-	print(sd_traj.shape)
+	'''
 	time = np.array(range(1,mean_traj.shape[0]+1))/loader.dataset.p['window_overlap']
 	for ii in range(mean_traj.shape[1]):
 		c = mean_traj[:,ii]
@@ -74,22 +72,76 @@ def z_plots(model=None, loader=None):
 		plt.savefig(os.path.join(model.save_dir,'component_' + str(ii+1) + '_voc_trace.png'))
 
 		plt.close('all')
+	'''
+	tmp_inds = corr_inds[0]
+	neg_inds = 1 - tmp_inds
+	print(sum(tmp_inds))
+	print(sum(neg_inds))
+	print(stacked_lats_traj.shape)
 
-		tmp_inds = corr_inds[ii]
+	block1 = stacked_lats_traj[:,:,tmp_inds]
+	block2 = stacked_lats_traj[:,:,neg_inds]
 
-		ax = plt.gca()
-		tmp_trajs = stacked_lats_traj[:,:,tmp_inds]
-		mean_trajs = np.nanmean(tmp_trajs,axis=(0,2))
-		sd_trajs = np.nanstd(tmp_trajs,axis=(0,2))
+	#print(block1)
+	print(block1.shape)
+	print(block2.shape)
+	weird_coords = np.nanmean(stacked_lats_traj,axis=2)
+	whats = np.nanmean(stacked_lats_traj,axis=1)
+	happening = np.nanmean(stacked_lats_traj,axis=0)
+	coord_1s = np.nanmean(block1,axis=2)
+	coord_2s = np.nanmean(block2,axis=2)
 
-		plt.plot(time,mean_trajs,'b-',label='daily_mean')
-		plt.fill_between(time,mean_trajs - sd_trajs,mean_trajs+sd_trajs,color='b',alpha=0.2)
-		plt.ylabel('latent value')
-		plt.xlabel('Time relative to motif onset')
-		plt.savefig(os.path.join(model.save_dir,'component_' + str(ii+1) + '_plus_corr_voc_trace.png'))
-		plt.close('all')
+	print(coord_1s.shape)
+
+	bg1,bg2 = coord_1s[:],coord_2s[:]
+
+	print(bg1.shape)
+	print(bg2.shape)
+	mean_c1, mean_c2 = np.nanmean(mean_traj[:,tmp_inds],axis=-1), np.nanmean(mean_traj[:,neg_inds],axis=-1)
+	print(mean_c1.shape)
+
+
+	### 
+	# something is going on here figure it out later
+	#####
+	sample_inds = np.random.choice(mean_c1.shape[0],5)
+	ax = plt.gca()
+	tmp_trajs = stacked_lats_traj[:,:,tmp_inds]
+	mean_trajs = np.nanmean(tmp_trajs,axis=(0,2))
+	sd_trajs = np.nanstd(tmp_trajs,axis=(0,2))
+
+	#bg = sns.scatterplot(x=coord_1s.flatten(),y=coord_2s.flatten(),label='all points',alpha=0.5,size=0.5,ax=ax)
+	mean = sns.lineplot(x=mean_c1,y=mean_c2,color='k',marker='o',ax=ax)
+	#for ii in sample_inds:
+	#	sns.lineplot(x=coord_1s[ii,:],y=coord_2s[ii,:],ax=ax)
+	#plt.fill_between(time,mean_trajs - sd_trajs,mean_trajs+sd_trajs,color='b',alpha=0.2)
+	plt.ylabel('Averaged coordinate 2')
+	plt.xlabel('Averaged coordinate 1')
+	plt.savefig(os.path.join(model.save_dir,'average_correlated_latent_components.png'))
+	plt.close('all')
+
+	time = np.array(range(1,len(mean_c1) + 1))
+	_,(ax1,ax2) = plt.subplots(nrows=2,ncols=1,figsize=(20,20))
+
+	#bg = sns.scatterplot(x=coord_1s.flatten(),y=coord_2s.flatten(),label='all points',alpha=0.5,size=0.5,ax=ax)
+	sns.lineplot(x=time,y=mean_c1,color='k',marker='o',ax=ax1)
+	sns.lineplot(x=time,y=mean_c2,color='k',marker='o',ax=ax2)
+	#for ii in sample_inds:
+	#	sns.lineplot(x=coord_1s[ii,:],y=coord_2s[ii,:],ax=ax)
+	#plt.fill_between(time,mean_trajs - sd_trajs,mean_trajs+sd_trajs,color='b',alpha=0.2)
+	ax1.set_ylabel('Averaged coordinate 1')
+	ax2.set_ylabel('averaged coordinate 2')
+	ax2.set_xlabel('time')
+	ax1.set_ylim((-1,1))
+	ax2.set_ylim((-0.01,0.01))
+	#plt.xlabel('Time')
+	plt.savefig(os.path.join(model.save_dir,'average_correlated_latent_components_time.png'))
+	plt.close('all')
 
 	return
+
+	
+
 
 def lookin_at_latents(model=None,loader=None):
 
@@ -103,7 +155,7 @@ def lookin_at_latents(model=None,loader=None):
 
 	latents = model.get_latent(loader)
 
-	stacked_for_transforms = np.vstack(latents)/1e12
+	stacked_for_transforms = np.vstack(latents)/1e10
 
 	l_umap = umap.UMAP(n_components=2, n_neighbors=20, min_dist=0.1, random_state=42)
 	l_pca = PCA()

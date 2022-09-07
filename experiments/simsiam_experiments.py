@@ -260,24 +260,24 @@ def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',sim
 		else:
 			print('loading vanilla')
 			vanilla_simsiam.load_state(save_file)
-			train_latents = vanilla_simsiam.get_latent(loaders_for_prediction['train'])
+			#train_latents = vanilla_simsiam.get_latent(loaders_for_prediction['train'])
 			#print(len(train_latents))
-			test_latents = vanilla_simsiam.get_latent(loaders_for_prediction['test'])
+			#test_latents = vanilla_simsiam.get_latent(loaders_for_prediction['test'])
 			#print(len(test))
-			lookin_at_latents(vanilla_simsiam,loaders_for_prediction['train'])
-			z_plots(vanilla_simsiam,loaders_for_prediction['train'])
-			l_umap = umap.UMAP(n_components=2, n_neighbors=20, min_dist=0.1, random_state=42)
+			#lookin_at_latents(vanilla_simsiam,loaders_for_prediction['train'])
+			z_plots(vanilla_simsiam,loaders_for_prediction['test'])
+			#l_umap = umap.UMAP(n_components=2, n_neighbors=20, min_dist=0.1, random_state=42)
 
-			train_umap = l_umap.fit_transform(np.vstack(train_latents))
-			test_umap = l_umap.transform(np.vstack(test_latents))
+			#train_umap = l_umap.fit_transform(np.vstack(train_latents))
+			#test_umap = l_umap.transform(np.vstack(test_latents))
 
 
-			ax = plt.gca()
-			sns.scatterplot(x=train_umap[:,0],y=train_umap[:,1],markers='+',ax=ax)
-			sns.scatterplot(x=test_umap[:,0],y=test_umap[:,1],markers='o',ax=ax)
+			#ax = plt.gca()
+			#sns.scatterplot(x=train_umap[:,0],y=train_umap[:,1],markers='+',ax=ax)
+			#sns.scatterplot(x=test_umap[:,0],y=test_umap[:,1],markers='o',ax=ax)
 
-			plt.savefig(os.path.join(simsiam_dir,'latents.png'))
-			plt.close('all')
+			#plt.savefig(os.path.join(simsiam_dir,'latents.png'))
+			#plt.close('all')
 			#vanilla_vae.train_test_loop(loaders_for_prediction,epochs=151,test_freq=5,save_freq=50,vis_freq=25)
 			#vanilla_vae.test_epoch(loaders_for_prediction['test'])
 
