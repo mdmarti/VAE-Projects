@@ -48,7 +48,7 @@ def z_plots(model=None, loader=None):
 	sns.clustermap(data=active_var,cbar_kws={'label':'variance/covariance'})
 	plt.savefig(os.path.join(model.save_dir, 'cov.png'))
 	plt.close('all')
-	sns.clustermap(data=active_corr,vmax=1.0,cbar_kws={'label':'correlation'})
+	sns.clustermap(data=active_corr,vmin=0,vmax=1.0,cbar_kws={'label':'correlation'})
 	plt.savefig(os.path.join(model.save_dir, 'corr.png'))
 	plt.close('all')
 
@@ -133,7 +133,7 @@ def z_plots(model=None, loader=None):
 	plt.savefig(os.path.join(model.save_dir,'correlated_latent_components_time.png'))
 	plt.close('all')
 
-	_, axs = plt.subplots(nrows=8,ncols=8,figsize=(40,40))
+	_, axs = plt.subplots(nrows=3,ncols=3,figsize=(40,40))
 
 	#print(axs)
 	axs = axs.reshape(-1)
@@ -159,8 +159,8 @@ def z_plots(model=None, loader=None):
 			samp = latents[s]
 			#print(samp.shape)
 			time = np.array(range(1,len(samp) + 1))
-			sns.lineplot(x=time,y=samp[:,ii],ax = axs[ii])
-		sns.lineplot(x=time_mean,y=l,color='k',ax=axs[ii])
+			sns.lineplot(x=time,y=samp[:,ii],ax = axs[index])
+		sns.lineplot(x=time_mean,y=l,color='k',ax=axs[index])
 		
 
 	plt.savefig(os.path.join(model.save_dir,'all_samples_each_component.png'))
