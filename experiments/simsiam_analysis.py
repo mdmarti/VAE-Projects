@@ -39,7 +39,7 @@ def z_plots(model=None, loader=None):
 	sns.clustermap(data=covar,cbar_kws={'label':'variance/covariance'})
 	plt.savefig(os.path.join(model.save_dir, 'cov.png'))
 	plt.close('all')
-	sns.clustermap(data=corr,vmin=0.0,vmax=1.0,cbar_kws={'label':'correlation'})
+	sns.clustermap(data=corr,vmax=1.0,cbar_kws={'label':'correlation'})
 	plt.savefig(os.path.join(model.save_dir, 'corr.png'))
 	plt.close('all')
 
@@ -196,7 +196,7 @@ def lookin_at_latents(model=None,loader=None):
 
 	stacked_for_transforms = np.vstack(latents)/1e10
 
-	l_umap = umap.UMAP(n_components=2, n_neighbors=20, min_dist=0.1, random_state=42)
+	l_umap = umap.UMAP(n_components=2, n_neighbors=40, min_dist=0.01, random_state=42)
 	l_pca = PCA()
 
 	print('Fitting UMAP and PCA')
