@@ -205,7 +205,7 @@ def lookin_at_latents(model=None,loader=None):
 
 	stacked_for_transforms = np.vstack(latents)/1e10
 
-	l_umap = umap.UMAP(n_components=2, n_neighbors=40, min_dist=0.01, random_state=42)
+	l_umap = umap.UMAP(n_components=2, n_neighbors=40, min_dist=1e-20, random_state=42)
 	l_pca = PCA()
 
 	print('Fitting UMAP and PCA')
