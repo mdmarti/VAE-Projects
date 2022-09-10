@@ -181,6 +181,8 @@ def z_plots(model=None, loader=None):
 		time = np.array(range(1,len(samp) + 1))
 		#min_ind = np.argmin(np.sum(samp[:,corr_inds],axis=0))
 		#min_traj = samp[:,corr_inds][:,min_ind]
+		print(samp.shape)
+		assert False
 		for c in range(samp.shape[-1]):
 			if var_ax[c] == 1:
 				sns.lineplot(x=time,y=samp[:,c] - np.mean(samp[:,c]),ax=axs[ii])
