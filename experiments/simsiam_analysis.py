@@ -35,12 +35,12 @@ def z_plots(model=None, loader=None):
 
 	corr = covar/denom 
 	print(sum(var_ax))
-	active_var = covar[var_ax,var_ax]
-	active_corr = corr[var_ax,var_ax]
+	active_var = covar[var_ax,:][:,var_ax]
+	active_corr = corr[var_ax,:][:,var_ax]
 	print("Covariance matrix \n")
-	print(active_var.shape)
+	print(active_var)
 	print("\n correlation matrix \n")
-	print(active_corr.shape)
+	print(active_corr)
 	
 
 	#_, (ax1,ax2) = plt.subplots(nrows=1,ncols=2,figsize=(15,6))
@@ -205,7 +205,7 @@ def lookin_at_latents(model=None,loader=None):
 
 	stacked_for_transforms = np.vstack(latents)
 
-	l_umap = umap.UMAP(n_components=2, n_neighbors=40, min_dist=1e-20, random_state=42)
+	l_umap = umap.UMAP(n_components=2, n_neighbors=100, min_dist=0.001, random_state=42)
 	l_pca = PCA()
 
 	print('Fitting UMAP and PCA')
