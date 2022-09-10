@@ -176,22 +176,6 @@ def z_plots(model=None, loader=None):
 	plt.savefig(os.path.join(model.save_dir,'all_components_each_sample_sub.png'))
 	plt.close('all')	
 
-	print('plotting all samples, each component')
-	axs = axs.reshape(-1)
-	print(corr_inds)
-	min_ind = np.argmin(sizes)
-	for ii,s in enumerate(samples):
-		samp = latents[s]
-		time = np.array(range(1,len(samp) + 1))
-	
-		min_ind = np.argmin(np.sum(samp[:,corr_inds],axis=0))
-		min_traj = samp[:,corr_inds][:,min_ind]
-		for c in corr_inds:
-			sns.lineplot(x=time,y=samp[:,c]/min_traj,ax=axs[ii])
-
-	plt.savefig(os.path.join(model.save_dir,'all_components_each_sample_div.png'))
-	plt.close('all')		
-
 	
 	return
 
