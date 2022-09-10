@@ -133,7 +133,7 @@ def z_plots(model=None, loader=None):
 	plt.savefig(os.path.join(model.save_dir,'correlated_latent_components_time.png'))
 	plt.close('all')
 
-	_, axs = plt.subplots(nrows=3,ncols=3,figsize=(40,40))
+	_, axs = plt.subplots(nrows=4,ncols=3,figsize=(40,40))
 
 	#print(axs)
 	axs = axs.reshape(-1)
