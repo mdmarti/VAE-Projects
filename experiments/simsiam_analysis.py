@@ -21,7 +21,7 @@ def z_plots(model=None, loader=None):
 
 	
 	stacked_for_transforms = np.vstack(latents)
-	stacked_for_transforms /= 1e10
+	stacked_for_transforms
 	#print(stacked_for_transforms.shape)
 	
 
@@ -30,7 +30,7 @@ def z_plots(model=None, loader=None):
 	covar = (stacked_for_transforms - mean_per_dim).T @ (stacked_for_transforms - mean_per_dim)
 
 	sds = np.sqrt(np.diag(covar))
-	var_ax = sds > 1e-17
+	var_ax = sds > 1e-10
 	denom = sds[:,None] @ sds[None,:]
 
 	corr = covar/denom 
@@ -45,10 +45,10 @@ def z_plots(model=None, loader=None):
 
 	#_, (ax1,ax2) = plt.subplots(nrows=1,ncols=2,figsize=(15,6))
 
-	sns.clustermap(data=covar,cbar_kws={'label':'variance/covariance'})
+	sns.clustermap(data=active_var,cbar_kws={'label':'variance/covariance'})
 	plt.savefig(os.path.join(model.save_dir, 'cov.png'))
 	plt.close('all')
-	sns.clustermap(data=corr,vmax=1.0,cbar_kws={'label':'correlation'})
+	sns.clustermap(data=active_corr,vmax=1.0,cbar_kws={'label':'correlation'})
 	plt.savefig(os.path.join(model.save_dir, 'corr.png'))
 	plt.close('all')
 
@@ -179,7 +179,7 @@ def z_plots(model=None, loader=None):
 		time = np.array(range(1,len(samp) + 1))
 		#min_ind = np.argmin(np.sum(samp[:,corr_inds],axis=0))
 		#min_traj = samp[:,corr_inds][:,min_ind]
-		for c in range(64):
+		for c in range(samp.shape[-1]):
 			sns.lineplot(x=time,y=samp[:,c],ax=axs[ii])
 
 	plt.savefig(os.path.join(model.save_dir,'all_components_each_sample_sub.png'))
@@ -203,7 +203,7 @@ def lookin_at_latents(model=None,loader=None):
 
 	latents = model.get_latent(loader)
 
-	stacked_for_transforms = np.vstack(latents)/1e10
+	stacked_for_transforms = np.vstack(latents)
 
 	l_umap = umap.UMAP(n_components=2, n_neighbors=40, min_dist=1e-20, random_state=42)
 	l_pca = PCA()
@@ -228,7 +228,7 @@ def lookin_at_latents(model=None,loader=None):
 	background34_pca = sns.scatterplot(x=latents_pca[:,2],y=latents_pca[:,3],color='k',ax=ax3)
 
 	for s in sample_inds:
-		tmp_latents = latents[s]/1e10
+		tmp_latents = latents[s]
 
 		umap_tmp = l_umap.transform(tmp_latents)
 		pca_tmp = l_pca.transform(tmp_latents)
