@@ -155,12 +155,14 @@ def z_plots(model=None, loader=None):
 		#	time = np.array(range(1,len(l) + 1))
 
 			#traj_dims = traj_dims[:,ii]
-		for s in samples:
-			samp = latents[s]
-			#print(samp.shape)
-			time = np.array(range(1,len(samp) + 1))
-			sns.lineplot(x=time,y=samp[:,ii],ax = axs[index])
-		sns.lineplot(x=time_mean,y=l,color='k',ax=axs[index])
+		if var_ax[ii] == 1:
+			for s in samples:
+				samp = latents[s]
+				#print(samp.shape)
+				time = np.array(range(1,len(samp) + 1))
+				sns.lineplot(x=time,y=samp[:,ii],ax = axs[index])
+			sns.lineplot(x=time_mean,y=l,color='k',ax=axs[index])
+			index += 1
 		
 
 	plt.savefig(os.path.join(model.save_dir,'all_samples_each_component.png'))
