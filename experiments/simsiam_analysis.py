@@ -124,20 +124,76 @@ def z_plots(model=None, loader=None):
 	plt.savefig(os.path.join(model.save_dir,'correlated_latent_components_time.png'))
 	plt.close('all')
 
-	_, axs = plt.subplots(nrows=n_dims_big//3,ncols=3,figsize=(30,30))
+	_, axs = plt.subplots(nrows=3,ncols=3,figsize=(30,30))
 
 	#print(axs)
-	for ii,ax1 in enumerate(axs.reshape(-1)):
-		
-		for l in latents:
-			traj_dims = l[:,neg_inds]
-			traj_dims = traj_dims[:,ii]
-			sns.lineplot(x=time,y=traj_dims,ax=ax1)
+	axs = axs.reshape(-1)
 
-	plt.savefig(os.path.join(model.save_dir,'correlated_latent_components_time.png'))
+	index = 0
+	samples = np.random.choice(len(latents),9)
+	print('sampling latents')
+	corr_inds = []
+	sizes = []
+	print('getting new inds')
+	for ii in range(mean_traj.shape[-1]):
+		
+		l = mean_traj[:,ii]
+		print(sum(l))
+		time_mean = np.array(range(1,len(l) + 1))
+		if sum(l) > 100000:
+			corr_inds.append(ii)
+			sizes.append(sum(l))
+		#for l in latents:
+		#	traj_dims = l[:,ii]
+		#	time = np.array(range(1,len(l) + 1))
+
+			#traj_dims = traj_dims[:,ii]
+			for s in samples:
+				samp = latents[s]
+				#print(samp.shape)
+				time = np.array(range(1,len(samp) + 1))
+				sns.lineplot(x=time,y=samp[:,ii],ax = axs[index])
+			sns.lineplot(x=time_mean,y=l,color='k',ax=axs[index])
+			index += 1
+
+	plt.savefig(os.path.join(model.save_dir,'all_samples_each_component.png'))
 	plt.close('all')
 
+	_, axs = plt.subplots(nrows=3,ncols=3,figsize=(30,30))
 
+	#print(axs)
+	print('plotting all samples, each component')
+	axs = axs.reshape(-1)
+	print(corr_inds)
+	min_ind = np.argmin(sizes)
+	for ii,s in enumerate(samples):
+		samp = latents[s]
+		time = np.array(range(1,len(samp) + 1))
+		min_ind = np.argmin(np.sum(samp[:,corr_inds],axis=0))
+		min_traj = samp[:,corr_inds][:,min_ind]
+		for c in corr_inds:
+			sns.lineplot(x=time,y=samp[:,c]-min_traj,ax=axs[ii])
+
+	plt.savefig(os.path.join(model.save_dir,'all_components_each_sample_sub.png'))
+	plt.close('all')	
+
+	print('plotting all samples, each component')
+	axs = axs.reshape(-1)
+	print(corr_inds)
+	min_ind = np.argmin(sizes)
+	for ii,s in enumerate(samples):
+		samp = latents[s]
+		time = np.array(range(1,len(samp) + 1))
+	
+		min_ind = np.argmin(np.sum(samp[:,corr_inds],axis=0))
+		min_traj = samp[:,corr_inds][:,min_ind]
+		for c in corr_inds:
+			sns.lineplot(x=time,y=samp[:,c]/min_traj,ax=axs[ii])
+
+	plt.savefig(os.path.join(model.save_dir,'all_components_each_sample_div.png'))
+	plt.close('all')		
+
+	
 	return
 
 	
@@ -180,7 +236,7 @@ def lookin_at_latents(model=None,loader=None):
 	background34_pca = sns.scatterplot(x=latents_pca[:,2],y=latents_pca[:,3],color='k',ax=ax3)
 
 	for s in sample_inds:
-		tmp_latents = latents[s]/1e12
+		tmp_latents = latents[s]/1e10
 
 		umap_tmp = l_umap.transform(tmp_latents)
 		pca_tmp = l_pca.transform(tmp_latents)

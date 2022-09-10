@@ -5,6 +5,7 @@ from torch.optim import Adam
 import os
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
+import numpy as np
 
 
 class resnet_encoder(nn.Module):
@@ -337,7 +338,65 @@ class simsiam(nn.Module):
 		self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
 		self.epoch = checkpoint['epoch']
 
-	 
+	def latents_plots(self,loader=None,n_samples = 10):
+
+		samples = np.random.choice(len(loader),n_samples)
+
+		for s in samples:
+			loader.dataset
+
+		return
+
+
+class normed_simsiam(simsiam):
+
+	def __init__(self,encoder=None,predictor=None,sim_func=None,save_dir='',lr=1e-4):
+
+		"""
+		simsiam for birdsong VAEs
+		"""
+
+		super(normed_simsiam,self).__init__(encoder=encoder,predictor=predictor,sim_func=sim_func,save_dir=save_dir,lr=lr)
+
+	def encode(self,x):
+
+		z = self.encoder.encode(x)
+		
+		z = z/torch.norm(z,dim=-1,keepdim=True)
+
+		p = self.predictor.predict(z)
+
+		return z,p
+	
+	def get_latent(self,loader):
+
+		'''
+		this requires a loader that does NOT augment images beforehand
+		'''
+		latents = []
+		#print(len(loader))#.dataset.train_augment)
+		tmpdl = DataLoader(loader.dataset, batch_size=1, \
+			shuffle=False, num_workers=loader.num_workers)
+		tmpdl.dataset.train_augment=False
+		#print(len(loader))
+		#assert False
+		
+		for ind, batch in enumerate(tmpdl):
+
+			(x1,_) = batch 
+			
+
+			x1 = torch.vstack(x1).unsqueeze(1).to(self.device)
+			with torch.no_grad():
+				z = self.encoder.encode(x1)
+				z = z/torch.norm(z,dim=-1,keepdim=True)
+
+			latents.append(z.detach().cpu().numpy())
+
+		
+		return latents
+
+
 class image_simsiam(simsiam):
 
 	def __init__(self, encoder=None, predictor=None, sim_func=None, save_dir='', lr=0.0001,transforms=()):

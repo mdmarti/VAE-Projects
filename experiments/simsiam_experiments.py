@@ -9,7 +9,7 @@ sys.path.insert(0, parentdir)
 
 import fire
 from VAE_Projects.models.utils import get_window_partition,get_simsiam_loaders_motif,batch_cos_sim
-from VAE_Projects.models.simsiam_models import encoder,predictor,simsiam,simsiam_l1,simsiam_l2
+from VAE_Projects.models.simsiam_models import encoder,predictor,simsiam,simsiam_l1,simsiam_l2,normed_simsiam
 from VAE_Projects.experiments.simsiam_analysis import lookin_at_latents,z_plots
 import matplotlib.pyplot as plt
 from colour import Color
@@ -105,7 +105,7 @@ def imagenet_script(imagenetdir = '',simsiam_dir='',batch_size=128,shuffle=(True
 
 	return
 
-def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',simsiam_l2_dir='',segment=False):
+def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',simsiam_l2_dir='',normed=False,segment=False):
 
 ########## Setting up directory lists: separate into train, test dirs
 ############# Expected File Structure
@@ -251,8 +251,10 @@ def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',sim
 		#print(save_file)
 		simsiam_encoder = encoder(z_dim=64)
 		simsiam_predictor = predictor(z_dim=64,h_dim=32)
-		vanilla_simsiam = simsiam(simsiam_encoder,simsiam_predictor,save_dir=simsiam_dir,sim_func=batch_cos_sim)
-
+		if normed:
+			vanilla_simsiam = normed_simsiam(simsiam_encoder,simsiam_predictor,save_dir=simsiam_dir,sim_func=batch_cos_sim)
+		else:
+			vanilla_simsiam = simsiam(simsiam_encoder,simsiam_predictor,save_dir=simsiam_dir,sim_func=batch_cos_sim)
 		if not os.path.isfile(save_file):
 			print('training vanilla')
 			vanilla_simsiam.train_test_loop(loaders_for_prediction,epochs=301,test_freq=5,save_freq=50)
