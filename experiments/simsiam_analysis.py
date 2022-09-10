@@ -181,7 +181,7 @@ def z_plots(model=None, loader=None):
 		#min_traj = samp[:,corr_inds][:,min_ind]
 		for c in range(samp.shape[-1]):
 			if var_ax[c] == 1:
-				sns.lineplot(x=time,y=samp[:,c],ax=axs[ii])
+				sns.lineplot(x=time,y=samp[:,c] - np.mean(samp[:,c]),ax=axs[ii])
 
 	plt.savefig(os.path.join(model.save_dir,'all_components_each_sample_sub.png'))
 	plt.close('all')	
