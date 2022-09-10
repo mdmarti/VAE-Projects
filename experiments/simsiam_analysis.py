@@ -38,9 +38,9 @@ def z_plots(model=None, loader=None):
 	active_var = covar[var_ax,var_ax]
 	active_corr = corr[var_ax,var_ax]
 	print("Covariance matrix \n")
-	print(active_var)
+	print(active_var.shape)
 	print("\n correlation matrix \n")
-	print(active_corr)
+	print(active_corr.shape)
 	
 
 	#_, (ax1,ax2) = plt.subplots(nrows=1,ncols=2,figsize=(15,6))
