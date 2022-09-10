@@ -34,7 +34,7 @@ def z_plots(model=None, loader=None):
 	denom = sds[:,None] @ sds[None,:]
 
 	corr = covar/denom 
-	print(sum(var_ax))
+	print(sds)
 	active_var = covar[var_ax,var_ax]
 	active_corr = corr[var_ax,var_ax]
 	print("Covariance matrix \n")
