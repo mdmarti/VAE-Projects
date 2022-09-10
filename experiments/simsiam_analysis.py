@@ -48,7 +48,7 @@ def z_plots(model=None, loader=None):
 	sns.clustermap(data=active_var,cbar_kws={'label':'variance/covariance'})
 	plt.savefig(os.path.join(model.save_dir, 'cov.png'))
 	plt.close('all')
-	sns.clustermap(data=active_corr,vmin=0,vmax=1.0,cbar_kws={'label':'correlation'})
+	sns.clustermap(data=active_corr,vmax=1.0,cbar_kws={'label':'correlation'})
 	plt.savefig(os.path.join(model.save_dir, 'corr.png'))
 	plt.close('all')
 
@@ -180,7 +180,8 @@ def z_plots(model=None, loader=None):
 		#min_ind = np.argmin(np.sum(samp[:,corr_inds],axis=0))
 		#min_traj = samp[:,corr_inds][:,min_ind]
 		for c in range(samp.shape[-1]):
-			sns.lineplot(x=time,y=samp[:,c],ax=axs[ii])
+			if var_ax[c] == 1:
+				sns.lineplot(x=time,y=samp[:,c],ax=axs[ii])
 
 	plt.savefig(os.path.join(model.save_dir,'all_components_each_sample_sub.png'))
 	plt.close('all')	
