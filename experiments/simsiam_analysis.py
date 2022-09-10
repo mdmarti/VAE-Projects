@@ -45,10 +45,10 @@ def z_plots(model=None, loader=None):
 
 	#_, (ax1,ax2) = plt.subplots(nrows=1,ncols=2,figsize=(15,6))
 
-	sns.clustermap(data=active_var,cbar_kws={'label':'variance/covariance'})
+	sns.heatmap(data=active_var,cbar_kws={'label':'variance/covariance'})
 	plt.savefig(os.path.join(model.save_dir, 'cov.png'))
 	plt.close('all')
-	sns.clustermap(data=active_corr,vmax=1.0,cbar_kws={'label':'correlation'})
+	sns.heatmap(data=active_corr,vmax=1.0,cbar_kws={'label':'correlation'})
 	plt.savefig(os.path.join(model.save_dir, 'corr.png'))
 	plt.close('all')
 
