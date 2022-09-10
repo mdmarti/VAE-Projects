@@ -30,11 +30,11 @@ def z_plots(model=None, loader=None):
 	covar = (stacked_for_transforms - mean_per_dim).T @ (stacked_for_transforms - mean_per_dim)
 
 	sds = np.sqrt(np.diag(covar))
-	var_ax = sds > 1e-10
+	var_ax = sds > 20
 	denom = sds[:,None] @ sds[None,:]
 
 	corr = covar/denom 
-	print(sds)
+	print(sum(var_ax))
 	active_var = covar[var_ax,var_ax]
 	active_corr = corr[var_ax,var_ax]
 	print("Covariance matrix \n")
