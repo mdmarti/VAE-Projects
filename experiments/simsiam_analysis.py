@@ -124,7 +124,7 @@ def z_plots(model=None, loader=None):
 	plt.savefig(os.path.join(model.save_dir,'correlated_latent_components_time.png'))
 	plt.close('all')
 
-	_, axs = plt.subplots(nrows=3,ncols=3,figsize=(30,30))
+	_, axs = plt.subplots(nrows=8,ncols=8,figsize=(40,40))
 
 	#print(axs)
 	axs = axs.reshape(-1)
@@ -140,21 +140,19 @@ def z_plots(model=None, loader=None):
 		l = mean_traj[:,ii]
 		print(sum(l))
 		time_mean = np.array(range(1,len(l) + 1))
-		if sum(l) > 100000:
-			corr_inds.append(ii)
-			sizes.append(sum(l))
+
 		#for l in latents:
 		#	traj_dims = l[:,ii]
 		#	time = np.array(range(1,len(l) + 1))
 
 			#traj_dims = traj_dims[:,ii]
-			for s in samples:
-				samp = latents[s]
-				#print(samp.shape)
-				time = np.array(range(1,len(samp) + 1))
-				sns.lineplot(x=time,y=samp[:,ii],ax = axs[index])
-			sns.lineplot(x=time_mean,y=l,color='k',ax=axs[index])
-			index += 1
+		for s in samples:
+			samp = latents[s]
+			#print(samp.shape)
+			time = np.array(range(1,len(samp) + 1))
+			sns.lineplot(x=time,y=samp[:,ii],ax = axs[ii])
+		sns.lineplot(x=time_mean,y=l,color='k',ax=axs[ii])
+		
 
 	plt.savefig(os.path.join(model.save_dir,'all_samples_each_component.png'))
 	plt.close('all')
@@ -165,14 +163,15 @@ def z_plots(model=None, loader=None):
 	print('plotting all samples, each component')
 	axs = axs.reshape(-1)
 	print(corr_inds)
-	min_ind = np.argmin(sizes)
+
+	#min_ind = np.argmin(sizes)
 	for ii,s in enumerate(samples):
 		samp = latents[s]
 		time = np.array(range(1,len(samp) + 1))
-		min_ind = np.argmin(np.sum(samp[:,corr_inds],axis=0))
-		min_traj = samp[:,corr_inds][:,min_ind]
-		for c in corr_inds:
-			sns.lineplot(x=time,y=samp[:,c]-min_traj,ax=axs[ii])
+		#min_ind = np.argmin(np.sum(samp[:,corr_inds],axis=0))
+		#min_traj = samp[:,corr_inds][:,min_ind]
+		for c in range(64):
+			sns.lineplot(x=time,y=samp[:,c],ax=axs[ii])
 
 	plt.savefig(os.path.join(model.save_dir,'all_components_each_sample_sub.png'))
 	plt.close('all')	
