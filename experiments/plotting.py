@@ -98,8 +98,8 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=5):
 			time = np.array(range(1,len(z) + 1))
 			#min_ind = np.argmin(np.sum(samp[:,corr_inds],axis=0))
 			#min_traj = samp[:,corr_inds][:,min_ind]
-			print(np.sum(z[:,dim]))
-			if np.sum(z[:,dim]) >= len(z)/4:
+			#print(np.sum(z[:,dim]))
+			if np.sum(z[:,dim]) >= 8:
 				sns.lineplot(x=time,y=z[:,dim] - np.mean(z[:,dim]),ax=curr_axs[1])
 
 
