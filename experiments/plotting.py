@@ -81,14 +81,38 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 		z = z.detach().cpu().numpy()
 
 
-		latents.append(z)
-
 		target_times = np.linspace(onset, offset, \
 						p['num_time_bins'])
 		spec, flag = get_spec(max(0.0, onset-shoulder), \
 						offset+shoulder, audio, p, \
 						fs=fs, target_times=target_times)
 
+		while flag:
+			new_s = np.random.choice(len(loader.dataset),1)
+			specs,files,ons,offs = tmpdl.dataset.__getitem__(new_s, seed=None, shoulder=0.05, \
+					return_seg_info=True)
+
+			onset = ons[ind]
+			offset=offs[ind]
+			fn = files[ind]
+		
+			fs, audio = wavfile.read(fn) 
+			with torch.no_grad():
+				z = model.encoder.encode(song)
+				z = z/torch.norm(z,dim=-1,keepdim=True)
+
+			z = z.detach().cpu().numpy()
+
+
+			
+
+			target_times = np.linspace(onset, offset, \
+						p['num_time_bins'])
+			spec, flag = get_spec(max(0.0, onset-shoulder), \
+						offset+shoulder, audio, p, \
+						fs=fs, target_times=target_times)
+
+		latents.append(z)
 		curr_axs = axs[:,ind]
 
 		sns.heatmap(np.flipud(spec),vmin=0.0,cmap=spec_cmap,ax=curr_axs[0])
