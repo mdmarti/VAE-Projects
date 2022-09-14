@@ -114,6 +114,8 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 
 			if np.max(spec) < 0.1:
 				flag = False
+			if np.sum(spec) < 2500:
+				flag = False
 			
 
 
