@@ -118,10 +118,11 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 
 
 		print('made spec!')
+		print("sum of spec: ", np.sum(spec))
 		latents.append(z)
 		curr_axs = axs[:,ind]
 
-		sns.heatmap(np.flipud(spec),vmin=0.0,cmap=spec_cmap,ax=curr_axs[0])
+		sns.heatmap(np.flipud(spec),vmin=0.0,cmap=spec_cmap,ax=curr_axs[0],cbar=False)
 		time = np.array(range(1,len(z) + 1))
 
 		for dim in range(z.shape[-1]):
