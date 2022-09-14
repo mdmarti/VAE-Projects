@@ -87,7 +87,7 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 						offset+shoulder, audio, p, \
 						fs=fs, target_times=target_times)
 
-		while flag:
+		while not(flag):
 			new_s = np.random.choice(len(loader.dataset),1)
 			specs,files,ons,offs = tmpdl.dataset.__getitem__(new_s, seed=None, shoulder=0.05, \
 					return_seg_info=True)
@@ -112,6 +112,12 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 						offset+shoulder, audio, p, \
 						fs=fs, target_times=target_times)
 
+			if np.max(spec) < 0.1:
+				flag = False
+			
+
+
+		print('made spec!')
 		latents.append(z)
 		curr_axs = axs[:,ind]
 
