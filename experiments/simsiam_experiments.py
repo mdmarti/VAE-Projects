@@ -11,6 +11,7 @@ import fire
 from VAE_Projects.models.utils import get_window_partition,get_simsiam_loaders_motif,batch_cos_sim
 from VAE_Projects.models.simsiam_models import encoder,predictor,simsiam,simsiam_l1,simsiam_l2,normed_simsiam
 from VAE_Projects.experiments.simsiam_analysis import lookin_at_latents,z_plots
+from VAE_Projects.experiments.plotting import plot_trajectories_umap_and_coords
 import matplotlib.pyplot as plt
 from colour import Color
 import numpy as np
@@ -267,6 +268,8 @@ def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',sim
 			#test_latents = vanilla_simsiam.get_latent(loaders_for_prediction['test'])
 			#print(len(test))
 			#lookin_at_latents(vanilla_simsiam,loaders_for_prediction['test'])
+			plot_trajectories_umap_and_coords(vanilla_simsiam,loaders_for_prediction['test'])
+
 			z_plots(vanilla_simsiam,loaders_for_prediction['test'])
 			#l_umap = umap.UMAP(n_components=2, n_neighbors=20, min_dist=0.1, random_state=42)
 
