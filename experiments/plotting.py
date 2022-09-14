@@ -94,11 +94,11 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 				print('Remaking spec: too quiet')
 				flag = False
 		while not(flag):
-			new_s = np.random.choice(len(loader.dataset),1)
+			new_s = np.random.choice(len(loader.dataset),1)[0]
 			spec_n,file_n,on_n,off_n = tmpdl.dataset.__getitem__(new_s, seed=None, shoulder=0.05, \
 					return_seg_info=True)
 
-			onset = on_n[0]
+			onset = on_n
 			offset=off_n[0]
 			fn = file_n[0]
 		
