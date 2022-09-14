@@ -87,6 +87,12 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 						offset+shoulder, audio, p, \
 						fs=fs, target_times=target_times)
 
+		if np.max(spec) < 0.1:
+				print("remaking spec: too quiet")
+				flag = False
+		if np.sum(spec) < 2200:
+				print('Remaking spec: too quiet')
+				flag = False
 		while not(flag):
 			new_s = np.random.choice(len(loader.dataset),1)
 			specs,files,ons,offs = tmpdl.dataset.__getitem__(new_s, seed=None, shoulder=0.05, \
