@@ -62,7 +62,7 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 	specs,files,ons,offs = tmpdl.dataset.__getitem__(samples, seed=None, shoulder=0.05, \
 		return_seg_info=True)
 
-	fig, axs = plt.subplots(nrows=2,ncols=n_samples,figsize=(50,30))
+	fig, axs = plt.subplots(nrows=2,ncols=n_samples,figsize=(65,30))
 
 	latents = []
 	for ind,song in enumerate(specs):
