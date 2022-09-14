@@ -113,8 +113,10 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 						fs=fs, target_times=target_times)
 
 			if np.max(spec) < 0.1:
+				print("remaking spec: too quiet")
 				flag = False
-			if np.sum(spec) < 2500:
+			if np.sum(spec) < 2200:
+				print('Remaking spec: too quiet')
 				flag = False
 			
 
