@@ -95,16 +95,16 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 				flag = False
 		while not(flag):
 			new_s = np.random.choice(len(loader.dataset),1)
-			specs,files,ons,offs = tmpdl.dataset.__getitem__(new_s, seed=None, shoulder=0.05, \
+			spec_n,file_n,on_n,off_n = tmpdl.dataset.__getitem__(new_s, seed=None, shoulder=0.05, \
 					return_seg_info=True)
 
-			onset = ons[ind]
-			offset=offs[ind]
-			fn = files[ind]
+			onset = on_n
+			offset=off_n
+			fn = file_n
 		
 			fs, audio = wavfile.read(fn) 
 			with torch.no_grad():
-				z = model.encoder.encode(song)
+				z = model.encoder.encode(spec_n)
 				z = z/torch.norm(z,dim=-1,keepdim=True)
 
 			z = z.detach().cpu().numpy()
