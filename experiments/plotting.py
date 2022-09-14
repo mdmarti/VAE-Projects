@@ -66,7 +66,7 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=5):
 
 	latents = []
 	for ind,song in enumerate(specs):
-		print(song.shape)
+		
 		song = torch.stack(song,axis=0).unsqueeze(1).to(model.device)
 		print(song.shape)
 		onset = ons[ind]
