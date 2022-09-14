@@ -70,9 +70,7 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=5):
 		onset = ons[ind]
 		offset=offs[ind]
 		fn = files[ind]
-		print(fn)
-		print(onset)
-		print(offset)
+		
 		fs, audio = wavfile.read(fn) 
 		with torch.no_grad():
 				z = model.encoder.encode(song)
