@@ -17,7 +17,7 @@ from ava.preprocessing.utils import get_spec
 
 sns.set()
 sns.set_context("talk")
-def plot_trajectories_umap_and_coords(model,loader,n_samples=5):
+def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 
 	p = {
 		'min_freq': 10, # minimum frequency
@@ -62,7 +62,7 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=5):
 	specs,files,ons,offs = tmpdl.dataset.__getitem__(samples, seed=None, shoulder=0.05, \
 		return_seg_info=True)
 
-	fig, axs = plt.subplots(nrows=2,ncols=n_samples)
+	fig, axs = plt.subplots(nrows=2,ncols=n_samples,figsize=(30,50))
 
 	latents = []
 	for ind,song in enumerate(specs):
