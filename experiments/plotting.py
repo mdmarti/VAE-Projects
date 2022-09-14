@@ -103,8 +103,8 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=5):
 				sns.lineplot(x=time,y=z[:,dim] - np.mean(z[:,dim]),ax=curr_axs[1])
 
 
-		plt.savefig(os.path.join(model.save_dir,'components_specs_plot.png'))
+	plt.savefig(os.path.join(model.save_dir,'components_specs_plot.png'))
 
-		plt.close('all')
+	plt.close('all')
 
 	return
