@@ -98,9 +98,9 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 			spec_n,file_n,on_n,off_n = tmpdl.dataset.__getitem__(new_s, seed=None, shoulder=0.05, \
 					return_seg_info=True)
 
-			onset = on_n
-			offset=off_n
-			fn = file_n
+			onset = on_n[0]
+			offset=off_n[0]
+			fn = file_n[0]
 		
 			fs, audio = wavfile.read(fn) 
 			with torch.no_grad():
