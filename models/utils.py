@@ -337,7 +337,7 @@ class simsiamSet(Dataset):
 
 				specs1.append(st)
 				specs2.append(1)
-				file_indices.append(file_index)
+				file_indices.append(load_filename)
 				onsets.append(onset)
 				offsets.append(offset)
 				#days.append(day)
