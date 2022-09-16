@@ -1,3 +1,5 @@
+import matplotlib
+
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
@@ -8,6 +10,7 @@ import os
 import inspect
 import sys 
 from scipy.io import wavfile
+import umap
 
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(os.path.dirname(currentdir))
@@ -17,6 +20,7 @@ from ava.preprocessing.utils import get_spec
 
 sns.set()
 sns.set_context("talk")
+
 def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 
 	p = {
@@ -52,6 +56,12 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 		}
 	shoulder = 0.05
 
+	all_latents = model.get_latent(loader)
+	stacked_latents = np.vstack(all_latents)
+	simsiam_umap = umap.UMAP(n_components=2, n_neighbors=20, min_dist=0.1, random_state=42)
+	
+	stacked_labels = np.zeros((stacked_latents.shape[0],))
+
 	spec_cmap = sns.color_palette("mako", as_cmap=True)
 
 	tmpdl = DataLoader(loader.dataset, batch_size=1, \
@@ -62,9 +72,11 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 	specs,files,ons,offs = tmpdl.dataset.__getitem__(samples, seed=None, shoulder=0.05, \
 		return_seg_info=True)
 
-	fig, axs = plt.subplots(nrows=2,ncols=n_samples,figsize=(65,30))
-
+	fig, axs = plt.subplots(nrows=3,ncols=n_samples,figsize=(75,50))
+	#fig = plt.figure(figsize=(75,50))
 	latents = []
+	latent_labels = []
+
 	for ind,song in enumerate(specs):
 		
 		song = torch.stack(song,axis=0).unsqueeze(1).to(model.device)
@@ -80,7 +92,6 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 
 		z = z.detach().cpu().numpy()
 
-
 		target_times = np.linspace(onset, offset, \
 						p['num_time_bins'])
 		spec, flag = get_spec(max(0.0, onset-shoulder), \
@@ -90,7 +101,7 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 		if np.max(spec) < 0.1:
 				print("remaking spec: too quiet")
 				flag = False
-		if np.sum(spec) < 2200:
+		if np.sum(spec) < 2500:
 				print('Remaking spec: too quiet')
 				flag = False
 		while not(flag):
@@ -99,12 +110,14 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 					return_seg_info=True)
 
 			onset = on_n
-			offset=off_n[0]
-			fn = file_n[0]
+			offset=off_n
+			fn = file_n
 		
-			fs, audio = wavfile.read(fn) 
+			fs, audio = wavfile.read(fn)
+			spec_n = torch.stack(spec_n,axis=0).unsqueeze(1).to(model.device)
+			print(spec_n.shape)
 			with torch.no_grad():
-				z = model.encoder.encode(spec_n[0])
+				z = model.encoder.encode(spec_n)
 				z = z/torch.norm(z,dim=-1,keepdim=True)
 
 			z = z.detach().cpu().numpy()
@@ -121,7 +134,7 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 			if np.max(spec) < 0.1:
 				print("remaking spec: too quiet")
 				flag = False
-			if np.sum(spec) < 2200:
+			if np.sum(spec) < 2500:
 				print('Remaking spec: too quiet')
 				flag = False
 			
@@ -130,8 +143,9 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 		print('made spec!')
 		print("sum of spec: ", np.sum(spec))
 		latents.append(z)
+		#ax = fig.add_subplot(3,n_samples,ind+1)
 		curr_axs = axs[:,ind]
-
+		latent_labels.append(np.ones((z.shape[0],)) + ind)
 		sns.heatmap(np.flipud(spec),vmin=0.0,cmap=spec_cmap,ax=curr_axs[0],cbar=False)
 		time = np.array(range(1,len(z) + 1))
 
@@ -140,11 +154,53 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 			#min_ind = np.argmin(np.sum(samp[:,corr_inds],axis=0))
 			#min_traj = samp[:,corr_inds][:,min_ind]
 			#print(np.sum(z[:,dim]))
+			#ax = fig.add_subplot(3,n_samples,n_samples + ind+1)
+			
 			if np.sum(z[:,dim]) >= 8:
 				sns.lineplot(x=time,y=z[:,dim] - np.mean(z[:,dim]),ax=curr_axs[1])
+		
+	latents = np.vstack(latents)
+	latent_labels = np.hstack(latent_labels)
+	stacked_latents = np.vstack([stacked_latents,latents])
+	stacked_labels = np.hstack([stacked_labels,latent_labels])
+	print('Fitting UMAP')
 
+	umapped_latents = simsiam_umap.fit_transform(stacked_latents)
+	#projected_trajectory = simsiam_umap.transform(z)
+	for ind,song in enumerate(specs):
+		curr_axs = axs[:,ind]
+		time = np.array(range(1,len(umapped_latents[stacked_labels==(ind+1),0]) + 1))
+		
+		#ax = fig.add_subplot(3,n_samples,2*n_samples + 1 + ind)
+		bg = curr_axs[2].scatter(umapped_latents[stacked_labels==0,0],umapped_latents[stacked_labels==0,1],color='k',alpha=0.01,s=0.5)
+		#trajectory = sns.lineplot(x=umapped_latents[stacked_labels==(ind+1),0],y=umapped_latents[stacked_labels==(ind + 1),1],ax=curr_axs[2],color='r')
+		trajectory = curr_axs[2].scatter(umapped_latents[stacked_labels==(ind+1),0],umapped_latents[stacked_labels==(ind + 1),1],\
+										c=time,cmap='flare')
 
+	plt.show()
 	plt.savefig(os.path.join(model.save_dir,'components_specs_plot.png'))
+
+	plt.close('all')
+
+	print('fitting 3d')
+	simsiam_umap3d = umap.UMAP(n_components=3, n_neighbors=20, min_dist=0.1, random_state=42)
+	umapped_latents = simsiam_umap3d.fit_transform(stacked_latents)
+
+	fig = plt.figure(figsize=(75,20))
+
+	for ind,song in enumerate(specs):
+		#curr_axs = axs[:,ind]
+		time = np.array(range(1,len(umapped_latents[stacked_labels==(ind+1),0]) + 1))
+		
+		ax = fig.add_subplot(1,n_samples,1 + ind,projection='3d')
+		bg = ax.scatter(umapped_latents[stacked_labels==0,0],umapped_latents[stacked_labels==0,1],umapped_latents[stacked_labels==0,2],color='k',alpha=0.01,s=0.5)
+		#trajectory = sns.lineplot(x=umapped_latents[stacked_labels==(ind+1),0],y=umapped_latents[stacked_labels==(ind + 1),1],ax=curr_axs[2],color='r')
+		trajectory = ax.scatter(umapped_latents[stacked_labels==(ind+1),0],umapped_latents[stacked_labels==(ind + 1),1],\
+										umapped_latents[stacked_labels==(ind + 1),2],c=time,cmap='flare')
+
+		plt.show()
+
+	plt.savefig(os.path.join(model.save_dir,'components_specs_plot_3d.png'))
 
 	plt.close('all')
 
