@@ -178,11 +178,8 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7,fn=''):
 										c=time,cmap='flare')
 
 	plt.show()
-<<<<<<< HEAD
-	plt.savefig(os.path.join(model.save_dir,'components_specs_plot_scatter.png'))
-=======
+
 	plt.savefig(os.path.join(model.save_dir,fn + 'components_specs_plot_scatter_normed.png'))
->>>>>>> 7b21e0b09cc432f3647b8981261eca151e905ed5
 
 	plt.close('all')
 
