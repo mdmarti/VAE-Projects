@@ -11,7 +11,7 @@ import sys
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(os.path.dirname(currentdir))
 sys.path.insert(0, parentdir) 
-
+import copy
 from VAE_Projects.experiments.plotting import plot_trajectories_umap_and_coords
 
 
@@ -280,7 +280,7 @@ class simsiam(nn.Module):
 
 				filename = "epoch_"+str(epoch) + '_'
 
-				plot_trajectories_umap_and_coords(self,loaders['test'],fn=filename)
+				plot_trajectories_umap_and_coords(self,copy.deepcopy(loaders['test']),fn=filename)
 			self.epoch += 1
 
 	def get_latent(self,loader):
