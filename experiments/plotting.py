@@ -11,7 +11,7 @@ import inspect
 import sys 
 from scipy.io import wavfile
 import umap
-
+import copy
 currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
 parentdir = os.path.dirname(os.path.dirname(currentdir))
 sys.path.insert(0, parentdir) 
@@ -64,7 +64,7 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7,fn=''):
 
 	spec_cmap = sns.color_palette("mako", as_cmap=True)
 
-	tmpdl = DataLoader(loader.dataset, batch_size=1, \
+	tmpdl = DataLoader(copy.deepcopy(loader.dataset), batch_size=1, \
 			shuffle=False, num_workers=loader.num_workers)
 	tmpdl.dataset.train_augment=False
 	samples = np.random.choice(len(loader.dataset),n_samples)
