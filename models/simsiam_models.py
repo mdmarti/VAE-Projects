@@ -6,6 +6,13 @@ import os
 from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
+import inspect
+import sys
+currentdir = os.path.dirname(os.path.abspath(inspect.getfile(inspect.currentframe())))
+parentdir = os.path.dirname(os.path.dirname(currentdir))
+sys.path.insert(0, parentdir) 
+
+from VAE_Projects.experiments.plotting import plot_trajectories_umap_and_coords
 
 
 class resnet_encoder(nn.Module):
@@ -230,7 +237,7 @@ class simsiam(nn.Module):
 		return test_loss 
 
 
-	def train_test_loop(self,loaders, epochs=100, test_freq=2, save_freq=10):
+	def train_test_loop(self,loaders, epochs=100, test_freq=2, save_freq=10,vis_freq=10):
 		"""
 		Train the model for multiple epochs, testing and saving along the way.
 
@@ -269,7 +276,11 @@ class simsiam(nn.Module):
 					(epoch > 0):
 				filename = "checkpoint_"+str(epoch).zfill(3)+'.tar'
 				self.save_state()
+			if (vis_freq is not None) and (epoch % vis_freq == 0):
 
+				filename = "epoch_"+str(epoch) + '_'
+
+				plot_trajectories_umap_and_coords(self,loaders['test'],fn=filename)
 			self.epoch += 1
 
 	def get_latent(self,loader):
