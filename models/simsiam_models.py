@@ -391,7 +391,7 @@ class normed_simsiam(simsiam):
 			x1 = torch.vstack(x1).unsqueeze(1).to(self.device)
 			with torch.no_grad():
 				z = self.encoder.encode(x1)
-				z = z/torch.norm(z,dim=-1,keepdim=True)
+				#z = z/torch.norm(z,dim=-1,keepdim=True)
 
 			latents.append(z.detach().cpu().numpy())
 
