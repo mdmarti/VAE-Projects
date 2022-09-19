@@ -88,7 +88,7 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 		fs, audio = wavfile.read(fn) 
 		with torch.no_grad():
 				z = model.encoder.encode(song)
-				z = z/torch.norm(z,dim=-1,keepdim=True)
+				#z = z/torch.norm(z,dim=-1,keepdim=True)
 
 		z = z.detach().cpu().numpy()
 
@@ -118,7 +118,7 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 			print(spec_n.shape)
 			with torch.no_grad():
 				z = model.encoder.encode(spec_n)
-				z = z/torch.norm(z,dim=-1,keepdim=True)
+				#z = z/torch.norm(z,dim=-1,keepdim=True)
 
 			z = z.detach().cpu().numpy()
 
