@@ -21,7 +21,7 @@ from ava.preprocessing.utils import get_spec
 sns.set()
 sns.set_context("talk")
 
-def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
+def plot_trajectories_umap_and_coords(model,loader,n_samples=7,fn=''):
 
 	p = {
 		'min_freq': 10, # minimum frequency
@@ -178,7 +178,7 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 										c=time,cmap='flare')
 
 	plt.show()
-	plt.savefig(os.path.join(model.save_dir,'components_specs_plot_scatter_normed.png'))
+	plt.savefig(os.path.join(model.save_dir,fn + 'components_specs_plot_scatter_normed.png'))
 
 	plt.close('all')
 
@@ -200,7 +200,7 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 
 		plt.show()
 
-	plt.savefig(os.path.join(model.save_dir,'components_specs_plot_3d.png'))
+	plt.savefig(os.path.join(model.save_dir,fn + 'components_specs_plot_3d.png'))
 
 	plt.close('all')
 
