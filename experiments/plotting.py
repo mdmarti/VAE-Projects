@@ -173,12 +173,12 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7):
 		
 		#ax = fig.add_subplot(3,n_samples,2*n_samples + 1 + ind)
 		bg = curr_axs[2].scatter(umapped_latents[stacked_labels==0,0],umapped_latents[stacked_labels==0,1],color='k',alpha=0.01,s=0.5)
-		trajectory = sns.lineplot(x=umapped_latents[stacked_labels==(ind+1),0],y=umapped_latents[stacked_labels==(ind + 1),1],ax=curr_axs[2],sort=False,color='r')
-		#trajectory = curr_axs[2].scatter(umapped_latents[stacked_labels==(ind+1),0],umapped_latents[stacked_labels==(ind + 1),1],\
-										#c=time,cmap='flare')
+		#trajectory = sns.lineplot(x=umapped_latents[stacked_labels==(ind+1),0],y=umapped_latents[stacked_labels==(ind + 1),1],ax=curr_axs[2],sort=False,color='r')
+		trajectory = curr_axs[2].scatter(umapped_latents[stacked_labels==(ind+1),0],umapped_latents[stacked_labels==(ind + 1),1],\
+										c=time,cmap='flare')
 
 	plt.show()
-	plt.savefig(os.path.join(model.save_dir,'components_specs_plot.png'))
+	plt.savefig(os.path.join(model.save_dir,'components_specs_plot_scatter_normed.png'))
 
 	plt.close('all')
 
