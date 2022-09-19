@@ -366,6 +366,8 @@ class normed_simsiam(simsiam):
 
 		p = self.predictor.predict(z)
 
+		p = p/torch.norm(p,dim=-1,keepdim=True)
+
 		return z,p
 	
 	def get_latent(self,loader):
