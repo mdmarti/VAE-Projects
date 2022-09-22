@@ -141,7 +141,7 @@ class predictor(nn.Module):
 class simsiam(nn.Module):
 
 
-	def __init__(self,encoder=None,predictor=None,sim_func=None,save_dir='',lr=1e-4):
+	def __init__(self,encoder=None,predictor=None,sim_func=None,save_dir='',lr=1e-4,wd=True):
 
 		"""
 		simsiam for birdsong VAEs
@@ -163,7 +163,12 @@ class simsiam(nn.Module):
 		device_name = "cuda" if torch.cuda.is_available() else "cpu"
 		self.device = torch.device(device_name)
 		self.to(self.device)
-		self.optimizer = Adam(self.parameters(), lr=lr) # 8e-5
+		self.wd = wd 
+		if self.wd:
+			print('gonna decay my weights')
+			self.optimizer = Adam(self.parameters(),lr=lr, weight_decay=1e-2)
+		else:
+			self.optimizer = Adam(self.parameters(), lr=lr) # 8e-5
 
 
 	def encode(self,x):
@@ -280,7 +285,7 @@ class simsiam(nn.Module):
 
 				filename = "epoch_"+str(epoch) + '_'
 
-				plot_trajectories_umap_and_coords(self,copy.deepcopy(loaders['test']),fn=filename)
+				plot_trajectories_umap_and_coords(self,copy.deepcopy(loaders['test']),save_prefix=filename)
 			self.epoch += 1
 
 	def get_latent(self,loader):
@@ -361,13 +366,13 @@ class simsiam(nn.Module):
 
 class normed_simsiam(simsiam):
 
-	def __init__(self,encoder=None,predictor=None,sim_func=None,save_dir='',lr=1e-4):
+	def __init__(self,encoder=None,predictor=None,sim_func=None,save_dir='',lr=1e-4,wd=False):
 
 		"""
 		simsiam for birdsong VAEs
 		"""
 
-		super(normed_simsiam,self).__init__(encoder=encoder,predictor=predictor,sim_func=sim_func,save_dir=save_dir,lr=lr)
+		super(normed_simsiam,self).__init__(encoder=encoder,predictor=predictor,sim_func=sim_func,save_dir=save_dir,lr=lr,wd=wd)
 
 	def encode(self,x):
 
@@ -478,6 +483,7 @@ class image_simsiam(simsiam):
 		print('Epoch {0:d} average test loss: {1:.3f}'.format(self.epoch,test_loss))
 
 		return test_loss 
+
 
 class simsiam_l1(simsiam):
 
@@ -735,7 +741,6 @@ class masked_simsiam(simsiam):
 		print('Epoch {0:d} average test l1 (p): {1:.3f}'.format(self.epoch,test_l1_p))
 
 		return test_loss 	
-
 
 class simsiam_l2(simsiam_l1):
 

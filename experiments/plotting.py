@@ -21,8 +21,10 @@ from ava.preprocessing.utils import get_spec
 sns.set()
 sns.set_context("talk")
 
-def plot_trajectories_umap_and_coords(model,loader,n_samples=7,fn=''):
+def plot_trajectories_umap_and_coords(model,loader,n_samples=7,save_prefix=''):
 
+
+	
 	p = {
 		'min_freq': 10, # minimum frequency
 		'max_freq': 22000, #maximum frequency
@@ -77,6 +79,7 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7,fn=''):
 	latents = []
 	latent_labels = []
 
+	save_dir= model.save_dir
 	for ind,song in enumerate(specs):
 		
 		song = torch.stack(song,axis=0).unsqueeze(1).to(model.device)
@@ -155,8 +158,8 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7,fn=''):
 			#min_traj = samp[:,corr_inds][:,min_ind]
 			#print(np.sum(z[:,dim]))
 			#ax = fig.add_subplot(3,n_samples,n_samples + ind+1)
-			
-			if np.sum(z[:,dim]) >= 8:
+			#print(np.sum(z[:,dim]))
+			if np.sum(z[:,dim]) >= 0.01:
 				sns.lineplot(x=time,y=z[:,dim] - np.mean(z[:,dim]),ax=curr_axs[1])
 		
 	latents = np.vstack(latents)
@@ -177,13 +180,15 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7,fn=''):
 		trajectory = curr_axs[2].scatter(umapped_latents[stacked_labels==(ind+1),0],umapped_latents[stacked_labels==(ind + 1),1],\
 										c=time,cmap='flare')
 
-	plt.show()
 
-	plt.savefig(os.path.join(model.save_dir,fn + 'components_specs_plot_scatter_normed.png'))
+	save_fn = os.path.join(save_dir,save_prefix + 'components_specs_plot_scatter_normed.png')
+	print(save_fn)
+	plt.savefig(save_fn)
 
 	plt.close('all')
 
 	print('fitting 3d')
+	'''
 	simsiam_umap3d = umap.UMAP(n_components=3, n_neighbors=20, min_dist=0.1, random_state=42)
 	umapped_latents = simsiam_umap3d.fit_transform(stacked_latents)
 
@@ -204,5 +209,5 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7,fn=''):
 	plt.savefig(os.path.join(model.save_dir,fn + 'components_specs_plot_3d.png'))
 
 	plt.close('all')
-
+	'''
 	return

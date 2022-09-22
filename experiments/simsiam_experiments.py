@@ -107,7 +107,7 @@ def imagenet_script(imagenetdir = '',simsiam_dir='',batch_size=128,shuffle=(True
 
 	return
 
-def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',simsiam_l2_dir='',normed=False,segment=False):
+def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',simsiam_l2_dir='',normed=False,segment=False,wd=False):
 
 ########## Setting up directory lists: separate into train, test dirs
 ############# Expected File Structure
@@ -254,9 +254,9 @@ def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',sim
 		simsiam_encoder = encoder(z_dim=64)
 		simsiam_predictor = predictor(z_dim=64,h_dim=32)
 		if normed:
-			vanilla_simsiam = normed_simsiam(simsiam_encoder,simsiam_predictor,save_dir=simsiam_dir,sim_func=batch_cos_sim)
+			vanilla_simsiam = normed_simsiam(simsiam_encoder,simsiam_predictor,save_dir=simsiam_dir,sim_func=batch_cos_sim,wd=wd)
 		else:
-			vanilla_simsiam = simsiam(simsiam_encoder,simsiam_predictor,save_dir=simsiam_dir,sim_func=batch_cos_sim)
+			vanilla_simsiam = simsiam(simsiam_encoder,simsiam_predictor,save_dir=simsiam_dir,sim_func=batch_cos_sim,wd=wd)
 		if not os.path.isfile(save_file):
 			print('training vanilla')
 			vanilla_simsiam.train_test_loop(loaders_for_prediction,epochs=301,test_freq=5,save_freq=50)

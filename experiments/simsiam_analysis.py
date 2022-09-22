@@ -31,7 +31,8 @@ def z_plots(model=None, loader=None):
 	covar = (stacked_for_transforms - mean_per_dim).T @ (stacked_for_transforms - mean_per_dim)
 
 	sds = np.sqrt(np.diag(covar))
-	var_ax = sds > 20
+	print(sds)
+	var_ax = sds > 0.05
 	denom = sds[:,None] @ sds[None,:]
 
 	corr = covar/denom 
