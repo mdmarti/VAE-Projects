@@ -33,6 +33,14 @@ def batch_cos_sim(x,y):
 
 	return -cs.mean()
 
+def batch_mse(x,y):
+
+	diff = x - y
+	
+	cs = (diff.T @ diff)
+
+	return cs.mean()
+
 
 ############## dataloaders #############################
 def _get_wavs_from_dir(dir):

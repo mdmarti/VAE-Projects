@@ -9,7 +9,7 @@ parentdir = os.path.dirname(os.path.dirname(currentdir))
 sys.path.insert(0, parentdir) 
 
 import fire
-from VAE_Projects.models.utils import get_window_partition,get_simsiam_loaders_motif,batch_cos_sim
+from VAE_Projects.models.utils import get_window_partition,get_simsiam_loaders_motif,batch_cos_sim,batch_mse
 from VAE_Projects.models.simsiam_models import encoder,predictor,simsiam,simsiam_l1,simsiam_l2,normed_simsiam
 from VAE_Projects.experiments.simsiam_analysis import lookin_at_latents,z_plots
 from VAE_Projects.experiments.plotting import plot_trajectories_umap_and_coords
@@ -238,7 +238,7 @@ def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',sim
 	motif_part = get_window_partition(adult_audio_dirs,adult_motif_dirs,0.8)
 	#motif_part['test'] = motif_part['train']
 	print('getting prediction loader')
-	loaders_for_prediction = get_simsiam_loaders_motif(motif_part,segment_params,n_samples=20000,batch_size=128)
+	loaders_for_prediction = get_simsiam_loaders_motif(motif_part,segment_params,n_samples=2000,batch_size=128)
 	# this is used for the shotgun VAE, as opposed to the shotgun-dynamics VAE
 	#partition = get_window_partition(dsb_audio_dirs, dsb_segment_dirs, split)
 	#loaders = get_fixed_window_data_loaders(partition, segment_params)
@@ -254,9 +254,9 @@ def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',sim
 		simsiam_encoder = encoder(z_dim=64)
 		simsiam_predictor = predictor(z_dim=64,h_dim=32)
 		if normed:
-			vanilla_simsiam = normed_simsiam(simsiam_encoder,simsiam_predictor,save_dir=simsiam_dir,sim_func=batch_cos_sim,wd=wd)
+			vanilla_simsiam = normed_simsiam(simsiam_encoder,simsiam_predictor,save_dir=simsiam_dir,sim_func=batch_mse,wd=wd)
 		else:
-			vanilla_simsiam = simsiam(simsiam_encoder,simsiam_predictor,save_dir=simsiam_dir,sim_func=batch_cos_sim,wd=wd)
+			vanilla_simsiam = simsiam(simsiam_encoder,simsiam_predictor,save_dir=simsiam_dir,sim_func=batch_mse,wd=wd)
 		if not os.path.isfile(save_file):
 			print('training vanilla')
 			vanilla_simsiam.train_test_loop(loaders_for_prediction,epochs=301,test_freq=5,save_freq=50)
