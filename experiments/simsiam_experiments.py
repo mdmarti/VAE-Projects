@@ -241,7 +241,7 @@ def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',sim
 	#loaders_for_prediction = get_simsiam_loaders_motif(motif_part,segment_params,n_samples=2000,batch_size=128)
 	# this is used for the shotgun VAE, as opposed to the shotgun-dynamics VAE
 	partition = get_window_partition(dsb_audio_dirs, dsb_segment_dirs, 0.8)
-	loaders = get_simsiam_loaders_motif(partition, segment_params)
+	loaders_for_prediction = get_simsiam_loaders_motif(partition, segment_params)
 
 #############################
 # 1) Train model            #
