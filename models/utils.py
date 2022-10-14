@@ -204,8 +204,7 @@ class simsiamSet(Dataset):
 
 		self.transform = transform
 		#print(self.fsum)
-		print(self.fsum)
-		assert False
+		
 		self.dataset_length_real = int(self.fsum[-1])
 		self.dataset_length_fake = dataset_length
 		#print(self.dataset_length)
