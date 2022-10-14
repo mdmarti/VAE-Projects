@@ -285,7 +285,7 @@ class simsiam(nn.Module):
 
 				filename = "epoch_"+str(epoch) + '_'
 
-				plot_trajectories_umap_and_coords(self,copy.deepcopy(loaders['test']),save_prefix=filename)
+				plot_trajectories_umap_and_coords(self,loaders['test'],save_prefix=filename)
 			self.epoch += 1
 
 	def get_latent(self,loader):
