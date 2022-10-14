@@ -300,6 +300,7 @@ class simsiam(nn.Module):
 		tmpdl.dataset.train_augment=False
 		#print(len(loader))
 		#assert False
+		print(tmpdl.dataset)
 		
 		for ind, batch in enumerate(tmpdl):
 

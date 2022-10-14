@@ -254,9 +254,9 @@ def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',sim
 		simsiam_encoder = encoder(z_dim=64)
 		simsiam_predictor = predictor(z_dim=64,h_dim=32)
 		if normed:
-			vanilla_simsiam = normed_simsiam(simsiam_encoder,simsiam_predictor,save_dir=simsiam_dir,sim_func=batch_mse,wd=wd)
+			vanilla_simsiam = normed_simsiam(simsiam_encoder,simsiam_predictor,save_dir=simsiam_dir,sim_func=batch_cos_sim,wd=wd)
 		else:
-			vanilla_simsiam = simsiam(simsiam_encoder,simsiam_predictor,save_dir=simsiam_dir,sim_func=batch_mse,wd=wd)
+			vanilla_simsiam = simsiam(simsiam_encoder,simsiam_predictor,save_dir=batch_cos_sim,sim_func=batch_mse,wd=wd)
 		if not os.path.isfile(save_file):
 			print('training vanilla')
 			vanilla_simsiam.train_test_loop(loaders_for_prediction,epochs=301,test_freq=5,save_freq=50)
