@@ -295,12 +295,12 @@ class simsiam(nn.Module):
 		'''
 		latents = []
 		#print(len(loader))#.dataset.train_augment)
-		tmpdl = DataLoader(loader.dataset, batch_size=1, \
+		tmpdl = DataLoader(copy.deepcopy(loader.dataset), batch_size=1, \
 			shuffle=False, num_workers=loader.num_workers)
 		tmpdl.dataset.train_augment=False
 		#print(len(loader))
 		#assert False
-		print(tmpdl.dataset)
+		#print(tmpdl.dataset)
 		
 		for ind, batch in enumerate(tmpdl):
 
