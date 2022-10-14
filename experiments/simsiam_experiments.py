@@ -235,13 +235,13 @@ def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',sim
 	# this is using full motifs, so it should be fine. if you want to use the actual youth song,
 	# change the get_window_partition bit to include freshly segmented data
 	#loaders = get_fixed_window_data_loaders(test_part, segment_params)
-	motif_part = get_window_partition(adult_audio_dirs,adult_motif_dirs,0.8)
+	#motif_part = get_window_partition(adult_audio_dirs,adult_motif_dirs,0.8)
 	#motif_part['test'] = motif_part['train']
 	print('getting prediction loader')
-	loaders_for_prediction = get_simsiam_loaders_motif(motif_part,segment_params,n_samples=2000,batch_size=128)
+	#loaders_for_prediction = get_simsiam_loaders_motif(motif_part,segment_params,n_samples=2000,batch_size=128)
 	# this is used for the shotgun VAE, as opposed to the shotgun-dynamics VAE
-	#partition = get_window_partition(dsb_audio_dirs, dsb_segment_dirs, split)
-	#loaders = get_fixed_window_data_loaders(partition, segment_params)
+	partition = get_window_partition(dsb_audio_dirs, dsb_segment_dirs, 0.8)
+	loaders = get_simsiam_loaders_motif(partition, segment_params)
 
 #############################
 # 1) Train model            #
