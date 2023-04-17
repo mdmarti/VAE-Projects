@@ -300,9 +300,15 @@ class simsiamSet(Dataset):
 				roi_index = i#np.random.choice(np.arange(len(self.filenames)), \
 				#p=self.file_weights)
 
-				print(i)
-				print(self.fsum)
-				print(np.where(i<=self.fsum))
+				#print(i)
+				#print(self.fsum)
+				#print(np.where(i<=self.fsum))
+				if sum(i <= self.fsum) == 0:
+					print(i)
+					print(np.where(i <= self.fsum))
+					print(self.dataset_length_real)
+					print(self.dataset_length_fake)
+					print(self.fsum[-1])
 				file_index = np.where(i <= self.fsum)[0][0]
 				#print('file index: ',file_index)
 				#print('selected cumsum: ', self.fsum[file_index])

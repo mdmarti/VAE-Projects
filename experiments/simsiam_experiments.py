@@ -139,7 +139,7 @@ def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',sim
 				'135','136','137','138','139','140'] #['UNDIRECTED_11092020','DIRECTED_11092020']#,,
 
 	# subset for traininng
-	realTrainDays = ['70','71','72','73','74','75']#,'76','77','78','79','80','81','82','83']
+	realTrainDays = ['50','51','57','58','70','71','72','82','83']
 	#['40','45','55','74','79','87','97','105','112','120','130','135','138','140']
 	# another subset. why this is necessary? who knows
 	songDays = ['44','45','46','47','48','49','50','51','52','53','54','55','56','57','58']
@@ -264,6 +264,8 @@ def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',sim
 		else:
 			print('loading vanilla')
 			vanilla_simsiam.load_state(save_file)
+			lookin_at_latents(vanilla_simsiam,loaders_for_prediction['train'])
+
 			#train_latents = vanilla_simsiam.get_latent(loaders_for_prediction['train'])
 			#print(len(train_latents))
 			#test_latents = vanilla_simsiam.get_latent(loaders_for_prediction['test'])

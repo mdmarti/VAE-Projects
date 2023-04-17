@@ -69,7 +69,7 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7,save_prefix=''):
 	tmpdl = DataLoader(copy.deepcopy(loader.dataset), batch_size=1, \
 			shuffle=False, num_workers=loader.num_workers)
 	tmpdl.dataset.train_augment=False
-	samples = np.random.choice(len(loader.dataset),n_samples)
+	samples = np.random.choice(loader.dataset.dataset_length_real,n_samples)
 
 	specs,files,ons,offs = tmpdl.dataset.__getitem__(samples, seed=None, shoulder=0.05, \
 		return_seg_info=True)
@@ -108,7 +108,7 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7,save_prefix=''):
 				print('Remaking spec: too quiet')
 				flag = False
 		while not(flag):
-			new_s = np.random.choice(len(loader.dataset),1)[0]
+			new_s = np.random.choice(loader.dataset.dataset_length_real,1)[0]
 			spec_n,file_n,on_n,off_n = tmpdl.dataset.__getitem__(new_s, seed=None, shoulder=0.05, \
 					return_seg_info=True)
 
@@ -187,7 +187,9 @@ def plot_trajectories_umap_and_coords(model,loader,n_samples=7,save_prefix=''):
 
 	plt.close('all')
 
-	print('fitting 3d')
+	del umapped_latents
+	del simsiam_umap
+	del tmpdl
 	'''
 	simsiam_umap3d = umap.UMAP(n_components=3, n_neighbors=20, min_dist=0.1, random_state=42)
 	umapped_latents = simsiam_umap3d.fit_transform(stacked_latents)

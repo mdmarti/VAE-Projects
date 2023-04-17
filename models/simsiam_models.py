@@ -288,32 +288,44 @@ class simsiam(nn.Module):
 				plot_trajectories_umap_and_coords(self,loaders['test'],save_prefix=filename)
 			self.epoch += 1
 
-	def get_latent(self,loader):
+	def get_latent(self,loader,max_seqs=300):
 
 		'''
 		this requires a loader that does NOT augment images beforehand
 		'''
 		latents = []
+		
+		loader.dataset.train_augment=False
+		
 		#print(len(loader))#.dataset.train_augment)
-		tmpdl = DataLoader(copy.deepcopy(loader.dataset), batch_size=1, \
-			shuffle=False, num_workers=loader.num_workers)
-		tmpdl.dataset.train_augment=False
+		#newDA = copy.deepcopy(loader.dataset)
+		#newDA.train_augment=False
+		#tmpdl = DataLoader(newDA, batch_size=1, \
+		#	shuffle=False, num_workers=loader.num_workers)
+		#tmpdl.dataset.train_augment=False
 		#print(len(loader))
 		#assert False
 		#print(tmpdl.dataset)
 		
-		for ind, batch in enumerate(tmpdl):
-
-			(x1,_) = batch 
+		if max_seqs > loader.dataset.dataset_length_real:
+			order = np.random.choice(loader.dataset.dataset_length_real,loader.dataset.dataset_length_real,replace=False)
+		else:
+			order = np.random.choice(loader.dataset.dataset_length_real,max_seqs,replace=False)
+		
+		for ind in order:
 			
-
-			x1 = torch.vstack(x1).unsqueeze(1).to(self.device)
+			assert (ind < loader.dataset.dataset_length_real), print('why')
+			(x1,_) = loader.dataset[ind] 
+			
+			x1 = torch.stack(x1).unsqueeze(1).to(self.device)
+			
 			with torch.no_grad():
 				z = self.encoder.encode(x1)
 
 			latents.append(z.detach().cpu().numpy())
-
 		
+
+		loader.dataset.train_augment=True
 		return latents
 
 	def save_state(self):

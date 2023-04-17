@@ -210,7 +210,9 @@ def lookin_at_latents(model=None,loader=None):
 	latents = model.get_latent(loader)
 
 	stacked_for_transforms = np.vstack(latents)
-
+	inds = [np.hstack([i]*len(latents[i])) for i in range(len(latents))]
+	stacked_inds = np.hstack(inds)
+	print(stacked_inds.shape)
 	l_umap = umap.UMAP(n_components=2, n_neighbors=100, min_dist=0.001, random_state=42)
 	l_pca = PCA()
 
@@ -234,14 +236,15 @@ def lookin_at_latents(model=None,loader=None):
 	background34_pca = sns.scatterplot(x=latents_pca[:,2],y=latents_pca[:,3],color='k',ax=ax3)
 
 	for s in sample_inds:
-		tmp_latents = latents[s]
+		inds = stacked_inds == s
+		#tmp_latents = latents[s]
 
-		umap_tmp = l_umap.transform(tmp_latents)
-		pca_tmp = l_pca.transform(tmp_latents)
+		#umap_tmp = l_umap.transform(tmp_latents)
+		#pca_tmp = l_pca.transform(tmp_latents)
 
-		sns.lineplot(x=umap_tmp[:,0],y=umap_tmp[:,1],ax=ax1)
-		sns.lineplot(x=pca_tmp[:,0],y=pca_tmp[:,1],ax=ax2)
-		sns.lineplot(x=pca_tmp[:,2],y=pca_tmp[:,3],ax=ax3)
+		sns.lineplot(x=latents_umap[inds,0],y=latents_umap[inds,1],ax=ax1)
+		sns.lineplot(x=latents_pca[inds,0],y=latents_pca[inds,1],ax=ax2)
+		sns.lineplot(x=latents_pca[inds,2],y=latents_pca[inds,3],ax=ax3)
 
 	ax1.set_xlabel('UMAP 1')
 	ax1.set_ylabel('UMAP 2')
