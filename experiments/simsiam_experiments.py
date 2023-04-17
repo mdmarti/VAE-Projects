@@ -264,6 +264,13 @@ def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',sim
 		else:
 			print('loading vanilla')
 			vanilla_simsiam.load_state(save_file)
+			latents = vanilla_simsiam.get_latent(loaders_for_prediction['train'])
+
+			stacked_for_transforms = np.vstack(latents)
+			
+			l_umap = umap.UMAP(n_components=2, n_neighbors=100, min_dist=0.001, random_state=42)
+			latents_umap = l_umap.fit_transform(stacked_for_transforms)
+			np.save("latents_compare.npy",latents_umap)
 			lookin_at_latents(vanilla_simsiam,loaders_for_prediction['train'])
 
 			#train_latents = vanilla_simsiam.get_latent(loaders_for_prediction['train'])
