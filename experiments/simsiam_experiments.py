@@ -126,7 +126,7 @@ def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',sim
 # | ...
 
 	# here is where the data are stored
-	datadir = '/home/mrmiews/' #'/media/mrmiews/Storage for Data/'
+	datadir = '/media/miles/storage' #'/media/mrmiews/Storage for Data/'
 
 	# here are the days we are using to train our model. Each day has .wav files
 	# containing song
@@ -139,7 +139,7 @@ def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',sim
 				'135','136','137','138','139','140'] #['UNDIRECTED_11092020','DIRECTED_11092020']#,,
 
 	# subset for traininng
-	realTrainDays = ['50','51','57','58','70','71','72','82','83']
+	realTrainDays = ['80','95','94','83','77']
 	#['40','45','55','74','79','87','97','105','112','120','130','135','138','140']
 	# another subset. why this is necessary? who knows
 	songDays = ['44','45','46','47','48','49','50','51','52','53','54','55','56','57','58']
@@ -240,9 +240,12 @@ def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',sim
 	print('getting prediction loader')
 	#loaders_for_prediction = get_simsiam_loaders_motif(motif_part,segment_params,n_samples=2000,batch_size=128)
 	# this is used for the shotgun VAE, as opposed to the shotgun-dynamics VAE
-	partition = get_window_partition(dsb_audio_dirs, dsb_segment_dirs, 0.8)
-	loaders_for_prediction = get_simsiam_loaders_motif(partition, segment_params)
 
+	
+	partition = get_window_partition(dsb_audio_dirs, dsb_segment_dirs, 0.8)
+	print("Getting loaders")
+	loaders_for_prediction = get_simsiam_loaders_motif(partition, segment_params)
+	print("Done!")
 #############################
 # 1) Train model            #
 #############################
@@ -268,9 +271,9 @@ def bird_model_script(simsiam_dir='',simsiam_l1_dir='',simsiam_masked_dir='',sim
 
 			stacked_for_transforms = np.vstack(latents)
 			
-			l_umap = umap.UMAP(n_components=2, n_neighbors=100, min_dist=0.001, random_state=42)
-			latents_umap = l_umap.fit_transform(stacked_for_transforms)
-			np.save("latents_compare.npy",latents_umap)
+			#l_umap = umap.UMAP(n_components=2, n_neighbors=100, min_dist=0.001, random_state=42)
+			#latents_umap = l_umap.fit_transform(stacked_for_transforms)
+			#np.save("latents_compare.npy",latents_umap)
 			lookin_at_latents(vanilla_simsiam,loaders_for_prediction['train'])
 
 			#train_latents = vanilla_simsiam.get_latent(loaders_for_prediction['train'])

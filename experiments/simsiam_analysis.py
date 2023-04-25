@@ -207,7 +207,7 @@ def lookin_at_latents(model=None,loader=None):
 	'''
 	print('gettin latents')
 
-	latents = model.get_latent(loader)
+	latents = model.get_latent(loader,max_seqs=1000)
 
 	stacked_for_transforms = np.vstack(latents)
 	inds = [np.hstack([i]*len(latents[i])) for i in range(len(latents))]
@@ -220,20 +220,45 @@ def lookin_at_latents(model=None,loader=None):
 	latents_umap = l_umap.fit_transform(stacked_for_transforms)
 	latents_pca = l_pca.fit_transform(stacked_for_transforms)
 	print('DONE')
-	sample_inds = np.random.choice(len(latents), 2)
+	sample_inds = np.random.choice(len(latents), 1)
 
 	fig1 = plt.figure(num=1,figsize=[8.5,11])
 	ax1 = plt.gca()
+	background_umap = ax1.scatter(latents_umap[:,0],latents_umap[:,1],color='k',alpha=0.6,s=0.6)
+	inds = stacked_inds == sample_inds[0]
+	while sum(inds) < 15:
+		print("resampling")
+		sample_inds = np.random.choice(len(latents), 1)
+		inds = stacked_inds == sample_inds[0]
+	print(sum(inds))
+
+	print(latents_umap.shape)
+	ax1.plot(latents_umap[inds,0],latents_umap[inds,1],color='r')
+
+	ax1.set_xticks([])
+	ax1.set_yticks([])
+	ax1.set_facecolor("xkcd:white")
+	plt.savefig("/home/miles/umap1.png")
+	#assert False
+	#plt.savefig("/home/miles/umap1.png")
 	fig2 = plt.figure(num=2,figsize=[8.5,11])
 	ax2 = plt.gca()
-	fig3 = plt.figure(num=3,figsize=[8.5,11])
-	ax3 = plt.gca()
+	background12_pca = ax2.scatter(latents_pca[:,0],latents_pca[:,1],color='k')
+	ax2.plot(latents_pca[inds,0],latents_pca[inds,1],color='r')
+
+	ax2.set_xticks([])
+	ax2.set_yticks([])
+	ax2.set_facecolor("xkcd:white")
+	plt.savefig("/home/miles/pca1.png")
+	assert False
+	#fig3 = plt.figure(num=3,figsize=[8.5,11])
+	#ax3 = plt.gca()
 	
 	
 	print('plotting everything!')
-	background_umap = sns.scatterplot(x=latents_umap[:,0],y=latents_umap[:,1],color='k',ax=ax1)
-	background12_pca = sns.scatterplot(x=latents_pca[:,0],y=latents_pca[:,1],color='k',ax=ax2)
-	background34_pca = sns.scatterplot(x=latents_pca[:,2],y=latents_pca[:,3],color='k',ax=ax3)
+	
+
+	#background34_pca = sns.scatterplot(x=latents_pca[:,2],y=latents_pca[:,3],color='k',ax=ax3)
 
 	for s in sample_inds:
 		inds = stacked_inds == s
@@ -242,9 +267,10 @@ def lookin_at_latents(model=None,loader=None):
 		#umap_tmp = l_umap.transform(tmp_latents)
 		#pca_tmp = l_pca.transform(tmp_latents)
 
-		sns.lineplot(x=latents_umap[inds,0],y=latents_umap[inds,1],ax=ax1)
+		
+		
 		sns.lineplot(x=latents_pca[inds,0],y=latents_pca[inds,1],ax=ax2)
-		sns.lineplot(x=latents_pca[inds,2],y=latents_pca[inds,3],ax=ax3)
+		#sns.lineplot(x=latents_pca[inds,2],y=latents_pca[inds,3],ax=ax3)
 
 	ax1.set_xlabel('UMAP 1')
 	ax1.set_ylabel('UMAP 2')
