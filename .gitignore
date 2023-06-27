@@ -131,6 +131,7 @@ dmypy.json
 # pdfs, pngs
 *.pdf 
 *.png 
+*.gif
 
 # picture directory
 piccies/*
