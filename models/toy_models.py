@@ -76,10 +76,14 @@ def plot_sde(data):
     else:
         
         for ii,traj in enumerate(data):
+            mins = np.amin(traj,axis=0)
+            maxs = np.amax(traj,axis=0)
             ax = fig.add_subplot(111,projection='3d')
-            ax.set_xlim([-4,4.0])
-            ax.set_ylim([-4,4.0])
-            ax.set_zlim([-4,4.0])
+
+            ax.set_xlim([mins[0],maxs[0]])
+            ax.set_ylim([mins[1],maxs[1]])
+            ax.set_zlim([mins[2],maxs[2]])
+
             line, = ax.plot([],[])
             ax.view_init(azim=180)
             def makeAni1(frame):
