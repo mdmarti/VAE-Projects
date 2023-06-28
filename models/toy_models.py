@@ -38,7 +38,7 @@ def generate_stochastic_lorenz(n=100,T=100,dt=1,coeffs=[0.25,1.2,1,0.5,0.3,1.2])
     for ii in range(n):
 
         sample_dW = dt * np.random.randn(len(t),3)
-        xnot = 0.001*np.random.randn(3)
+        xnot = np.random.randn(3)
 
         xx = [xnot]
         for jj in range(len(t)):
@@ -86,20 +86,21 @@ def plot_sde(data):
 
             line, = ax.plot([],[])
             ax.view_init(azim=180)
+
             def makeAni1(frame):
                 if frame < traj.shape[0]:
                     line.set_data_3d(traj[:frame+1,0],traj[:frame+1,1],traj[:frame+1,2])
                 ax.view_init(azim=180 + frame/6)
-
+                ax.set_xlabel("dim 1")
+                ax.set_ylabel("dim 2")
+                ax.set_zlabel("dim 3")
                 return line,
         
             print("animating 1")
             anim= animation.FuncAnimation(fig,makeAni1,frames=3000,interval=20,blit=True)
             anim.save(f'changeAcrossTime{ii}.gif', writer = 'ffmpeg', fps = 50)
             plt.close('all')
-            ax.set_xlabel("dim 1")
-            ax.set_ylabel("dim 2")
-            ax.set_zlabel("dim 3")
+            
 
         #plt.savefig("testingonetwothree.png")
 
@@ -108,5 +109,5 @@ if __name__ == '__main__':
 
     xs = generate_ndim_benes(20,d=2,dt=0.001,T = 2)
     plot_sde(xs)
-    xs = generate_stochastic_lorenz(3,dt=0.01,T = 100,coeffs=[10,28,8/3,1.2,0,0])
+    xs = generate_stochastic_lorenz(3,dt=0.01,T = 100,coeffs=[10,28,8/3,50,50,50])
     plot_sde(xs)
