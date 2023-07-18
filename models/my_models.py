@@ -152,8 +152,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 								nn.Linear(100,self.dim))
 		self.D = nn.Sequential(nn.Linear(self.dim,100),
 			 					nn.Softplus(),
-								nn.Linear(100,self.dim),
-								nn.Softplus())
+								nn.Linear(100,self.dim))
 		
 
 		#self.to(self.device)
@@ -169,7 +168,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 				prev = zz[jj]
 				
 				prev = torch.from_numpy(prev).type(torch.FloatTensor)
-				D = self.D(prev) *np.sqrt(dt)
+				D = torch.exp(self.D(prev)) *np.sqrt(dt)
 				dz = self.MLP(prev)*dt + D @ sample_dW[jj,:]
 
 				zz.append(zz[jj] +dz.detach().cpu().numpy())
@@ -179,17 +178,56 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 
 	def loss(self,zt1,zt2,dt):
 		
-		dt = dt[0]
-		dzTrue = zt2 - zt1
-		mu = self.MLP(zt1) * dt
-		D = self.D(zt1) *np.sqrt(dt)
-		cov = D * D
-		log_pzt2 = -1/2 * (((mu-dzTrue) *(1/D))**2)
-		log_pzt2 = log_pzt2.sum(axis=-1)
-		scale = -self.dim/2 * np.log(2*torch.pi)\
-			  - 1/2*torch.log(cov).sum() 
-		loss = - log_pzt2 - scale 
+		"""
+		z_t's: batch x z_dim
+		mu: batch x z_dim x 1
+		D: batch x z_dim x 1
 		
+		"""
+
+		
+		dt = dt[0]
+		######
+		dzTrue = zt2 - zt1
+		dzTrue = dzTrue.view(dzTrue.shape[0],dzTrue.shape[-1],1)
+		#######
+		#### Parameterizing moments version ######
+		mu = self.MLP(zt1) * dt
+		mu = mu.view(mu.shape[0],mu.shape[-1],1)
+		#########
+		D = torch.exp(self.D(zt1)) *torch.sqrt(dt)
+		#D = D.view(D.shape[0],D.shape[-1],1)
+		cov = D * D
+		precision = torch.diag_embed(1/cov)
+		#########
+
+		const = -self.dim/2 * np.log(2*torch.pi)
+		t1 = torch.log(cov).sum(axis=-1)
+		assert len(t1.shape) == 1, print(t1.shape)
+		t2 = (dzTrue.transpose(-2,-1) @ precision @ dzTrue).squeeze()
+		assert len(t2.shape)==1,print(t2.shape)
+		t3 = -2*(dzTrue.transpose(-2,-1) @ precision @ mu).squeeze()
+		assert len(t3.shape) == 1,print(t3.shape)
+		t4 = (mu.transpose(-2,-1)@precision @ mu).squeeze()
+		assert len(t4.shape) == 1,print(t4.shape)
+		log_pz2 = const - 1/2*(t1 + t2 + t3 + t4)
+		loss = - log_pz2
+		###########################################
+
+		######### Parameterizing sufficient statistics version #########
+
+		#eta = self.MLP(zt1)
+		#lamFactor = self.D(zt1) ### need lam factor to be a lower triangular matrix for this to work
+		#cov = torch.cholesky_inverse(lamFactor)
+
+
+
+
+
+
+
+
+		##################################################33
 		return loss.sum() 
 	
 	def forward(self,data):

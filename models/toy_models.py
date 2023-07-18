@@ -196,11 +196,11 @@ if __name__ == '__main__':
 
 
     dt = 0.001
-    xs = generate_geometric_brownian(1024,dt=0.001,T = 1)
+    xs = generate_geometric_brownian(1024,dt=0.01,T = 1)
     linearmodel = nonlinearLatentSDE(dim=1,diag_covar=True,save_dir='/home/miles/test1_linear')
-    dls = makeToyDataloaders(np.vstack(xs),np.vstack(xs),dt=0.001)
-    linearmodel.load('/home/miles/test1_linear/checkpoint_100.tar')
-    #linearmodel = train(linearmodel,dls,nEpochs=100,save_freq=50,test_freq=25)
+    dls = makeToyDataloaders(np.vstack(xs),np.vstack(xs),dt=0.01)
+    #linearmodel.load('/home/miles/test1_linear/checkpoint_300.tar')
+    linearmodel = train(linearmodel,dls,nEpochs=1000,save_freq=100,test_freq=25)
     print(f"generating new data! {1024} samples")
     samples = []
     muDist = []
@@ -219,9 +219,9 @@ if __name__ == '__main__':
         #samples.append(np.hstack([x[0],xGen.squeeze()]))
         
         x0 = 0.1 + 0.03**2 * np.random.randn(1)
-        xsTmp = linearmodel.generate(x0,T=1,dt=0.001)
+        xsTmp = linearmodel.generate(x0,T=1,dt=0.01)
         samples.append(xsTmp)
-    """
+    
     fig = plt.figure()
     ax1 = fig.add_subplot(121)
     ax2 = fig.add_subplot(122)
@@ -239,14 +239,14 @@ if __name__ == '__main__':
 
     print("done!")
     plotSamples1d(xs,samples)
-    """
+   
     #plot_sde(xs)
     xs = generate_stochastic_lorenz(1024,dt=0.025/5,T = 1,coeffs=[10,28,8/3,.15,.15,.15])
     #plotSamples3d(xs,xs)
     model = nonlinearLatentSDE(dim=3,diag_covar=True,save_dir='/home/miles/test1_nonlinear')
-    dls = makeToyDataloaders(np.vstack(xs),np.vstack(xs),dt=0.01)
+    dls = makeToyDataloaders(np.vstack(xs),np.vstack(xs),dt=0.025/5)
     #model.load('/home/miles/test1/checkpoint_1000.tar')
-    model = train(model,dls,nEpochs=1001,save_freq=500,test_freq=200)
+    model = train(model,dls,nEpochs=2500,save_freq=500,test_freq=200)
     print(f"generating new data! {1000/.01} samples")
     samples = []
     for ii in range(1024):
