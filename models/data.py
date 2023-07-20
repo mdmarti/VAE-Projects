@@ -4,12 +4,15 @@ from torch.utils.data import Dataset, DataLoader
 
 class toyDataset(Dataset):
 
-	def __init__(self,toyData,dt) -> None:
+	def __init__(self,toyData,sampledt,truedt) -> None:
 		
-
-		self.data=toyData
-		self.dt = dt
-		self.length = toyData.shape[0] - 1
+		self.origData = toyData
+		skip = int(sampledt/truedt)
+		self.data=toyData[::skip]
+		self.dt = sampledt
+		self.length = self.data.shape[0] - 1
+		## needed: slice data by dt? need true dt, ds dt for that
+		## should be fine to add though
 
 	def __len__(self):
 
@@ -33,17 +36,17 @@ class toyDataset(Dataset):
 		return result
 						
 		
-def makeToyDataloaders(ds1,ds2,dt):
+def makeToyDataloaders(ds1,ds2,sampledt,truedt):
 
 	#assert ds1.shape[1] == 3
 	ds1 = torch.from_numpy(ds1).type(torch.FloatTensor)
 	ds2 = torch.from_numpy(ds2).type(torch.FloatTensor)
-	dataset1 = toyDataset(ds1,dt)
-	dataset2 = toyDataset(ds2,dt)
+	dataset1 = toyDataset(ds1,sampledt,truedt)
+	dataset2 = toyDataset(ds2,sampledt,truedt)
 
-	trainDataLoader = DataLoader(dataset1,batch_size=512,shuffle=True,
+	trainDataLoader = DataLoader(dataset1,batch_size=256,shuffle=True,
 			      num_workers=4)
-	testDataLoader = DataLoader(dataset2,batch_size=512,shuffle=False,
+	testDataLoader = DataLoader(dataset2,batch_size=256,shuffle=False,
 			      num_workers=4)
 	
 	return {'train':trainDataLoader,'test':testDataLoader}
