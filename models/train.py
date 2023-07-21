@@ -3,7 +3,7 @@ from tqdm import tqdm
 from data import toyDataset
 import torchvision
 
-def train(newNetwork,dataloaders,nEpochs,lr=1e-4,test_freq=5,save_freq=100,wd=0.):
+def train(newNetwork,dataloaders,nEpochs,lr=5e-5,test_freq=5,save_freq=100,wd=0.):
 
     optimizer = Adam(newNetwork.parameters(), lr=lr,weight_decay=wd) # 8e-5
     #scheduler = lr_scheduler.ExponentialLR(optimizer=optimizer,gamma=0.999)
