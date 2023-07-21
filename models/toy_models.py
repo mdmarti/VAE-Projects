@@ -7,7 +7,7 @@ from train import train
 from data import *
 from tqdm import tqdm
 import seaborn as sns
-from plot import plotFlows2dLorenz,plotSamples1d,plotSamples3d
+from plot import plotSamples1d,plotSamples3d,plot1dFlows,plot1dSigmas
 
 def generate_ndim_benes(n=100,d = 20,T=100,dt=1):
 
@@ -100,14 +100,14 @@ if __name__ == '__main__':
 
 	dt = 0.001
 	xs = generate_geometric_brownian(1024,dt=0.001,T = 1)
-	linearmodel = nonlinearLatentSDE(dim=1,diag_covar=True,save_dir='/home/miles/test1_linear_middt')
+	linearmodel = nonlinearLatentSDE(dim=1,diag_covar=True,save_dir='/home/miles/trackmu_middt')
 	dls = makeToyDataloaders(np.vstack(xs),np.vstack(xs),sampledt=0.01,truedt=0.001)
 	linearmodel.load('/home/miles/test1_linear_middt/checkpoint_500.tar')
-	#linearmodel = train(linearmodel,dls,nEpochs=500,save_freq=100,test_freq=25)
+	linearmodel = train(linearmodel,dls,nEpochs=1000,save_freq=100,test_freq=25)
 
-	linearmodel2 = nonlinearLatentSDENatParams(dim=1,diag_covar=True,save_dir='/home/miles/test2_linear_natparms')
-	linearmodel2 = train(linearmodel2,dls,nEpochs=800,save_freq=100,test_freq=25)
-	#linearmodel2.load('/home/miles/test1_linear_natparms/checkpoint_500.tar')
+	linearmodel2 = nonlinearLatentSDENatParams(dim=1,diag_covar=True,save_dir='/home/miles/trackmu_natparams')
+	linearmodel2 = train(linearmodel2,dls,nEpochs=1000,save_freq=100,test_freq=25)
+	linearmodel2.load('/home/miles/test2_linear_natparms/checkpoint_800.tar')
 	print(f"generating new data! {1024} samples")
 	
 	samples = []
@@ -125,7 +125,8 @@ if __name__ == '__main__':
 		muDist.append(mus/x[:-1].detach().cpu().numpy().squeeze())
 		Ds = np.exp(linearmodel.D(x[:-1]).detach().cpu().numpy().squeeze())
 		sigDist.append(Ds/x[:-1].detach().cpu().numpy().squeeze())
-		
+		#plot1dFlows(x.detach().cpu().numpy()[:-1],mus * dt,dt=dt)
+		#plot1dSigmas(x.detach().cpu().numpy()[:-1],Ds*np.sqrt(dt),dt=dt)
 		#### TOO MCUH D+LINEAR ALGEMBRA
 		chol = torch.zeros(x[:-1].shape[0],linearmodel2.dim,linearmodel2.dim)
 		D = torch.exp(linearmodel2.D(x[:-1])).detach().cpu()
@@ -135,7 +136,10 @@ if __name__ == '__main__':
 		invChol = torch.linalg.solve_triangular(chol,eyes,upper=False)
 		sigma = invChol.transpose(-2,-1) @ invChol 
 		mus = sigma @ etas
-		muDistNat.append(mus.numpy().squeeze()/x[:-1].detach().cpu().numpy().squeeze())
+		mus=mus.squeeze().numpy()
+		#plot1dFlows(x.detach().cpu().numpy()[:-1],mus * dt,dt=dt)
+		#plot1dSigmas(x.detach().cpu().numpy()[:-1],D.numpy()*np.sqrt(dt),dt=dt)
+		muDistNat.append(mus/x[:-1].detach().cpu().numpy().squeeze())
 		sigDistNat.append(invChol.numpy().squeeze()/x[:-1].detach().cpu().numpy().squeeze())
 		#invChol = scipy.linalg.solve_triangular(chols,eyes,lower=True,check_finite=False)
 

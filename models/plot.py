@@ -1,6 +1,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
-
+from matplotlib import animation
+import matplotlib
 def plotSamples3d(true,generated,n=100):
 
 	fig = plt.figure()
@@ -95,6 +96,46 @@ def sde_gif(data):
 
 		#plt.savefig("testingonetwothree.png")
 
-def plotFlows2dLorenz(params,model):
+def plot1dFlows(data,estimatedMus,truMu=1,dt=0.01):
+	
+	Vs = np.ones(estimatedMus.shape)*dt
+	#print(len(data))
+	#print(dt)
+	Xs = np.arange(0,(len(data))*dt,dt)
+	truMus = data * truMu *dt
 
+	sqErr = (estimatedMus.squeeze() - truMus.squeeze())**2
+	norm = matplotlib.colors.Normalize(vmin=np.amin(sqErr),vmax=np.amax(sqErr))
+	cm = matplotlib.cm.gist_heat
+	sm = matplotlib.cm.ScalarMappable(cmap='gist_heat',norm=norm)
+	sm.set_array([])
+	ax = plt.gca()
+	#print(estimatedMus.shape)
+	ax.quiver(Xs,data,Vs,truMus,color='k',angles='xy',label='true mus')
+	ax.quiver(Xs,data,Vs,estimatedMus,sqErr,cmap='gist_heat',angles='xy',label='estimations',alpha=0.25)
+	plt.colorbar(sm)
+	ax.set_xlabel("Time (s)")
+	ax.set_ylabel("X")
+	plt.show()
+	pass
+
+def plot1dSigmas(data,estimatedSigmas,truSigma=0.5,dt=0.01):
+
+	truSDs = truSigma*data*np.sqrt(dt) 
+	sqErr = (estimatedSigmas.squeeze() - truSDs.squeeze())**2
+	norm = matplotlib.colors.Normalize(vmin=np.amin(sqErr),vmax=np.amax(sqErr))
+	cm = matplotlib.cm.gist_heat
+	sm = matplotlib.cm.ScalarMappable(cmap='gist_heat',norm=norm)
+	sm.set_array([])
+	Xs = np.arange(0,(len(data))*dt,dt)
+	ax = plt.gca()
+	ax.errorbar(Xs,data,xerr=truSDs.squeeze(),color='k')
+	ax.errorbar(Xs,data,xerr=estimatedSigmas.squeeze(),ecolor=cm(norm(sqErr)))
+	ax.set_xlabel("Time (s)")
+	ax.set_ylabel("X")
+	plt.colorbar(sm)
+	plt.show()
+
+
+	
 	pass

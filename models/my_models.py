@@ -255,13 +255,13 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		assert len(t2.shape)==1,print(t2.shape)
 		t3 = -2*(dzTrue.transpose(-2,-1) @ precision @ mu).squeeze()
 		assert len(t3.shape) == 1,print(t3.shape)
-		t4 = (mu.transpose(-2,-1)@precision @ mu).squeeze()
-		assert len(t4.shape) == 1,print(t4.shape)
-		log_pz2 = const - 1/2*(t1 + t2 + t3 + t4)
+		#t4 = (mu.transpose(-2,-1)@precision @ mu).squeeze()
+		#assert len(t4.shape) == 1,print(t4.shape)
+		log_pz2 = const - 1/2*(t1 + t2 + t3)
 		loss = - log_pz2
 		###########################################
 
-		return loss.sum() 
+		return loss.sum(),mu.squeeze()/zt1.squeeze(),torch.diagonal(D,dim1=-2,dim2=-1).squeeze()/zt1.squeeze()
 	
 	def forward(self,data):
 
@@ -269,22 +269,33 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		zt1,zt2,dt = zt1.to(self.device),zt2.to(self.device),dt.to(self.device) 
 		#assert(zt1.shape[0] == 128)
 
-		loss = self.loss(zt1,zt2,dt)
+		loss,F,D = self.loss(zt1,zt2,dt)
 
-		return loss
+
+		return loss,F,D
 	
 	def train_epoch(self, loader, optimizer):
 
 		self.train()
 
 		epoch_loss = 0.
+		epoch_mus = []
+		epoch_sigs = []
 		for batch in loader:
-			loss = self.forward(batch)
+			loss,mu,sig = self.forward(batch)
 			loss.backward()
 			epoch_loss += loss.item()
 			optimizer.step()
+			epoch_mus.append(mu.detach().cpu().numpy())
+			epoch_sigs.append(sig.detach().cpu().numpy())
+
+		epoch_mus = np.nanmean(np.vstack(epoch_mus),axis=0)
+		epoch_sigs = np.nanmean(np.vstack(epoch_sigs),axis=0)
 
 		self.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.epoch)
+		for d in self.dim:
+			self.writer.add_scalar(f'Train/mu dim {d+1}',epoch_mus[d],self.epoch)
+			self.writer.add_scalar(f'Train/sig dim {d+1}',epoch_sigs[d],self.epoch)
 		self.epoch += 1
 	
 		return epoch_loss,optimizer
@@ -294,13 +305,23 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		self.eval()
 		with torch.no_grad():
 			epoch_loss = 0.
+			epoch_mus = []
+			epoch_sigs = []
 			for batch in loader:
-				loss = self.forward(batch)
+				loss,mu,sig = self.forward(batch)
 				
 				epoch_loss += loss.item()
 
+				epoch_mus.append(mu.detach().cpu().numpy())
+				epoch_sigs.append(sig.detach().cpu().numpy())
+
+		epoch_mus = np.nanmean(np.vstack(epoch_mus),axis=0)
+		epoch_sigs = np.nanmean(np.vstack(epoch_sigs),axis=0)
+
 		self.writer.add_scalar('Test/loss',epoch_loss/len(loader),self.epoch)
-		
+		for d in self.dim:
+			self.writer.add_scalar(f'Test/mu dim {d+1}',epoch_mus[d],self.epoch)
+			self.writer.add_scalar(f'Test/sig dim {d+1}',epoch_sigs[d],self.epoch)
 		return epoch_loss
 	
 	def save(self):
@@ -372,10 +393,10 @@ class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 		#### Precision ###########
 		precision = L @ L.transpose(-2,-1)
 		####### invert cholesky factor #######
-		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape[0],1,1).to(self.device)
-		LInv = torch.linalg.solve_triangular(L,eyes,upper=False)
+		#eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape[0],1,1).to(self.device)
+		#LInv = torch.linalg.solve_triangular(L,eyes,upper=False)
 		###### covariance #####
-		cov = LInv.transpose(-2,-1) @ LInv
+		#cov = LInv.transpose(-2,-1) @ LInv
 		
 		##### calculate loss ###################
 		c = -self.dim/2 * np.log(2*torch.pi)
@@ -385,9 +406,9 @@ class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 		assert (len(t2.shape)==1) &(len(t2) == len(zt1)),print(t2.shape)
 		t3 = -2*(dzTrue.transpose(-2,-1) @ eta).squeeze()
 		assert (len(t3.shape) == 1) &(len(t3) == len(zt1)),print(t3.shape)
-		t4 = (eta.transpose(-2,-1)@cov @ eta).squeeze()
-		assert (len(t4.shape) == 1) &(len(t4) == len(zt1)),print(t4.shape)
-		log_pz2 = c - 1/2*(t1 + t2 + t3 + t4)
+		#t4 = (eta.transpose(-2,-1)@cov @ eta).squeeze()
+		#assert (len(t4.shape) == 1) &(len(t4) == len(zt1)),print(t4.shape)
+		log_pz2 = c - 1/2*(t1 + t2 + t3)
 		loss = - log_pz2
 		###########################################
 		return loss.sum()
