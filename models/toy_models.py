@@ -137,7 +137,7 @@ def plotSamples1d(true,generated):
 
 	for o in order:
 		g = generated[o].squeeze()
-		time = list(range(1,len(t)+1))
+		time = list(range(1,len(g)+1))
 		ax2.plot(time,g)
 	ax2.set_xticks([])
 	ax2.set_ylim(true_lims)
@@ -200,12 +200,12 @@ if __name__ == '__main__':
 	xs = generate_geometric_brownian(1024,dt=0.001,T = 1)
 	linearmodel = nonlinearLatentSDE(dim=1,diag_covar=True,save_dir='/home/miles/test1_linear_middt')
 	dls = makeToyDataloaders(np.vstack(xs),np.vstack(xs),sampledt=0.01,truedt=0.001)
-	#linearmodel.load('/home/miles/test1_linear/checkpoint_500.tar')
-	linearmodel = train(linearmodel,dls,nEpochs=500,save_freq=100,test_freq=25)
+	linearmodel.load('/home/miles/test1_linear_middt/checkpoint_500.tar')
+	#linearmodel = train(linearmodel,dls,nEpochs=500,save_freq=100,test_freq=25)
 
-	linearmodel2 = nonlinearLatentSDENatParams(dim=1,diag_covar=True,save_dir='/home/miles/test1_linear_natparms')
-	linearmodel2 = train(linearmodel2,dls,nEpochs=500,save_freq=100,test_freq=25)
-
+	linearmodel2 = nonlinearLatentSDENatParams(dim=1,diag_covar=True,save_dir='/home/miles/test2_linear_natparms')
+	linearmodel2 = train(linearmodel2,dls,nEpochs=800,save_freq=100,test_freq=25)
+	#linearmodel2.load('/home/miles/test1_linear_natparms/checkpoint_500.tar')
 	print(f"generating new data! {1024} samples")
 	
 	samples = []
@@ -215,6 +215,7 @@ if __name__ == '__main__':
 	samplesNat = []
 	muDistNat = []
 	sigDistNat =[]
+	skip = int(0.01/0.001)
 	for ii in tqdm(range(256), desc="generating trajectories"):
 		x = xs[ii]
 		x = torch.from_numpy(x).type(torch.FloatTensor).to(linearmodel.device)
@@ -223,11 +224,18 @@ if __name__ == '__main__':
 		Ds = np.exp(linearmodel.D(x[:-1]).detach().cpu().numpy().squeeze())
 		sigDist.append(Ds/x[:-1].detach().cpu().numpy().squeeze())
 		
-		Ds = np.exp(linearmodel2.D(x[:-1]).detach().cpu().numpy().squeeze())
-		chols = np.zeros(x.shape[0]-1,x.shape[1],x.shape[1])
-		chols[:,linearmodel2.tril_inds[0],linearmodel2.tril_inds[1]] = Ds 
-		eyes = np.eye(x.shape[-1]).view(1,x.shape[-1],x.shape[-1]).repeat(chols.shape[0],1,1)
-		invChol = scipy.linalg.solve_triangular(chols,eyes,lower=True,check_finite=False)
+		#### TOO MCUH D+LINEAR ALGEMBRA
+		chol = torch.zeros(x[:-1].shape[0],linearmodel2.dim,linearmodel2.dim)
+		D = torch.exp(linearmodel2.D(x[:-1])).detach().cpu()
+		chol[:,linearmodel2.tril_inds[0],linearmodel2.tril_inds[1]] = D
+		etas = linearmodel2.MLP(x[:-1]).detach().cpu().view(x[:-1].shape[0],x.shape[1],1)
+		eyes = torch.eye(linearmodel2.dim).view(1,linearmodel2.dim,linearmodel2.dim).repeat(x[:-1].shape[0],1,1)
+		invChol = torch.linalg.solve_triangular(chol,eyes,upper=False)
+		sigma = invChol.transpose(-2,-1) @ invChol 
+		mus = sigma @ etas
+		muDistNat.append(mus.numpy().squeeze()/x[:-1].detach().cpu().numpy().squeeze())
+		sigDistNat.append(invChol.numpy().squeeze()/x[:-1].detach().cpu().numpy().squeeze())
+		#invChol = scipy.linalg.solve_triangular(chols,eyes,lower=True,check_finite=False)
 
 		#steps = mus*dt + Ds*np.sqrt(dt)*np.random.randn(*(x[:-1].squeeze().shape))
 		#steps = steps.detach().cpu().numpy()
@@ -238,6 +246,8 @@ if __name__ == '__main__':
 		x0 = 0.1 + 0.03**2 * np.random.randn(1)
 		xsTmp = linearmodel.generate(x0,T=1,dt=0.01)
 		samples.append(xsTmp)
+		xsTmp = linearmodel2.generate(x0,T=1,dt=0.01)
+		samplesNat.append(xsTmp)
 	
 	fig = plt.figure()
 	ax1 = fig.add_subplot(121)
@@ -254,8 +264,24 @@ if __name__ == '__main__':
 	plt.show()
 	plt.close(fig)
 
+	fig = plt.figure()
+	ax1 = fig.add_subplot(121)
+	ax2 = fig.add_subplot(122)
+	muDistNat = np.hstack(muDistNat)
+	sigDistNat=np.hstack(sigDistNat)
+	#print(len(np.hstack(muDist)))
+	sns.kdeplot(x=muDistNat,ax=ax1)
+	sns.kdeplot(x=sigDistNat,ax=ax2)
+	ax1.set_xlabel("value of mu")
+	ax2.set_xlabel("Values of sigma")
+	ax1.set_title(f"{np.nanmean(muDistNat)}")
+	ax2.set_title(f"{np.nanmean(sigDistNat)}")
+	plt.show()
+	plt.close(fig)
+
 	print("done!")
 	plotSamples1d(xs,samples)
+	plotSamples1d(xs,samplesNat)
    
 	#plot_sde(xs)
 	xs = generate_stochastic_lorenz(1024,dt=0.025/5,T = 1,coeffs=[10,28,8/3,.15,.15,.15])
