@@ -237,15 +237,15 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		mu = (self.MLP(zt1) * dt)
 		mu = mu.view(mu.shape[0],mu.shape[1],1)
 		### estimate cholesky factor ####
-		chol = torch.zeros(zt1.shape[0],self.dim,self.dim).to(self.device)
+		L = torch.zeros(zt1.shape[0],self.dim,self.dim).to(self.device)
 		D = torch.exp(self.D(zt1))
-		chol[:,self.tril_inds[0],self.tril_inds[1]] = D * torch.sqrt(dt)
+		L[:,self.tril_inds[0],self.tril_inds[1]] = D * torch.sqrt(dt)
 		####### invert cholesky factor #######
 		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape[0],1,1).to(self.device)
-		invChol = torch.linalg.solve_triangular(chol,eyes,upper=False)
+		invChol = torch.linalg.solve_triangular(L,eyes,upper=False)
 		###### get precision and covariance #####
 		precision = invChol.transpose(-2,-1) @ invChol
-		cov = chol @ chol.transpose(-2,-1)
+		cov = L @ L.transpose(-2,-1)
 		##### calculate loss ###################
 
 		const = -self.dim/2 * np.log(2*torch.pi)
@@ -255,13 +255,14 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		assert len(t2.shape)==1,print(t2.shape)
 		t3 = -2*(dzTrue.transpose(-2,-1) @ precision @ mu).squeeze()
 		assert len(t3.shape) == 1,print(t3.shape)
-		#t4 = (mu.transpose(-2,-1)@precision @ mu).squeeze()
-		#assert len(t4.shape) == 1,print(t4.shape)
-		log_pz2 = const - 1/2*(t1 + t2 + t3)
+		t4 = (mu.transpose(-2,-1)@precision @ mu).squeeze()
+		assert len(t4.shape) == 1,print(t4.shape)
+		log_pz2 = const - 1/2*(t1 + t2 + t3 + t4)
 		loss = - log_pz2
 		###########################################
 
-		return loss.sum(),mu.squeeze()/zt1.squeeze(),torch.diagonal(D,dim1=-2,dim2=-1).squeeze()/zt1.squeeze()
+		return loss.sum(),mu.view(len(zt1),self.dim)/zt1.view(len(zt1),self.dim),\
+			torch.diagonal(L,dim1=-2,dim2=-1).view(len(zt1),self.dim)/zt1.view(len(zt1),self.dim)
 	
 	def forward(self,data):
 
@@ -293,7 +294,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		epoch_sigs = np.nanmean(np.vstack(epoch_sigs),axis=0)
 
 		self.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.epoch)
-		for d in self.dim:
+		for d in range(self.dim):
 			self.writer.add_scalar(f'Train/mu dim {d+1}',epoch_mus[d],self.epoch)
 			self.writer.add_scalar(f'Train/sig dim {d+1}',epoch_sigs[d],self.epoch)
 		self.epoch += 1
@@ -319,7 +320,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		epoch_sigs = np.nanmean(np.vstack(epoch_sigs),axis=0)
 
 		self.writer.add_scalar('Test/loss',epoch_loss/len(loader),self.epoch)
-		for d in self.dim:
+		for d in range(self.dim):
 			self.writer.add_scalar(f'Test/mu dim {d+1}',epoch_mus[d],self.epoch)
 			self.writer.add_scalar(f'Test/sig dim {d+1}',epoch_sigs[d],self.epoch)
 		return epoch_loss
@@ -393,10 +394,10 @@ class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 		#### Precision ###########
 		precision = L @ L.transpose(-2,-1)
 		####### invert cholesky factor #######
-		#eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape[0],1,1).to(self.device)
-		#LInv = torch.linalg.solve_triangular(L,eyes,upper=False)
+		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape[0],1,1).to(self.device)
+		LInv = torch.linalg.solve_triangular(L,eyes,upper=False)
 		###### covariance #####
-		#cov = LInv.transpose(-2,-1) @ LInv
+		cov = LInv.transpose(-2,-1) @ LInv
 		
 		##### calculate loss ###################
 		c = -self.dim/2 * np.log(2*torch.pi)
@@ -406,11 +407,12 @@ class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 		assert (len(t2.shape)==1) &(len(t2) == len(zt1)),print(t2.shape)
 		t3 = -2*(dzTrue.transpose(-2,-1) @ eta).squeeze()
 		assert (len(t3.shape) == 1) &(len(t3) == len(zt1)),print(t3.shape)
-		#t4 = (eta.transpose(-2,-1)@cov @ eta).squeeze()
-		#assert (len(t4.shape) == 1) &(len(t4) == len(zt1)),print(t4.shape)
-		log_pz2 = c - 1/2*(t1 + t2 + t3)
+		t4 = (eta.transpose(-2,-1)@cov @ eta).squeeze()
+		assert (len(t4.shape) == 1) &(len(t4) == len(zt1)),print(t4.shape)
+		log_pz2 = c - 1/2*(t1 + t2 + t3+t4)
 		loss = - log_pz2
 		###########################################
-		return loss.sum()
+		return loss.sum(),eta.view(len(zt1),self.dim)/zt1.view(len(zt1),self.dim),\
+			(1/torch.diagonal(L,dim1=-2,dim2=-1).view(len(zt1),self.dim))/zt1.view(len(zt1),self.dim)
 
 
