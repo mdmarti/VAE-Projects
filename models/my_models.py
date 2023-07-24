@@ -174,12 +174,14 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		super(nonlinearLatentSDE,self).__init__(dim,diag_covar,save_dir=save_dir)
 
 
-		self.MLP = nn.Sequential(nn.Linear(self.dim,100),
-			   					nn.Softplus(),
-								nn.Linear(100,self.dim))
-		self.D = nn.Sequential(nn.Linear(self.dim,100),
-			 					nn.Softplus(),
-								nn.Linear(100,self.n_entries))
+		self.MLP = nn.Linear(self.dim,self.dim)
+		#nn.Sequential(nn.Linear(self.dim,100),
+		#	   					nn.Softplus(),
+		#						nn.Linear(100,self.dim))
+		self.D = nn.Linear(self.dim,self.n_entries)
+		#nn.Sequential(nn.Linear(self.dim,100),
+		#	 					nn.Softplus(),
+		#						nn.Linear(100,self.n_entries))
 		
 
 		self.to(self.device)

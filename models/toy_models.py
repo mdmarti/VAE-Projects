@@ -100,13 +100,13 @@ if __name__ == '__main__':
 
 	dt = 0.001
 	xs = generate_geometric_brownian(1024,dt=0.001,T = 1)
-	linearmodel = nonlinearLatentSDE(dim=1,diag_covar=True,save_dir='/home/miles/trackmu_extraterm')
+	linearmodel = nonlinearLatentSDE(dim=1,diag_covar=True,save_dir='/home/miles/moments_longrun_linear')
 	dls = makeToyDataloaders(np.vstack(xs),np.vstack(xs),sampledt=0.01,truedt=0.001)
 	#linearmodel.load('/home/miles/test1_linear_middt/checkpoint_500.tar')
-	linearmodel = train(linearmodel,dls,nEpochs=1000,save_freq=100,test_freq=25)
+	linearmodel = train(linearmodel,dls,nEpochs=5000,save_freq=100,test_freq=25)
 
-	linearmodel2 = nonlinearLatentSDENatParams(dim=1,diag_covar=True,save_dir='/home/miles/trackmu_natparams_extraterm')
-	linearmodel2 = train(linearmodel2,dls,nEpochs=1000,save_freq=100,test_freq=25)
+	linearmodel2 = nonlinearLatentSDENatParams(dim=1,diag_covar=True,save_dir='/home/miles/natparams_longrun_linear')
+	linearmodel2 = train(linearmodel2,dls,nEpochs=5000,save_freq=100,test_freq=25)
 	#linearmodel2.load('/home/miles/test2_linear_natparms/checkpoint_800.tar')
 	print(f"generating new data! {1024} samples")
 	
