@@ -174,14 +174,12 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		super(nonlinearLatentSDE,self).__init__(dim,diag_covar,save_dir=save_dir)
 
 
-		self.MLP = nn.Linear(self.dim,self.dim)
-		#nn.Sequential(nn.Linear(self.dim,100),
-		#	   					nn.Softplus(),
-		#						nn.Linear(100,self.dim))
-		self.D = nn.Linear(self.dim,self.n_entries)
-		#nn.Sequential(nn.Linear(self.dim,100),
-		#	 					nn.Softplus(),
-		#						nn.Linear(100,self.n_entries))
+		self.MLP = nn.Sequential(nn.Linear(self.dim,100),
+			   					nn.Softplus(),
+								nn.Linear(100,self.dim))
+		self.D = nn.Sequential(nn.Linear(self.dim,100),
+			 					nn.Softplus(),
+								nn.Linear(100,self.n_entries))
 		
 
 		self.p1name = p1name
@@ -419,12 +417,10 @@ class Simple1dTestDE(nonlinearLatentSDE,nn.Module):
 
 class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 
-	def __init__(self,dim,diag_covar=True,save_dir=''):
+	def __init__(self,dim,diag_covar=True,save_dir='',p1name='eta',p2name='lambda',true1=[4],true2=[2]):
 		
-		super(nonlinearLatentSDENatParams,self).__init__(dim,diag_covar,save_dir=save_dir)
+		super(nonlinearLatentSDENatParams,self).__init__(dim,diag_covar,save_dir=save_dir,p1name=p1name,p2name=p2name,true1=true1,true2=true2)
 
-		self.p1name = 'eta'
-		self.p2name = 'lambda'
 	def generate(self, z0, T, dt):
 		t = np.arange(0,T,dt)
 		zz = [z0]
@@ -489,7 +485,7 @@ class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 		log_pz2 = c - 1/2*(t1 + t2 + t3+t4)
 		loss = - log_pz2
 		###########################################
-		return loss.sum(),eta.view(len(zt1),self.dim),\
-			torch.diagonal(L,dim1=-2,dim2=-1).view(len(zt1),self.dim)*torch.sqrt(dt)/zt1.view(len(zt1),self.dim)
+		return loss.sum(),eta.view(len(zt1),self.dim)*zt1.view(len(zt1),self.dim),\
+			torch.diagonal(L,dim1=-2,dim2=-1).view(len(zt1),self.dim)*zt1.view(len(zt1),self.dim)
 
 

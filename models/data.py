@@ -42,7 +42,7 @@ def generate_geometric_brownian(n=100,T=100,dt=1,mu=1,sigma=0.5,x0=0.1):
 			xx.append(xx[jj-1] + dx)
 		xx = np.hstack(xx)[:,None]
 
-		xx = xx + (0.01)*(dt/0.02)*np.random.randn(*xx.shape)
+		#xx = xx + (0.01)*(dt/0.02)*np.random.randn(*xx.shape)
 		
 		allPaths.append(xx)
 
@@ -82,37 +82,41 @@ def generate_stochastic_lorenz(n=100,T=100,dt=1,coeffs=[10,28,8/3,0.15,0.15,0.15
 		
 		allPaths.append(xx)
 
-	mu = np.nanmean(np.vstack(allPaths),axis=0)
-	sd = np.nanstd(np.vstack(allPaths),axis=0)
-	allPaths = [(p - mu[None,:])/sd[None,:] for p in allPaths]
-	allPaths = [p + 0.01*np.random.randn(*p.shape) for p in allPaths]
+	#mu = np.nanmean(np.vstack(allPaths),axis=0)
+	#sd = np.nanstd(np.vstack(allPaths),axis=0)
+	#allPaths = [(p - mu[None,:])/sd[None,:] for p in allPaths]
+	#allPaths = [p + 0.01*np.random.randn(*p.shape) for p in allPaths]
 	#allPaths = [p[::5] for p in allPaths]
 	return allPaths
 
+def downsample(data:list,origdt:float,newdt:float,noise:bool=True) -> np.ndarray:
+
+	skip = int(newdt/origdt)
+
+	downsampled = [d[::skip] for d in data]
+
+	if noise:
+		downsampled = [d + 0.01*np.random.randn(*d.shape) for d in downsampled]
+
+	return downsampled
+
 class toyDataset(Dataset):
 
-	def __init__(self,toyData,sampledt,truedt) -> None:
+	def __init__(self,data,dt) -> None:
 		"""
 		toyData: list of numpy arrays
 		"""
-		skip = int(sampledt/truedt)
-		ourSamples = [t[::skip].squeeze() for t in toyData]
-		lens = list(map(len,ourSamples))
+
+		lens = list(map(len,data))
 		lens = [0] + list(np.cumsum([l for l in lens][:-1]))
 		#lenall.append([l - 1 for l in lens][:-1])
 		validInds = np.hstack([list(range(l,len(t)-1 + l)) \
-			 for l,t in zip(lens,ourSamples)])
-		print(np.hstack(ourSamples).shape)
-		print(lens)
-		#print(lenall)
-		print(validInds)
-		assert False
-
-
-		self.origData = toyData
-		#self.data= toyData[::skip]
-		self.dt = sampledt
-		self.length = self.data.shape[0] - 1
+			 for l,t in zip(lens,data)])
+	
+		self.data= np.vstack(data)
+		self.data_inds = validInds
+		self.dt = dt
+		self.length = len(validInds)
 		## needed: slice data by dt? need true dt, ds dt for that
 		## should be fine to add though
 
@@ -131,7 +135,10 @@ class toyDataset(Dataset):
 			single_index = True
 
 		for ii in index:
-			result.append((self.data[ii],self.data[ii + 1],self.dt))
+			ind1 = self.data_inds[ii]
+			ind2 = ind1 + 1
+			s1,s2 = self.transform(self.data[ind1]),self.transform(self.data[ind2])
+			result.append((s1,s2,self.dt))
 
 		if single_index:
 			return result[0]
@@ -141,17 +148,17 @@ class toyDataset(Dataset):
 		return torch.from_numpy(data).type(torch.FloatTensor)
 						
 		
-def makeToyDataloaders(ds1,ds2,sampledt,truedt):
+def makeToyDataloaders(ds1,ds2,dt,batch_size=512):
 
 	#assert ds1.shape[1] == 3
 	#ds1 = ds1).type(torch.FloatTensor)
 	#ds2 = torch.from_numpy(ds2).type(torch.FloatTensor)
-	dataset1 = toyDataset(ds1,sampledt,truedt)
-	dataset2 = toyDataset(ds2,sampledt,truedt)
+	dataset1 = toyDataset(ds1,dt)
+	dataset2 = toyDataset(ds2,dt)
 
-	trainDataLoader = DataLoader(dataset1,batch_size=256,shuffle=True,
+	trainDataLoader = DataLoader(dataset1,batch_size=batch_size,shuffle=True,
 			      num_workers=4)
-	testDataLoader = DataLoader(dataset2,batch_size=256,shuffle=False,
+	testDataLoader = DataLoader(dataset2,batch_size=batch_size,shuffle=False,
 			      num_workers=4)
 	
 	return {'train':trainDataLoader,'test':testDataLoader}

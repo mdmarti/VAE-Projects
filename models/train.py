@@ -1,17 +1,18 @@
-from torch.optim import Adam, lr_scheduler
+from torch.optim import Adam, lr_scheduler,SGD
 from tqdm import tqdm 
 from data import toyDataset
 import torchvision
 
-def train(newNetwork,dataloaders,nEpochs,lr=5e-5,test_freq=5,save_freq=100,wd=0.,step_size=100):
+def train(newNetwork,dataloaders,nEpochs,lr=5e-5,test_freq=5,save_freq=100,wd=0.,gamma=0.999):
 
     optimizer = Adam(newNetwork.parameters(), lr=lr,weight_decay=wd) # 8e-5
-    if step_size != None:
-        scheduler = lr_scheduler.StepLR(optimizer=optimizer,step_size=step_size,gamma=0.9)
+    #optimizer = SGD(newNetwork.parameters(), lr=lr,weight_decay=wd) # 8e-5
+    if gamma != None:
+        scheduler = lr_scheduler.ExponentialLR(optimizer=optimizer,gamma=gamma)
     for epoch in tqdm(range(1,nEpochs + 1),desc='Training linear latent sde'):
 
         trainLoss,optimizer = newNetwork.train_epoch(dataloaders['train'],optimizer)
-        if step_size != None:
+        if gamma != None:
             scheduler.step()
         if epoch % test_freq == 0:
             testLoss = newNetwork.test_epoch(dataloaders['test'])

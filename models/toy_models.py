@@ -8,26 +8,33 @@ from data import *
 from tqdm import tqdm
 import seaborn as sns
 from plot import plotSamples1d,plotSamples3d,plot1dFlows,plot1dSigmas
-
+import os
 
 
 if __name__ == '__main__':
 
 
 	dt = 0.001
-	xs = generate_geometric_brownian(512,dt=0.001,T = 1)
-	xsTest = generate_geometric_brownian(512,dt=0.001,T=1)
-	dls = makeToyDataloaders(xs,xsTest,sampledt=0.01,truedt=0.001)
+	xs = generate_geometric_brownian(1024,dt=dt,T = 1)
+	xsTest = generate_geometric_brownian(256,dt=dt,T=1)
+	xsDownsampled = downsample(xs,origdt=dt,newdt=0.02,noise=False)
+	xsTestDownsampled = downsample(xsTest,origdt=dt,newdt=0.02,noise=False)
+	dls = makeToyDataloaders(xsDownsampled,xsTestDownsampled,dt=0.02)
 	#linearmodel.load('/home/miles/test1_linear_middt/checkpoint_500.tar')
-	#lrs = [5e-5, 1e-5,5e-6,1e-6]
-	lr = 1e-5
-	#for lr in lrs:
-	linearmodel = Simple1dTestDE(save_dir=f'/home/miles/test1d_layout')
-	linearmodel = train(linearmodel,dls,nEpochs=5000,save_freq=100,test_freq=25,lr=lr,step_size=None)
+	lrs = [5e-5,1e-5,5e-6]#[1e-2, 1e-3]#
+	# lr = ??
+	print('decay tests: nat params 3')
+	for lr in lrs:
+		#linearmodel = nonlinearLatentSDE(dim=1,diag_covar=True,save_dir=f'/home/miles/sde_models/test_fix_full_lr_{lr}')
+		#linearmodel = train(linearmodel,dls,nEpochs=5000,save_freq=100,test_freq=25,lr=lr,gamma=0.999)
 
-	linearmodel2 = nonlinearLatentSDENatParams(dim=1,diag_covar=True,save_dir=f'/home/miles/natparams_longrun_stepLR_{lr}_lr')
-	linearmodel2 = train(linearmodel2,dls,nEpochs=5000,save_freq=100,test_freq=25,lr=1e-4,step_size=100)
+		linearmodel2 = nonlinearLatentSDENatParams(dim=1,diag_covar=True,save_dir=f'/home/miles/sde_models/testfix_natparams_lr_{lr}')
+		linearmodel2 = train(linearmodel2,dls,nEpochs=5000,save_freq=100,test_freq=25,lr=lr,gamma=0.999)
 	#linearmodel2.load('/home/miles/test2_linear_natparms/checkpoint_800.tar')
+	linearmodel=None
+	checkpointDir = f'/home/miles/sde_models/testfix_natparams_lr_{lr}'
+	checkpoint = os.path.join(checkpointDir,'checkpoint_5000.tar')
+	linearmodel.load(checkpoint)
 	print(f"generating new data! {1024} samples")
 	
 	samples = []

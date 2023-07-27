@@ -37,6 +37,7 @@ def plotSamples1d(true,generated):
 		ax1.plot(time,t)
 	ax1.set_xticks([])
 	ax1.set_ylim(true_lims)
+	ax1.set_title("Data")
 	#ax1.set_yticks([])
 
 	
@@ -48,6 +49,7 @@ def plotSamples1d(true,generated):
 		ax2.plot(time,g)
 	ax2.set_xticks([])
 	ax2.set_ylim(true_lims)
+	ax2.set_title("Samples from model")
 	#ax1.set_yticks([])
 	plt.show()
 
