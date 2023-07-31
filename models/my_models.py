@@ -169,7 +169,7 @@ class linearLatentSDE(latentSDE,nn.Module):
 	
 class nonlinearLatentSDE(latentSDE,nn.Module):
 
-	def __init__(self,dim,diag_covar=True,save_dir='',true1=[1.],true2=[0.5],p1name='mu',p2name='sigma'):
+	def __init__(self,dim,diag_covar=True,save_dir='',true1=[1.],true2=[0.5],p1name='mu',p2name='sigma',plotTrue=True):
 		
 		super(nonlinearLatentSDE,self).__init__(dim,diag_covar,save_dir=save_dir)
 
@@ -186,6 +186,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		self.p2name = p2name
 		self.true1=true1
 		self.true2 = true2
+		self.plotTrue=plotTrue
 		"""
 		layout = {
 			'Train': {
@@ -302,8 +303,13 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 
 		self.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.epoch)
 		for d in range(self.dim):
-			self.writer.add_scalars(f'Train/{self.p1name} dim {d+1}',{'estimated':epoch_mus[d],'true':self.true1[d]},self.epoch)
-			self.writer.add_scalars(f'Train/{self.p2name} dim {d+1}',{'estimated':epoch_sigs[d],'true':self.true2[d]},self.epoch)
+			if self.plotTrue:
+				self.writer.add_scalars(f'Train/{self.p1name} dim {d+1}',{'estimated':epoch_mus[d],'true':self.true1[d]},self.epoch)
+				self.writer.add_scalars(f'Train/{self.p2name} dim {d+1}',{'estimated':epoch_sigs[d],'true':self.true2[d]},self.epoch)
+			else:
+				self.writer.add_scalar(f'Train/{self.p1name} dim {d+1}',epoch_mus[d],self.epoch)
+				self.writer.add_scalar(f'Train/{self.p2name} dim {d+1}',epoch_sigs[d],self.epoch)
+
 		self.epoch += 1
 	
 		return epoch_loss,optimizer
@@ -328,8 +334,13 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 
 		self.writer.add_scalar('Test/loss',epoch_loss/len(loader),self.epoch)
 		for d in range(self.dim):
-			self.writer.add_scalars(f'Test/{self.p1name} dim {d+1}',{'estimated':epoch_mus[d],'true':self.true1[d]},self.epoch)
-			self.writer.add_scalars(f'Test/{self.p2name} dim {d+1}',{'estimated':epoch_sigs[d],'true':self.true2[d]},self.epoch)
+			if self.plotTrue:
+				self.writer.add_scalars(f'Test/{self.p1name} dim {d+1}',{'estimated':epoch_mus[d],'true':self.true1[d]},self.epoch)
+				self.writer.add_scalars(f'Test/{self.p2name} dim {d+1}',{'estimated':epoch_sigs[d],'true':self.true2[d]},self.epoch)
+			else:
+				self.writer.add_scalar(f'Test/{self.p1name} dim {d+1}',epoch_mus[d],self.epoch)
+				self.writer.add_scalar(f'Test/{self.p2name} dim {d+1}',epoch_sigs[d],self.epoch)
+		
 		return epoch_loss
 	
 	def save(self):
@@ -417,9 +428,10 @@ class Simple1dTestDE(nonlinearLatentSDE,nn.Module):
 
 class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 
-	def __init__(self,dim,diag_covar=True,save_dir='',p1name='eta',p2name='lambda',true1=[4],true2=[2]):
+	def __init__(self,dim,diag_covar=True,save_dir='',p1name='eta',p2name='lambda',true1=[4],true2=[2],plotTrue=True):
 		
-		super(nonlinearLatentSDENatParams,self).__init__(dim,diag_covar,save_dir=save_dir,p1name=p1name,p2name=p2name,true1=true1,true2=true2)
+		super(nonlinearLatentSDENatParams,self).__init__(dim,diag_covar,save_dir=save_dir,\
+						   p1name=p1name,p2name=p2name,true1=true1,true2=true2,plotTrue=plotTrue)
 
 	def generate(self, z0, T, dt):
 		t = np.arange(0,T,dt)

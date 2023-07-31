@@ -53,7 +53,7 @@ def generate_stochastic_lorenz(n=100,T=100,dt=1,coeffs=[10,28,8/3,0.15,0.15,0.15
 	sigma,rho,beta = coeffs[0],coeffs[1],coeffs[2]
 	A1,A2,A3 = coeffs[0],coeffs[1],coeffs[2]
 	t = np.arange(0,T,dt)
-	assert len(t) == 40*5
+	
 	allPaths = [ ]
 
 	for ii in range(n):
@@ -82,9 +82,9 @@ def generate_stochastic_lorenz(n=100,T=100,dt=1,coeffs=[10,28,8/3,0.15,0.15,0.15
 		
 		allPaths.append(xx)
 
-	#mu = np.nanmean(np.vstack(allPaths),axis=0)
-	#sd = np.nanstd(np.vstack(allPaths),axis=0)
-	#allPaths = [(p - mu[None,:])/sd[None,:] for p in allPaths]
+	mu = np.nanmean(np.vstack(allPaths),axis=0)
+	sd = np.nanstd(np.vstack(allPaths),axis=0)
+	allPaths = [(p - mu[None,:])/sd[None,:] for p in allPaths]
 	#allPaths = [p + 0.01*np.random.randn(*p.shape) for p in allPaths]
 	#allPaths = [p[::5] for p in allPaths]
 	return allPaths
