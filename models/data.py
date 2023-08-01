@@ -48,6 +48,35 @@ def generate_geometric_brownian(n=100,T=100,dt=1,mu=1,sigma=0.5,x0=0.1):
 
 	return allPaths
 
+def generate_2d_swirls(n=100,T=1,dt=0.001,theta=10,mu=1.01,sigma=0.5,x0=np.array([0.1,0.1])):
+
+	allPaths=[]
+	t = np.arange(0,T,dt)
+	#print("not adding noise")
+	R = np.array([[np.cos(theta*np.pi/180),-np.sin(theta*np.pi/180)],\
+		[np.sin(theta*np.pi/180),np.cos(theta*np.pi/180)]])
+	A = mu*(R - np.eye(2))
+	evals,_ = np.linalg.eig(A)
+	print(evals)
+	for ii in range(n):
+
+		xnot = x0 + 0.03**2 * np.random.randn(2)
+		xx = [xnot]
+
+		
+
+		for jj in range(1,len(t)+1):
+			x = xx[jj-1]
+			sample_dW = np.sqrt(dt) * np.random.randn(2)
+			dx = A @ x + sigma*x * sample_dW
+			xx.append(xx[jj-1] + dx)
+		xx = np.vstack(xx)
+		#xx = xx + (0.01)*(dt/0.02)*np.random.randn(*xx.shape)
+		
+		allPaths.append(xx)
+
+	return allPaths
+
 def generate_stochastic_lorenz(n=100,T=100,dt=1,coeffs=[10,28,8/3,0.15,0.15,0.15]):
 
 	sigma,rho,beta = coeffs[0],coeffs[1],coeffs[2]

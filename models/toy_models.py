@@ -7,11 +7,12 @@ from train import train,trainAlternating
 from data import *
 from tqdm import tqdm
 import seaborn as sns
-from plot import plotSamples1d,plotSamples3d,plot1dFlows,plot1dSigmas
+from plot import plotSamples1d,plotSamples3d,plotSamples2d
 import os
 
 def run_geometric_brownian_experiment(): 
 
+	dt = 0.001
 	xs = generate_geometric_brownian(1024,dt=dt,T = 1)
 	xsTest = generate_geometric_brownian(256,dt=dt,T=1)
 	xsDownsampled = downsample(xs,origdt=dt,newdt=0.02,noise=False)
@@ -22,13 +23,13 @@ def run_geometric_brownian_experiment():
 	lr = 5e-6
 	print('decay tests: nat params 3')
 	#for lr in lrs:
-		#linearmodel = nonlinearLatentSDE(dim=1,diag_covar=True,save_dir=f'/home/miles/sde_models/test_fix_full_lr_{lr}')
+		#linearmodel = nonlinearLatentSDE(dim=1,save_dir=f'/home/miles/sde_models/test_fix_full_lr_{lr}')
 		#linearmodel = train(linearmodel,dls,nEpochs=5000,save_freq=100,test_freq=25,lr=lr,gamma=0.999)
 
-	#	linearmodel2 = nonlinearLatentSDENatParams(dim=1,diag_covar=True,save_dir=f'/home/miles/sde_models/testfix_natparams_lr_{lr}')
+	#	linearmodel2 = nonlinearLatentSDENatParams(dim=1,save_dir=f'/home/miles/sde_models/testfix_natparams_lr_{lr}')
 	#	linearmodel2 = train(linearmodel2,dls,nEpochs=5000,save_freq=100,test_freq=25,lr=lr,gamma=0.999)
 	#linearmodel2.load('/home/miles/test2_linear_natparms/checkpoint_800.tar')
-	linearmodel2 = nonlinearLatentSDENatParams(dim=1,diag_covar=True,save_dir=f'/home/miles/sde_models/test_fix_full_lr_{lr}')
+	linearmodel2 = nonlinearLatentSDENatParams(dim=1,save_dir=f'/home/miles/sde_models/test_fix_full_lr_{lr}')
 	checkpointDir = f'/home/miles/sde_models/testfix_natparams_lr_{lr}'
 	checkpoint = os.path.join(checkpointDir,'checkpoint_5000.tar')
 	linearmodel2.load(checkpoint)
@@ -112,19 +113,17 @@ def run_geometric_brownian_experiment():
 	print("done!")
 	#plotSamples1d(xs,samples)
 	plotSamples1d(xs,samplesNat)
-   
-if __name__ == '__main__':
 
+def run_stochastic_lorenz_experiment():
 
+   #plot_sde(xs)
 	dt = 0.001
-	
-	#plot_sde(xs)
 	xs = generate_stochastic_lorenz(1024,dt=dt,T = 1,coeffs=[10,28,8/3,.15,.15,.15])
 	xsTest = generate_stochastic_lorenz(1024,dt=dt,T = 1,coeffs=[10,28,8/3,.15,.15,.15])
 	#plotSamples3d(xs,xs)
 	xsDownsampled = downsample(xs,origdt=dt,newdt=0.025,noise=False)
 	xsTestDownsampled = downsample(xsTest,origdt=dt,newdt=0.025,noise=False)
-	model = nonlinearLatentSDE(dim=3,diag_covar=True,save_dir='/home/miles/test1_nonlinear',plotTrue=False)
+	model = nonlinearLatentSDE(dim=3,save_dir='/home/miles/test1_nonlinear',plotTrue=False)
 	dls = makeToyDataloaders(xsDownsampled,xsTestDownsampled,dt=0.025)
 	#model.load('/home/miles/test1/checkpoint_1000.tar')
 	lr = 5e-6
@@ -138,5 +137,44 @@ if __name__ == '__main__':
 	
 	print("done!")
 	plotSamples3d(xs,samples)
+
+def run_2d_swirly_boy():
+
+	sampledt=0.001
+	observeddt=0.02
+	x = generate_2d_swirls(n=1024,dt=sampledt,T=1,\
+			mu=1.1,theta=720*sampledt,sigma=0.5,x0=np.array([0.05,-0.05]))
+	xDownsampled = downsample(x,origdt=sampledt,newdt=observeddt,noise=False)
+	xTest = generate_2d_swirls(n=1024,dt=sampledt,T=1,\
+			mu=1.1,theta=720*sampledt,sigma=0.5,x0=np.array([0.05,-0.05]))
+	xTestDownsampled = downsample(xTest,origdt=sampledt,newdt=observeddt,noise=False)
+	model = nonlinearLatentSDE(dim=2,save_dir='/home/miles/attempt_2d_one',plotTrue=False)
+	dls = makeToyDataloaders(xDownsampled,xTestDownsampled,dt=observeddt)
+	#model = nonlinearLatentSDENatParams(dim=2,save_dir='/home/miles/attempt_2d_one_natparms',plotTrue=False)
+
+	lr = 5e-6
+	#model = train(model,dls,nEpochs=5000,save_freq=500,test_freq=100,lr=lr,gamma=0.999)
+	checkpointDir = f'/home/miles/attempt_2d_one'
+	checkpoint = os.path.join(checkpointDir,'checkpoint_5000.tar')
+	model.load(checkpoint)
+	#print(f"generating new data! {1000/.01} samples")
+	samples = []
+	for ii in tqdm(range(256), desc="generating trajectories"):
+		x0 = np.random.randn(2)
+		xsTmp = model.generate(x0,T=1,dt=0.001)
+		samples.append(xsTmp)
+	
+	print("done!")
+	plotSamples2d(x,samples)
+
+	return 
+
+if __name__ == '__main__':
+
+	#run_geometric_brownian_experiment()
+	run_2d_swirly_boy()
+	#run_stochastic_lorenz_experiment()
+	
+	
 	#sde_gif([xsTmp,xs[0]])
 	#plot_sde(xs)

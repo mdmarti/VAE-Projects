@@ -10,9 +10,9 @@ from tqdm import tqdm
 
 class latentSDE(nn.Module):
 	
-	def __init__(self,dim,diag_covar=True,device='cuda',save_dir=''):
+	def __init__(self,dim,device='cuda',save_dir=''):
 		super(latentSDE,self).__init__()
-		self.dim,self.diag_covar,self.device = dim,diag_covar,device
+		self.dim,self.device = dim,device
 		self.n_entries = np.sum(list(range(1,self.dim+1)))
 		if dim ==1: assert self.n_entries == 1
 		elif dim==2: assert self.n_entries ==3
@@ -49,8 +49,8 @@ class latentSDE(nn.Module):
 
 class linearLatentSDE(latentSDE,nn.Module):
 
-	def __init__(self,dim,diag_covar=True,save_dir=''):
-		super(linearLatentSDE,self).__init__(dim,diag_covar,save_dir=save_dir)
+	def __init__(self,dim,save_dir=''):
+		super(linearLatentSDE,self).__init__(dim,save_dir=save_dir)
 
 		self.F = nn.Linear(self.dim,self.dim,bias=False)#torch.randn((self.dim,self.dim),requires_grad=True)
 		self.D = nn.Linear(self.dim,self.n_entries,bias=False)
@@ -169,9 +169,9 @@ class linearLatentSDE(latentSDE,nn.Module):
 	
 class nonlinearLatentSDE(latentSDE,nn.Module):
 
-	def __init__(self,dim,diag_covar=True,save_dir='',true1=[1.],true2=[0.5],p1name='mu',p2name='sigma',plotTrue=True):
+	def __init__(self,dim,save_dir='',true1=[1.],true2=[0.5],p1name='mu',p2name='sigma',plotTrue=True):
 		
-		super(nonlinearLatentSDE,self).__init__(dim,diag_covar,save_dir=save_dir)
+		super(nonlinearLatentSDE,self).__init__(dim,save_dir=save_dir)
 
 
 		self.MLP = nn.Sequential(nn.Linear(self.dim,100),
@@ -362,8 +362,8 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 
 class Simple1dTestDE(nonlinearLatentSDE,nn.Module):
 
-	def __init__(self,dim=1,diag_covar=True,save_dir='test'):
-		super(Simple1dTestDE,self).__init__(dim,diag_covar,save_dir=save_dir)
+	def __init__(self,dim=1,save_dir='test'):
+		super(Simple1dTestDE,self).__init__(dim,save_dir=save_dir)
 
 		self.p1name = 'mu'
 		self.p2name = 'sigma'
@@ -428,9 +428,9 @@ class Simple1dTestDE(nonlinearLatentSDE,nn.Module):
 
 class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 
-	def __init__(self,dim,diag_covar=True,save_dir='',p1name='eta',p2name='lambda',true1=[4],true2=[2],plotTrue=True):
+	def __init__(self,dim,save_dir='',p1name='eta',p2name='lambda',true1=[4],true2=[2],plotTrue=True):
 		
-		super(nonlinearLatentSDENatParams,self).__init__(dim,diag_covar,save_dir=save_dir,\
+		super(nonlinearLatentSDENatParams,self).__init__(dim,save_dir=save_dir,\
 						   p1name=p1name,p2name=p2name,true1=true1,true2=true2,plotTrue=plotTrue)
 
 	def generate(self, z0, T, dt):
