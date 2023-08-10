@@ -1,29 +1,45 @@
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
-from torch.optim import Adam
 import os
-from torch.utils.data import DataLoader
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 from tqdm import tqdm
 
+def diag_indices(dim):
+
+	return torch.eye(dim,dtype=torch.uint8).nonzero().transpose(-2,-1)
+
 class latentSDE(nn.Module):
 	
-	def __init__(self,dim,device='cuda',save_dir=''):
+	def __init__(self,dim,device='cuda',save_dir='',diag=True):
 		super(latentSDE,self).__init__()
+		self.diag = diag
 		self.dim,self.device = dim,device
-		self.n_entries = np.sum(list(range(1,self.dim+1)))
-		if dim ==1: assert self.n_entries == 1
-		elif dim==2: assert self.n_entries ==3
-		elif dim == 3: assert self.n_entries==6
-		elif dim == 4: assert self.n_entries == 10
-		self.tril_inds = torch.tril_indices(dim,dim)
+
+		if self.diag:
+			self.chol_inds = diag_indices(dim)
+			self.n_entries=self.dim 
+		else:
+			self.chol_inds = torch.tril_indices(dim,dim)
+			self.n_entries = np.sum(list(range(1,self.dim+1)))
+			if dim ==1: assert self.n_entries == 1
+			elif dim==2: assert self.n_entries ==3
+			elif dim == 3: assert self.n_entries==6
+			elif dim == 4: assert self.n_entries == 10
 		self.save_dir = save_dir
 		self.writer = SummaryWriter(log_dir = os.path.join(self.save_dir,'runs'))
 		self.epoch=0
 
-	def getEdX(self,evalPoint,dt):
+	def getMoments(self,data):
+		"""
+		get estimates of moments given data
+		"""
+		raise NotImplementedError
+	
+	def getNatParams(self,data):
+		"""
+		get estimates of natural parameters given data
+		"""
 		raise NotImplementedError
 
 	def generate(self,data,T,dt):
@@ -49,21 +65,44 @@ class latentSDE(nn.Module):
 
 class linearLatentSDE(latentSDE,nn.Module):
 
-	def __init__(self,dim,save_dir=''):
-		super(linearLatentSDE,self).__init__(dim,save_dir=save_dir)
+	def __init__(self,dim,save_dir='',diag=True):
+		super(linearLatentSDE,self).__init__(dim,save_dir=save_dir,diag=diag)
 
-		self.F = nn.Linear(self.dim,self.dim,bias=False)#torch.randn((self.dim,self.dim),requires_grad=True)
+		self.MLP = nn.Linear(self.dim,self.dim,bias=False)#torch.randn((self.dim,self.dim),requires_grad=True)
 		self.D = nn.Linear(self.dim,self.n_entries,bias=False)
 
 		self.to(self.device)
 
-	def getEdX(self, evalPoint, dt):
-		return self.F(evalPoint)*dt
+	def getMoments(self, data):
+		"""
+		get estimates of moments given data
+		input: data
+		output: mu,L (lower triangular factor of covariance)
+		"""
+		mu = self.MLP(data)
+		### estimate cholesky factor ####
+		chol = torch.zeros(data.shape[0],self.dim,self.dim).to(self.device)
+		D = torch.exp(self.D(data))
+		chol[:,self.chol_inds[0],self.chol_inds[1]] = D
+		return mu,chol
+	
+	def getNatParams(self, data):
+		mu = self.MLP(data).view(data.shape[0],data.shape[1],1)
+		### estimate cholesky factor ####
+		chol = torch.zeros(data.shape[0],self.dim,self.dim).to(self.device)
+		D = torch.exp(self.D(data))
+		chol[:,self.chol_inds[0],self.chol_inds[1]] = D
+		####### invert cholesky factor #######
+		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(data.shape,1,1).to(self.device)
+		invChol = torch.linalg.solve_triangular(chol,eyes)
+		###### get precision and covariance #####
+		precision = invChol.transpose(-2,-1) @ invChol
+		return (precision @ mu).squeeze(),invChol
 	
 	def generate(self,z0,T,dt):
 		t = np.arange(0,T,dt)
 		zz = [z0]
-		sample_dW = dt * torch.randn(len(t),self.dim).to(self.device)
+		sample_dW = np.sqrt(dt) * torch.randn(len(t),self.dim).to(self.device)
 
 		for jj in tqdm(range(len(t)),desc='generating sample trajectory'):
 			
@@ -71,7 +110,11 @@ class linearLatentSDE(latentSDE,nn.Module):
 				prev = zz[jj]
 				
 				prev = torch.from_numpy(prev).type(torch.FloatTensor)
-				dz = self.F(prev)*dt + self.D @ sample_dW[jj,:] * prev
+				### estimate cholesky factor ####
+				chol = torch.zeros(prev.shape[0],self.dim,self.dim).to(self.device)
+				D = torch.exp(self.D(prev))
+				chol[:,self.chol_inds[0],self.chol_inds[1]] = D
+				dz = self.MLP(prev)*dt + chol @ sample_dW[jj,:]
 
 				zz.append(zz[jj] +dz.detach().cpu().numpy())
 
@@ -83,12 +126,12 @@ class linearLatentSDE(latentSDE,nn.Module):
 		### Loss target ####
 		dzTrue = (zt2-zt1).view(zt1.shape[0],zt1.shape[1],1)
 		### estimate mu ####
-		mu = self.F(zt1) * dt
+		mu = self.MLP(zt1) * dt
 		mu=mu.view(mu.shape[0],mu.shape[1],1)
 		### estimate cholesky factor ####
 		chol = torch.zeros(zt1.shape[0],self.dim,self.dim).to(self.device)
 		D = torch.exp(self.D(zt1))
-		chol[:,self.tril_inds[0],self.tril_inds[1]] = D*np.sqrt(dt)
+		chol[:,self.chol_inds[0],self.chol_inds[1]] = D*np.sqrt(dt)
 		####### invert cholesky factor #######
 		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape,1,1).to(self.device)
 		invChol = torch.linalg.solve_triangular(chol,eyes)
@@ -169,17 +212,17 @@ class linearLatentSDE(latentSDE,nn.Module):
 	
 class nonlinearLatentSDE(latentSDE,nn.Module):
 
-	def __init__(self,dim,save_dir='',true1=[1.],true2=[0.5],p1name='mu',p2name='sigma',plotTrue=True):
+	def __init__(self,dim,save_dir='',true1=[1.],true2=[0.5],p1name='mu',p2name='sigma',plotTrue=True,diag=True):
 		
-		super(nonlinearLatentSDE,self).__init__(dim,save_dir=save_dir)
+		super(nonlinearLatentSDE,self).__init__(dim,save_dir=save_dir,diag=diag)
 
 
 		self.MLP = nn.Sequential(nn.Linear(self.dim,100),
 			   					nn.Softplus(),
 								nn.Linear(100,self.dim))
-		self.D = nn.Sequential(nn.Linear(self.dim,100),
+		self.D = nn.Sequential(nn.Linear(self.dim,100,bias=False),
 			 					nn.Softplus(),
-								nn.Linear(100,self.n_entries))
+								nn.Linear(100,self.n_entries,bias=False))
 		
 
 		self.p1name = p1name
@@ -205,6 +248,33 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		"""
 		self.to(self.device)
 
+	def getMoments(self, data):
+		"""
+		get estimates of moments given data
+		input: data
+		output: mu,L (lower triangular factor of covariance)
+		"""
+		mu = self.MLP(data)
+		### estimate cholesky factor ####
+		chol = torch.zeros(data.shape[0],self.dim,self.dim).to(self.device)
+		D = torch.exp(self.D(data))
+		chol[:,self.chol_inds[0],self.chol_inds[1]] = D
+		return mu,chol
+	
+	def getNatParams(self, data):
+		mu = self.MLP(data).view(data.shape[0],data.shape[1],1)
+		### estimate cholesky factor ####
+		chol = torch.zeros(data.shape[0],self.dim,self.dim).to(self.device)
+		D = torch.exp(self.D(data))
+		chol[:,self.chol_inds[0],self.chol_inds[1]] = D
+		####### invert cholesky factor #######
+		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(data.shape,1,1).to(self.device)
+		invChol = torch.linalg.solve_triangular(chol,eyes)
+		###### get precision and covariance #####
+		precision = invChol.transpose(-2,-1) @ invChol
+		return (precision @ mu).squeeze(),invChol
+	
+
 	def generate(self,z0,T,dt):
 		t = np.arange(0,T,dt)
 		zz = [z0]
@@ -218,7 +288,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 				prev = torch.from_numpy(prev).type(torch.FloatTensor).to(self.device)
 				chol = torch.zeros(prev.shape[0],self.dim,self.dim).to(self.device)
 				D = torch.exp(self.D(prev))
-				chol[:,self.tril_inds[0],self.tril_inds[1]] = D 
+				chol[:,self.chol_inds[0],self.chol_inds[1]] = D 
 				dz = self.MLP(prev)*dt + chol @ sample_dW[jj,:]
 
 				zz.append(zz[jj] +dz.detach().cpu().numpy())
@@ -246,7 +316,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		### estimate cholesky factor ####
 		L = torch.zeros(zt1.shape[0],self.dim,self.dim).to(self.device)
 		D = torch.exp(self.D(zt1))
-		L[:,self.tril_inds[0],self.tril_inds[1]] = D 
+		L[:,self.chol_inds[0],self.chol_inds[1]] = D 
 		####### invert cholesky factor #######
 		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape[0],1,1).to(self.device)
 		invChol = torch.linalg.solve_triangular(L,eyes,upper=False)
@@ -391,8 +461,8 @@ class Simple1dTestDE(nonlinearLatentSDE,nn.Module):
 	
 	def loss(self, zt1, zt2, dt):
 		"""
-		instead of parameterizing mu, Sigma, parameterize
-		Lambda, eta (lambda * mu)
+		NORMAL LOSS
+		
 		"""
 
 		dt = dt[0]
@@ -428,11 +498,38 @@ class Simple1dTestDE(nonlinearLatentSDE,nn.Module):
 
 class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 
-	def __init__(self,dim,save_dir='',p1name='eta',p2name='lambda',true1=[4],true2=[2],plotTrue=True):
+	def __init__(self,dim,save_dir='',p1name='eta',p2name='lambda',true1=[4],true2=[2],plotTrue=True,diag=True):
 		
 		super(nonlinearLatentSDENatParams,self).__init__(dim,save_dir=save_dir,\
-						   p1name=p1name,p2name=p2name,true1=true1,true2=true2,plotTrue=plotTrue)
+						   p1name=p1name,p2name=p2name,true1=true1,true2=true2,plotTrue=plotTrue,diag=diag)
 
+	def getMoments(self, data):
+		"""
+		get estimates of moments given data
+		input: data
+		output: mu,L (lower triangular factor of covariance)
+		"""
+		eta = self.MLP(data).view(data.shape[0],data.shape[1],1)
+		### estimate cholesky factor ####
+		chol = torch.zeros(data.shape[0],self.dim,self.dim).to(self.device)
+		D = torch.exp(self.D(data))
+		chol[:,self.chol_inds[0],self.chol_inds[1]] = D
+		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(data.shape[0],1,1).to(self.device)
+		invChol = torch.linalg.solve_triangular(chol,eyes,upper=False)
+				
+		cov = invChol.transpose(-2,-1) @ invChol
+
+		return cov @ eta,invChol
+	
+	def getNatParams(self, data):
+		eta = self.MLP(data).view(data.shape[0],data.shape[1],1)
+		### estimate cholesky factor ####
+		chol = torch.zeros(data.shape[0],self.dim,self.dim).to(self.device)
+		D = torch.exp(self.D(data))
+		chol[:,self.chol_inds[0],self.chol_inds[1]] = D
+		
+		return eta,chol
+	
 	def generate(self, z0, T, dt):
 		t = np.arange(0,T,dt)
 		zz = [z0]
@@ -447,8 +544,8 @@ class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 				eta = self.MLP(prev)
 				D = torch.exp(self.D(prev))
 				L = torch.zeros(self.dim,self.dim).to(self.device)
-				L[self.tril_inds[0],self.tril_inds[1]] = D 
-				eyes = torch.eye(self.dim).to(self.device)
+				L[self.chol_inds[0],self.chol_inds[1]] = D 
+				eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(prev.shape[0],1,1).to(self.device)
 				LInv = torch.linalg.solve_triangular(L,eyes,upper=False)
 				
 				cov = LInv.transpose(-2,-1) @ LInv
@@ -475,7 +572,7 @@ class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 		### estimate cholesky factor ####
 		D = torch.exp(self.D(zt1))
 		L = torch.zeros(zt1.shape[0],self.dim,self.dim).to(self.device)
-		L[:,self.tril_inds[0],self.tril_inds[1]] = D 
+		L[:,self.chol_inds[0],self.chol_inds[1]] = D 
 		#### Precision ###########
 		precision = L @ L.transpose(-2,-1) /dt
 		####### invert cholesky factor #######

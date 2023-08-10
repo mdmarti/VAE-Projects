@@ -148,24 +148,33 @@ def run_2d_swirly_boy():
 	xTest = generate_2d_swirls(n=1024,dt=sampledt,T=1,\
 			mu=1.1,theta=720*sampledt,sigma=0.5,x0=np.array([0.05,-0.05]))
 	xTestDownsampled = downsample(xTest,origdt=sampledt,newdt=observeddt,noise=False)
-	model = nonlinearLatentSDE(dim=2,save_dir='/home/miles/attempt_2d_one',plotTrue=False)
-	dls = makeToyDataloaders(xDownsampled,xTestDownsampled,dt=observeddt)
-	#model = nonlinearLatentSDENatParams(dim=2,save_dir='/home/miles/attempt_2d_one_natparms',plotTrue=False)
 
-	lr = 5e-6
-	#model = train(model,dls,nEpochs=5000,save_freq=500,test_freq=100,lr=lr,gamma=0.999)
-	checkpointDir = f'/home/miles/attempt_2d_one'
-	checkpoint = os.path.join(checkpointDir,'checkpoint_5000.tar')
-	model.load(checkpoint)
+	lr = 1e-5
+	model1 = nonlinearLatentSDE(dim=2,save_dir=f'/home/miles/attempt_2d_one_lr_{lr}_diag',plotTrue=False,diag=True)
+	dls = makeToyDataloaders(xDownsampled,xTestDownsampled,dt=observeddt)
+	model2 = nonlinearLatentSDENatParams(dim=2,save_dir=f'/home/miles/attempt_2d_one_natparms_lr_{lr}_diag',plotTrue=False,diag=True)
+
+	
+	model1 = train(model1,dls,nEpochs=5000,save_freq=500,test_freq=100,lr=lr,gamma=0.995)
+	model2 = train(model2,dls,nEpochs=5000,save_freq=500,test_freq=100,lr=lr,gamma=0.995)
+	#checkpointDir = f'/home/miles/attempt_2d_one_natparms_lr_{lr}'
+	#checkpoint = os.path.join(checkpointDir,'checkpoint_5000.tar')
+	#model.load(checkpoint)
 	#print(f"generating new data! {1000/.01} samples")
-	samples = []
+	samples1 = []
+	samples2 = []
 	for ii in tqdm(range(256), desc="generating trajectories"):
-		x0 = np.random.randn(2)
-		xsTmp = model.generate(x0,T=1,dt=0.001)
-		samples.append(xsTmp)
+		x0=np.array([0.05,-0.05]) +  0.03**2 * np.random.randn(2)
+		xsTmp = model1.generate(x0,T=1,dt=sampledt)
+		samples1.append(xsTmp)
+
+		x0=np.array([0.05,-0.05]) +  0.03**2 * np.random.randn(2)
+		xsTmp = model2.generate(x0,T=1,dt=sampledt)
+		samples2.append(xsTmp)
 	
 	print("done!")
-	plotSamples2d(x,samples)
+	plotSamples2d(x,samples1)
+	plotSamples2d(x,samples2)
 
 	return 
 
