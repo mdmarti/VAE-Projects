@@ -286,9 +286,9 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 				prev = zz[jj]
 				
 				prev = torch.from_numpy(prev).type(torch.FloatTensor).to(self.device)
-				chol = torch.zeros(prev.shape[0],self.dim,self.dim).to(self.device)
+				chol = torch.zeros(self.dim,self.dim).to(self.device)
 				D = torch.exp(self.D(prev))
-				chol[:,self.chol_inds[0],self.chol_inds[1]] = D 
+				chol[self.chol_inds[0],self.chol_inds[1]] = D 
 				dz = self.MLP(prev)*dt + chol @ sample_dW[jj,:]
 
 				zz.append(zz[jj] +dz.detach().cpu().numpy())
@@ -529,7 +529,28 @@ class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 		chol[:,self.chol_inds[0],self.chol_inds[1]] = D
 		
 		return eta,chol
-	
+	"""
+	def generate(self,z0,T,dt):
+		t = np.arange(0,T,dt)
+		zz = [z0]
+		sample_dW =  np.sqrt(dt) * torch.randn(len(t),self.dim).to(self.device)
+
+		for jj in range(len(t)):
+			
+			with torch.no_grad():
+				prev = zz[jj]
+				
+				prev = torch.from_numpy(prev).type(torch.FloatTensor).to(self.device)
+				chol = torch.zeros(prev.shape[0],self.dim,self.dim).to(self.device)
+				D = torch.exp(self.D(prev))
+				chol[:,self.chol_inds[0],self.chol_inds[1]] = D 
+				dz = self.MLP(prev)*dt + chol @ sample_dW[jj,:]
+
+				zz.append(zz[jj] +dz.detach().cpu().numpy())
+
+		zz = np.vstack(zz)
+		return zz
+	"""
 	def generate(self, z0, T, dt):
 		t = np.arange(0,T,dt)
 		zz = [z0]
@@ -539,19 +560,24 @@ class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 			
 			with torch.no_grad():
 				prev = zz[jj]
-				prev = torch.from_numpy(prev).type(torch.FloatTensor).to(self.device)
-
-				eta = self.MLP(prev)
-				D = torch.exp(self.D(prev))
-				L = torch.zeros(self.dim,self.dim).to(self.device)
-				L[self.chol_inds[0],self.chol_inds[1]] = D 
-				eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(prev.shape[0],1,1).to(self.device)
-				LInv = torch.linalg.solve_triangular(L,eyes,upper=False)
 				
-				cov = LInv.transpose(-2,-1) @ LInv
+				prev = torch.from_numpy(prev).type(torch.FloatTensor).to(self.device)
+				chol = torch.zeros(self.dim,self.dim).to(self.device)
+				
+				D = torch.exp(self.D(prev))
+				
+				chol[self.chol_inds[0],self.chol_inds[1]] = D
+ 
+				eyes = torch.eye(self.dim).to(self.device)
+				invChol = torch.linalg.solve_triangular(chol,eyes,upper=False)
+				
+				eta = self.MLP(prev)
+				
+				cov = invChol.transpose(-2,-1) @ invChol
+				
 				mu = cov @ eta *dt
-				dz = mu + LInv.transpose(-2,-1) @ sample_dW[jj,:]
-
+				dz = mu + invChol.transpose(-2,-1) @ sample_dW[jj,:]
+				
 				zz.append(zz[jj] +dz.detach().cpu().numpy())
 
 		zz = np.vstack(zz)
