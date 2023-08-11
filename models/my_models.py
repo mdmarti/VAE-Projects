@@ -506,7 +506,7 @@ class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 	def getMoments(self, data):
 		"""
 		get estimates of moments given data
-		input: data
+		input: data (batch size x dim)
 		output: mu,L (lower triangular factor of covariance)
 		"""
 		eta = self.MLP(data).view(data.shape[0],data.shape[1],1)
@@ -522,35 +522,14 @@ class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 		return cov @ eta,invChol
 	
 	def getNatParams(self, data):
-		eta = self.MLP(data).view(data.shape[0],data.shape[1],1)
+		eta = self.MLP(data)
 		### estimate cholesky factor ####
 		chol = torch.zeros(data.shape[0],self.dim,self.dim).to(self.device)
 		D = torch.exp(self.D(data))
 		chol[:,self.chol_inds[0],self.chol_inds[1]] = D
 		
 		return eta,chol
-	"""
-	def generate(self,z0,T,dt):
-		t = np.arange(0,T,dt)
-		zz = [z0]
-		sample_dW =  np.sqrt(dt) * torch.randn(len(t),self.dim).to(self.device)
 
-		for jj in range(len(t)):
-			
-			with torch.no_grad():
-				prev = zz[jj]
-				
-				prev = torch.from_numpy(prev).type(torch.FloatTensor).to(self.device)
-				chol = torch.zeros(prev.shape[0],self.dim,self.dim).to(self.device)
-				D = torch.exp(self.D(prev))
-				chol[:,self.chol_inds[0],self.chol_inds[1]] = D 
-				dz = self.MLP(prev)*dt + chol @ sample_dW[jj,:]
-
-				zz.append(zz[jj] +dz.detach().cpu().numpy())
-
-		zz = np.vstack(zz)
-		return zz
-	"""
 	def generate(self, z0, T, dt):
 		t = np.arange(0,T,dt)
 		zz = [z0]

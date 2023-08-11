@@ -155,11 +155,14 @@ def run_2d_swirly_boy():
 	model2 = nonlinearLatentSDENatParams(dim=2,save_dir=f'/home/miles/attempt_2d_one_natparms_lr_{lr}_diag',plotTrue=False,diag=True)
 
 	
-	model1 = train(model1,dls,nEpochs=5000,save_freq=500,test_freq=100,lr=lr,gamma=0.995)
-	model2 = train(model2,dls,nEpochs=5000,save_freq=500,test_freq=100,lr=lr,gamma=0.995)
-	#checkpointDir = f'/home/miles/attempt_2d_one_natparms_lr_{lr}'
-	#checkpoint = os.path.join(checkpointDir,'checkpoint_5000.tar')
-	#model.load(checkpoint)
+	#model1 = train(model1,dls,nEpochs=5000,save_freq=500,test_freq=100,lr=lr,gamma=0.995)
+	#model2 = train(model2,dls,nEpochs=5000,save_freq=500,test_freq=100,lr=lr,gamma=0.995)
+	checkpointDir1 = f'/home/miles/attempt_2d_one_lr_{lr}_diag'
+	checkpointDir2 = f'/home/miles/attempt_2d_one_natparms_lr_{lr}_diag'
+	checkpoint1 = os.path.join(checkpointDir1,'checkpoint_5000.tar')
+	checkpoint2 = os.path.join(checkpointDir2,'checkpoint_5000.tar')
+	model1.load(checkpoint1)
+	model2.load(checkpoint2)
 	#print(f"generating new data! {1000/.01} samples")
 	samples1 = []
 	samples2 = []
