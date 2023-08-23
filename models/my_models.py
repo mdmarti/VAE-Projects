@@ -4,6 +4,8 @@ import os
 from torch.utils.tensorboard import SummaryWriter
 import numpy as np
 from tqdm import tqdm
+import seaborn as sns
+import matplotlib.pyplot as plt
 
 def diag_indices(dim):
 
@@ -212,7 +214,8 @@ class linearLatentSDE(latentSDE,nn.Module):
 	
 class nonlinearLatentSDE(latentSDE,nn.Module):
 
-	def __init__(self,dim,save_dir='',true1=[1.],true2=[0.5],p1name='mu',p2name='sigma',plotTrue=True,diag=True):
+	def __init__(self,dim:int,save_dir:str ='',true1:"function"=None,true2:"function"=None,
+	      p1name:str='mu',p2name:str='sigma',plotDists:bool=True,diag:bool=True):
 		
 		super(nonlinearLatentSDE,self).__init__(dim,save_dir=save_dir,diag=diag)
 
@@ -229,26 +232,32 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		self.p2name = p2name
 		self.true1=true1
 		self.true2 = true2
-		self.plotTrue=plotTrue
-		"""
-		layout = {
-			'Train': {
-				"loss":['Multiline',['logp']]
-			},
-			'Test': {
-				"loss":['Multiline',['log p']]
-			}
-		}
-		for d in range(self.dim):
-			layout['Train'][f"{self.p1name} dim {d+1}"] = \
-				["Multiline",[f"{self.p1name} dim {d+1}/estimated", f"{self.p1name} dim {d+1}/true"]]
-			layout['Test'][f"{self.p1name} dim {d+1}"] = \
-				["Multiline",[f"{self.p1name} dim {d+1}/estimated", f"{self.p1name} dim {d+1}/true"]]
-		self.writer.add_custom_scalars(layout)
-		"""
+		self.plotDists=plotDists
+
 		self.to(self.device)
 
-	def getMoments(self, data):
+	def _add_dist_figure(self,estimates:torch.FloatTensor,ground:torch.FloatTensor,name:str,dim:int,epoch_type:str='Train'):
+
+		#estimates = estimates.detach().cpu().numpy()
+		#ground = ground.detach().cpu().numpy()
+		assert len(ground) > 1
+		assert len(estimates) > 1
+		fig1 = plt.figure()
+
+		plt.figure(fig1)
+		ax = plt.gca()
+		sns.kdeplot(data=ground,color="#58445F",alpha=0.8,label=f"Ground truth {name}",ax=ax,warn_singular=False)
+		sns.kdeplot(data=estimates,color="#3B93B3",alpha=0.8,label=f"Model estimated {name}",ax=ax)
+		ax.set_xlabel(f"{name}")
+		ax.set_ylabel("Density")
+		ax.set_yticks([])
+		plt.legend()
+
+		self.writer.add_figure(f'{epoch_type}/{name} dim {dim}',fig1,close=True,global_step=self.epoch)
+		return
+
+
+	def getMoments(self, data: torch.FloatTensor):
 		"""
 		get estimates of moments given data
 		input: data
@@ -261,7 +270,11 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		chol[:,self.chol_inds[0],self.chol_inds[1]] = D
 		return mu,chol
 	
-	def getNatParams(self, data):
+	def getNatParams(self, data: torch.FloatTensor):
+
+		"""
+		estimate natural parameters given data
+		"""
 		mu = self.MLP(data).view(data.shape[0],data.shape[1],1)
 		### estimate cholesky factor ####
 		chol = torch.zeros(data.shape[0],self.dim,self.dim).to(self.device)
@@ -303,6 +316,8 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		mu: batch x z_dim x 1
 		D: batch x z_dim x 1
 		
+		returns loss for the batch,
+		mu for the batch, D for the batch
 		"""
 
 		
@@ -339,17 +354,14 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 
 		###########################################
 
-		return loss.sum(),mu.view(len(zt1),self.dim)/(zt1.view(len(zt1),self.dim)*dt),\
-			torch.diagonal(L,dim1=-2,dim2=-1).view(len(zt1),self.dim)/(zt1.view(len(zt1),self.dim))
+		return loss.sum(),mu.view(len(zt1),self.dim),D
 	
-	def forward(self,data):
+	def forward(self,data: torch.FloatTensor):
 
 		zt1,zt2,dt = data
 		zt1,zt2,dt = zt1.to(self.device),zt2.to(self.device),dt.to(self.device) 
-		#assert(zt1.shape[0] == 128)
 
 		loss,F,D = self.loss(zt1,zt2,dt)
-
 
 		return loss,F,D
 	
@@ -359,27 +371,31 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 
 		epoch_loss = 0.
 		epoch_mus = []
-		epoch_sigs = []
+		epoch_Ds = []
+		true_p1 = []
+		true_p2 = []
 		for batch in loader:
-			loss,mu,sig = self.forward(batch)
+			loss,mu,d = self.forward(batch)
 			loss.backward()
 			epoch_loss += loss.item()
 			optimizer.step()
 			epoch_mus.append(mu.detach().cpu().numpy())
-			epoch_sigs.append(sig.detach().cpu().numpy())
+			epoch_Ds.append(d.detach().cpu().numpy())
+			true_p1.append(self.true1(batch[0]))
+			true_p2.append(self.true2(batch[0]))
 
-		epoch_mus = np.nanmean(np.vstack(epoch_mus),axis=0)
-		epoch_sigs = np.nanmean(np.vstack(epoch_sigs),axis=0)
+		epoch_mus = np.vstack(epoch_mus)
+		epoch_Ds = np.vstack(epoch_Ds)
+		true_p1 = np.vstack(true_p1)
+		true_p2 = np.vstack(true_p2)
 
 		self.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.epoch)
-		for d in range(self.dim):
-			if self.plotTrue:
-				self.writer.add_scalars(f'Train/{self.p1name} dim {d+1}',{'estimated':epoch_mus[d],'true':self.true1[d]},self.epoch)
-				self.writer.add_scalars(f'Train/{self.p2name} dim {d+1}',{'estimated':epoch_sigs[d],'true':self.true2[d]},self.epoch)
-			else:
-				self.writer.add_scalar(f'Train/{self.p1name} dim {d+1}',epoch_mus[d],self.epoch)
-				self.writer.add_scalar(f'Train/{self.p2name} dim {d+1}',epoch_sigs[d],self.epoch)
-
+		if self.plotDists & (self.epoch % 50 == 0):
+			for d in range(self.dim):
+				self._add_dist_figure(epoch_mus[:,d],true_p1[:,d],self.p1name,d+1,'Train')
+				#self.writer.add_scalars(f'Train/{self.p2name} dim {d+1}',{'estimated':epoch_sigs[d],'true':self.true2[d]},self.epoch)
+			for d in range(self.n_entries):
+				self._add_dist_figure(epoch_Ds[:,d],true_p2[:,d],self.p2name,d+1,'Train')
 		self.epoch += 1
 	
 		return epoch_loss,optimizer
@@ -390,27 +406,39 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		with torch.no_grad():
 			epoch_loss = 0.
 			epoch_mus = []
-			epoch_sigs = []
+			epoch_Ds = []
+			true_p1 = []
+			true_p2 = []
 			for batch in loader:
-				loss,mu,sig = self.forward(batch)
+				loss,mu,d = self.forward(batch)
 				
 				epoch_loss += loss.item()
 
 				epoch_mus.append(mu.detach().cpu().numpy())
-				epoch_sigs.append(sig.detach().cpu().numpy())
-
-		epoch_mus = np.nanmean(np.vstack(epoch_mus),axis=0)
-		epoch_sigs = np.nanmean(np.vstack(epoch_sigs),axis=0)
+				epoch_Ds.append(d.detach().cpu().numpy())
+				true_p1.append(self.true1(batch[0]))
+				true_p2.append(self.true2(batch[0]))
+		epoch_mus = np.vstack(epoch_mus)
+		epoch_Ds = np.vstack(epoch_Ds)
+		true_p1 = np.vstack(true_p1)
+		true_p2 = np.vstack(true_p2)
 
 		self.writer.add_scalar('Test/loss',epoch_loss/len(loader),self.epoch)
+		if self.plotDists:
+			for d in range(self.dim):
+				self._add_dist_figure(epoch_mus[:,d],true_p1[:,d],self.p1name,d+1,'Test')
+				#self.writer.add_scalars(f'Train/{self.p2name} dim {d+1}',{'estimated':epoch_sigs[d],'true':self.true2[d]},self.epoch)
+			for d in range(self.n_entries):
+				self._add_dist_figure(epoch_Ds[:,d],true_p2[:,d],self.p2name,d+1,'Test')
+		"""
 		for d in range(self.dim):
-			if self.plotTrue:
+			if self.plotDists:
 				self.writer.add_scalars(f'Test/{self.p1name} dim {d+1}',{'estimated':epoch_mus[d],'true':self.true1[d]},self.epoch)
 				self.writer.add_scalars(f'Test/{self.p2name} dim {d+1}',{'estimated':epoch_sigs[d],'true':self.true2[d]},self.epoch)
 			else:
 				self.writer.add_scalar(f'Test/{self.p1name} dim {d+1}',epoch_mus[d],self.epoch)
 				self.writer.add_scalar(f'Test/{self.p2name} dim {d+1}',epoch_sigs[d],self.epoch)
-		
+		"""
 		return epoch_loss
 	
 	def save(self):
@@ -498,10 +526,11 @@ class Simple1dTestDE(nonlinearLatentSDE,nn.Module):
 
 class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 
-	def __init__(self,dim,save_dir='',p1name='eta',p2name='lambda',true1=[4],true2=[2],plotTrue=True,diag=True):
+	def __init__(self,dim:int,save_dir:str ='',true1:"function"=None,true2:"function"=None,
+	      p1name:str='mu',p2name:str='sigma',plotDists:bool=True,diag:bool=True):
 		
 		super(nonlinearLatentSDENatParams,self).__init__(dim,save_dir=save_dir,\
-						   p1name=p1name,p2name=p2name,true1=true1,true2=true2,plotTrue=plotTrue,diag=diag)
+						   p1name=p1name,p2name=p2name,true1=true1,true2=true2,plotDists=plotDists,diag=diag)
 
 	def getMoments(self, data):
 		"""
@@ -599,7 +628,6 @@ class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 		log_pz2 = c - 1/2*(t1 + t2 + t3+t4)
 		loss = - log_pz2
 		###########################################
-		return loss.sum(),eta.view(len(zt1),self.dim)*zt1.view(len(zt1),self.dim),\
-			torch.diagonal(L,dim1=-2,dim2=-1).view(len(zt1),self.dim)*zt1.view(len(zt1),self.dim)
+		return loss.sum(),eta.view(len(zt1),self.dim),D
 
 
