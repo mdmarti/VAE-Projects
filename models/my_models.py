@@ -356,7 +356,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 
 		###########################################
 
-		return loss.sum(),mu.view(len(zt1),self.dim),D
+		return loss.sum(),mu.view(len(zt1),self.dim),D * torch.sqrt(dt)
 	
 	def forward(self,data: torch.FloatTensor):
 
@@ -631,6 +631,6 @@ class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 		log_pz2 = c - 1/2*(t1 + t2 + t3+t4)
 		loss = - log_pz2
 		###########################################
-		return loss.sum(),eta.view(len(zt1),self.dim),D
+		return loss.sum(),eta.view(len(zt1),self.dim),D/torch.sqrt(dt)
 
 
