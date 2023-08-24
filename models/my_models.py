@@ -236,13 +236,13 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 
 		self.to(self.device)
 
-	def _add_dist_figure(self,estimates:torch.FloatTensor,ground:torch.FloatTensor,name:str,dim:int,epoch_type:str='Train'):
-
+	def _add_dist_figure(self,estimates:np.ndarray,ground:np.ndarray,name:str,dim:int,epoch_type:str='Train'):
+		plt.rcParams.update({'font.size': 22})
 		#estimates = estimates.detach().cpu().numpy()
 		#ground = ground.detach().cpu().numpy()
 		assert len(ground) > 1
 		assert len(estimates) > 1
-		fig1 = plt.figure()
+		fig1 = plt.figure(figsize=(10,10))
 
 		plt.figure(fig1)
 		ax = plt.gca()
@@ -251,6 +251,8 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		ax.set_xlabel(f"{name}")
 		ax.set_ylabel("Density")
 		ax.set_yticks([])
+		rangeVals = np.amax(estimates) - np.amin(estimates)
+		ax.set_xlim([np.amin(estimates) - 3*rangeVals,np.amax(estimates) + 3*rangeVals])
 		plt.legend()
 
 		self.writer.add_figure(f'{epoch_type}/{name} dim {dim}',fig1,close=True,global_step=self.epoch)
@@ -381,6 +383,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 			optimizer.step()
 			epoch_mus.append(mu.detach().cpu().numpy())
 			epoch_Ds.append(d.detach().cpu().numpy())
+			
 			true_p1.append(self.true1(batch[0]))
 			true_p2.append(self.true2(batch[0]))
 
