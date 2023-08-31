@@ -1,6 +1,15 @@
 import torch
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
+
+def z_score(data):
+
+	x_stacked =np.vstack(data)
+	mu = np.nanmean(x_stacked,axis=0,keepdims=True)
+	sd = np.nanstd(x_stacked,axis=0,keepdims=True)
+
+	return [(d - mu)/sd for d in data],mu,sd
+
 def generate_ndim_benes(n=100,d = 20,T=100,dt=1):
 
 	t = np.arange(0,T,dt)
