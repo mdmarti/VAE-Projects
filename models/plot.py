@@ -76,7 +76,10 @@ def plotSamples2d(true: list, samples: list) -> None:
 
 	
 	order = np.random.choice(len(samples),100,replace=False)
-
+	mins, maxs = np.amin(np.vstack(samples),axis=0),np.amax(np.vstack(samples),axis=0)
+	
+	true_xlims = (mins[0]-0.1,maxs[0]+0.1)
+	true_ylims = (mins[1]-0.1,maxs[1]+0.1)
 	for o in order:
 		g = samples[o].squeeze()
 		

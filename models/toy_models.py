@@ -139,49 +139,51 @@ def run_stochastic_lorenz_experiment():
 	print("done!")
 	plotSamples3d(xs,samples)
 
-def run_2d_swirly_boy():
+def run_2d_swirly_boy(zscore=False):
 
 	sampledt=0.001
-	observeddt=0.005 # shortest tried: 0.005
+	observeddt=0.02 # shortest tried: 0.005
 	x,(mu,d),(eta,lam) = generate_2d_swirls(n=1024,dt=sampledt,T=1,\
 			mu=1.1,theta=720*sampledt,sigma=0.5,x0=np.array([.05,-0.05]))
-	#x,muTr,sdTr = z_score(x)
+			
 	xDownsampled = downsample(x,origdt=sampledt,newdt=observeddt,noise=False)
-	#xDownsampled,muTr,sdTr = z_score(xDownsampled)
+	if zscore:
+		xDownsampled,muTr,sdTr = z_score(xDownsampled)
 	xTest,_,_ = generate_2d_swirls(n=1024,dt=sampledt,T=1,\
 			mu=1.1,theta=720*sampledt,sigma=0.5,x0=np.array([0.05,-0.05]))
-	#xTest,_,_= z_score(xTest)
+
 	xTestDownsampled = downsample(xTest,origdt=sampledt,newdt=observeddt,noise=False)
-	#xTestDownsampled,_,_= z_score(xTestDownsampled)
+	if zscore:
+		xTestDownsampled,_,_= z_score(xTestDownsampled)
 
 	lr = 1e-5
-	model1 = nonlinearLatentSDE(dim=2,save_dir=f'/home/miles/attempt_large_2d_zscore_lr_{lr}_diag',\
+	model1 = nonlinearLatentSDE(dim=2,save_dir=f'/home/miles/nonneg_lr_{lr}_diag',\
 			     plotDists=True,diag=False,true1=mu,true2=d)
 	
 	dls = makeToyDataloaders(xDownsampled,xTestDownsampled,dt=observeddt)
-	model2 = nonlinearLatentSDENatParams(dim=2,save_dir=f'/home/miles/attempt_large_2d_zscore_natparms_lr_{lr}_diag',\
+	model2 = nonlinearLatentSDENatParams(dim=2,save_dir=f'/home/miles/nonneg_natparms_lr_{lr}_diag',\
 				      plotDists=True,diag=False,true1=eta,true2=lam,\
 						p1name='eta',p2name='lambda')
 
 	assert model1.n_entries == 3
 	assert model2.n_entries == 3
-	#model1 = train(model1,dls,nEpochs=5000,save_freq=500,test_freq=100,lr=lr,gamma=0.995)
-	#model2 = train(model2,dls,nEpochs=5000,save_freq=500,test_freq=100,lr=lr,gamma=0.995)
-	checkpointDir1 = f'/home/miles/attempt_large_2d_zscore_lr_{lr}_diag'
-	checkpointDir2 = f'/home/miles/attempt_large_2d_zscore_natparms_lr_{lr}_diag'
-	checkpoint1 = os.path.join(checkpointDir1,'checkpoint_5000.tar')
-	checkpoint2 = os.path.join(checkpointDir2,'checkpoint_5000.tar')
-	model1.load(checkpoint1)
-	model2.load(checkpoint2)
+	model1 = train(model1,dls,nEpochs=5000,save_freq=500,test_freq=100,lr=lr,gamma=0.995)
+	model2 = train(model2,dls,nEpochs=5000,save_freq=500,test_freq=100,lr=lr,gamma=0.995)
+	checkpointDir1 = f'/home/miles/nonneg_lr_{lr}_diag'
+	checkpointDir2 = f'/home/miles/nonneg_natparms_lr_{lr}_diag'
+	#checkpoint1 = os.path.join(checkpointDir1,'checkpoint_5000.tar')
+	#checkpoint2 = os.path.join(checkpointDir2,'checkpoint_5000.tar')
+	#model1.load(checkpoint1)
+	#model2.load(checkpoint2)
 	#print(f"generating new data! {1000/.01} samples")
 	samples1 = []
 	samples2 = []
 	for ii in tqdm(range(256), desc="generating trajectories"):
-		x0=np.array([1,-1]) +  0.03**2 * np.random.randn(2)
+		x0=np.array([.05,-0.05]) +  0.03**2 * np.random.randn(2)
 		xsTmp = model1.generate(x0,T=1,dt=sampledt)
 		samples1.append(xsTmp)
 
-		x0=np.array([1, -1]) +  0.03**2 * np.random.randn(2)
+		x0=np.array([.05,-0.05]) +  0.03**2 * np.random.randn(2)
 		xsTmp = model2.generate(x0,T=1,dt=sampledt)
 		samples2.append(xsTmp)
 	
