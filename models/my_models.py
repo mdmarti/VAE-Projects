@@ -84,7 +84,7 @@ class linearLatentSDE(latentSDE,nn.Module):
 		mu = self.MLP(data)
 		### estimate cholesky factor ####
 		chol = torch.zeros(data.shape[0],self.dim,self.dim).to(self.device)
-		D = self.D(data)
+		D = torch.exp(self.D(data))
 		chol[:,self.chol_inds[0],self.chol_inds[1]] = D
 		return mu,chol
 	
@@ -92,7 +92,7 @@ class linearLatentSDE(latentSDE,nn.Module):
 		mu = self.MLP(data).view(data.shape[0],data.shape[1],1)
 		### estimate cholesky factor ####
 		chol = torch.zeros(data.shape[0],self.dim,self.dim).to(self.device)
-		D = self.D(data)
+		D = torch.exp(self.D(data))
 		chol[:,self.chol_inds[0],self.chol_inds[1]] = D
 		####### invert cholesky factor #######
 		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(data.shape,1,1).to(self.device)
@@ -114,7 +114,7 @@ class linearLatentSDE(latentSDE,nn.Module):
 				prev = torch.from_numpy(prev).type(torch.FloatTensor)
 				### estimate cholesky factor ####
 				chol = torch.zeros(prev.shape[0],self.dim,self.dim).to(self.device)
-				D = self.D(prev)
+				D = torch.exp(self.D(prev))
 				chol[:,self.chol_inds[0],self.chol_inds[1]] = D
 				dz = self.MLP(prev)*dt + chol @ sample_dW[jj,:]
 
@@ -132,7 +132,7 @@ class linearLatentSDE(latentSDE,nn.Module):
 		mu=mu.view(mu.shape[0],mu.shape[1],1)
 		### estimate cholesky factor ####
 		chol = torch.zeros(zt1.shape[0],self.dim,self.dim).to(self.device)
-		D = self.D(zt1)
+		D = torch.exp(self.D(zt1))
 		chol[:,self.chol_inds[0],self.chol_inds[1]] = D*np.sqrt(dt)
 		####### invert cholesky factor #######
 		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape,1,1).to(self.device)
@@ -280,7 +280,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		mu = self.MLP(data).view(data.shape[0],data.shape[1],1)
 		### estimate cholesky factor ####
 		chol = torch.zeros(data.shape[0],self.dim,self.dim).to(self.device)
-		D = self.D(data)
+		D = torch.exp(self.D(data))
 		chol[:,self.chol_inds[0],self.chol_inds[1]] = D
 		####### invert cholesky factor #######
 		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(data.shape,1,1).to(self.device)
@@ -486,7 +486,7 @@ class Simple1dTestDE(nonlinearLatentSDE,nn.Module):
 				prev = torch.from_numpy(prev).type(torch.FloatTensor).to(self.device)
 
 				mu = self.MLP(prev) * dt
-				sigma = self.D(prev)
+				sigma = torch.exp(self.D(prev))
 
 				dz = mu + sigma *  sample_dW[jj,:]
 
@@ -508,7 +508,7 @@ class Simple1dTestDE(nonlinearLatentSDE,nn.Module):
 		mu = self.MLP(zt1) * dt
 		#mu = mu.view(mu.shape[0],mu.shape[1],1)
 		### estimate cholesky factor ####
-		sigma = self.D(zt1) * torch.sqrt(dt)
+		sigma = torch.exp(self.D(zt1)) * torch.sqrt(dt)
 		#### Covariance ###########
 		cov = sigma**2
 		###### Precision #####
@@ -549,7 +549,7 @@ class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 		eta = self.MLP(data).view(data.shape[0],data.shape[1],1)
 		### estimate cholesky factor ####
 		chol = torch.zeros(data.shape[0],self.dim,self.dim).to(self.device)
-		D = self.D(data)
+		D = torch.exp(self.D(data))
 		chol[:,self.chol_inds[0],self.chol_inds[1]] = D
 		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(data.shape[0],1,1).to(self.device)
 		invChol = torch.linalg.solve_triangular(chol,eyes,upper=False)
@@ -562,7 +562,7 @@ class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 		eta = self.MLP(data)
 		### estimate cholesky factor ####
 		chol = torch.zeros(data.shape[0],self.dim,self.dim).to(self.device)
-		D = self.D(data)
+		D = torch.exp(self.D(data))
 		chol[:,self.chol_inds[0],self.chol_inds[1]] = D
 		
 		return eta,chol
@@ -622,7 +622,7 @@ class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 		eta = self.MLP(zt1)
 		eta = eta.view(eta.shape[0],eta.shape[1],1)
 		### estimate cholesky factor ####
-		D = self.D(zt1)
+		D = torch.exp(self.D(zt1))
 		L = torch.zeros(zt1.shape[0],self.dim,self.dim).to(self.device)
 		L[:,self.chol_inds[0],self.chol_inds[1]] = D 
 		#### Precision ###########
