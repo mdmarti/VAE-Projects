@@ -119,25 +119,41 @@ def run_stochastic_lorenz_experiment():
 
    #plot_sde(xs)
 	dt = 0.001
-	xs = generate_stochastic_lorenz(1024,dt=dt,T = 1,coeffs=[10,28,8/3,.15,.15,.15])
-	xsTest = generate_stochastic_lorenz(1024,dt=dt,T = 1,coeffs=[10,28,8/3,.15,.15,.15])
+	observeddt=0.02
+	lr = 1e-5
+
+	xs,(mu,d),(eta,lam) = generate_stochastic_lorenz(1024,dt=dt,T = 1,coeffs=[10,28,8/3,.15,.15,.15])
+	xsTest,_,_ = generate_stochastic_lorenz(1024,dt=dt,T = 1,coeffs=[10,28,8/3,.15,.15,.15])
 	#plotSamples3d(xs,xs)
-	xsDownsampled = downsample(xs,origdt=dt,newdt=0.025,noise=False)
-	xsTestDownsampled = downsample(xsTest,origdt=dt,newdt=0.025,noise=False)
-	model = nonlinearLatentSDE(dim=3,save_dir='/home/miles/test1_nonlinear',plotTrue=False)
-	dls = makeToyDataloaders(xsDownsampled,xsTestDownsampled,dt=0.025)
+	xsDownsampled = downsample(xs,origdt=dt,newdt=observeddt,noise=False)
+	xsTestDownsampled = downsample(xsTest,origdt=dt,newdt=observeddt,noise=False)
+	xsDownsampledZ,_,_ = z_score(xsDownsampled)
+	xsTestDownsampledZ,_,_ = z_score(xsTestDownsampled)
+	modelMoments = nonlinearLatentSDE(dim=3,save_dir='/home/miles/lorenz_normal_lr_{lr}',plotDists=True,\
+							diag=False,true1=mu,true2=d)
+	modelNatParms = nonlinearLatentSDENatParams(dim=3,save_dir='/home/miles/lorenz_normal_lr_{lr}',plotDists=True,\
+							diag=False,true1=eta,true2=lam,p1name='eta',p2name='lambda')
+	dls = makeToyDataloaders(xsDownsampled,xsTestDownsampled,observeddt)
 	#model.load('/home/miles/test1/checkpoint_1000.tar')
 	lr = 5e-6
-	model = train(model,dls,nEpochs=2500,save_freq=500,test_freq=100,lr=lr,gamma=0.999)
+	modelMoments = train(modelMoments,dls,nEpochs=5000,save_freq=500,test_freq=100,lr=lr,gamma=0.999)
+	modelNatParms = train(modelNatParms,dls,nEpochs=5000,save_freq=500,test_freq=100,lr=lr,gamma=0.999)
 	print(f"generating new data! {1000/.01} samples")
-	samples = []
-	for ii in range(1024):
+	samples1 = []
+	samples2 = []
+	for ii in tqdm(range(256), desc="generating trajectories"):
 		x0 = np.random.randn(3)
-		xsTmp = model.generate(x0,T=1,dt=0.025/5)
-		samples.append(xsTmp)
+		xsTmp = modelMoments.generate(x0,T=1,dt=dt)
+		samples1.append(xsTmp)
+
+		x0= np.random.randn(3)
+		xsTmp = modelNatParms.generate(x0,T=1,dt=dt)
+		samples2.append(xsTmp)
 	
 	print("done!")
-	plotSamples3d(xs,samples)
+	plotSamples2d(xs,samples1)
+	plotSamples2d(xs,samples2)
+	
 
 def run_2d_swirly_boy(zscore=False):
 
@@ -167,13 +183,13 @@ def run_2d_swirly_boy(zscore=False):
 
 	#assert model1.n_entries == 3
 	assert model2.n_entries == 3
-	model1 = train(model1,dls,nEpochs=5000,save_freq=500,test_freq=100,lr=lr,gamma=0.995)
+	#model1 = train(model1,dls,nEpochs=5000,save_freq=500,test_freq=100,lr=lr,gamma=0.995)
 	#model2 = train(model2,dls,nEpochs=5000,save_freq=500,test_freq=100,lr=lr,gamma=0.995)
-	checkpointDir1 = f'/home/miles/nonneg_lr_{lr}_diag'
-	checkpointDir2 = f'/home/miles/nonneg_natparms_lr_{lr}_diag'
-	#checkpoint1 = os.path.join(checkpointDir1,'checkpoint_5000.tar')
+	checkpointDir1 = f'/home/miles/quiver_added_lr_{lr}'
+	checkpointDir2 = f'/home/miles/quiver_added_natparms_lr_{lr}'
+	checkpoint1 = os.path.join(checkpointDir1,'checkpoint_5000.tar')
 	checkpoint2 = os.path.join(checkpointDir2,'checkpoint_5000.tar')
-	#model1.load(checkpoint1)
+	model1.load(checkpoint1)
 	model2.load(checkpoint2)
 	#print(f"generating new data! {1000/.01} samples")
 	samples1 = []
@@ -198,8 +214,8 @@ def run_2d_swirly_boy(zscore=False):
 if __name__ == '__main__':
 
 	#run_geometric_brownian_experiment()
-	run_2d_swirly_boy()
-	#run_stochastic_lorenz_experiment()
+	#run_2d_swirly_boy()
+	run_stochastic_lorenz_experiment()
 	
 	
 	#sde_gif([xsTmp,xs[0]])
