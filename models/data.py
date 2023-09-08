@@ -138,12 +138,12 @@ def generate_stochastic_lorenz(n=100,T=100,dt=1,coeffs=[10,28,8/3,0.15,0.15,0.15
 	mu_fnc = lambda x,dt=0.001: np.hstack([(sigma * (x[:,1] - x[:,0])).detach().cpu().numpy() * dt,
 										(x[:,0]*(rho - x[:,2]) - x[:,1]).detach().cpu().numpy() * dt,
 										(x[:,0]*x[:,1] - beta*x[:,2]).detach().cpu().numpy() * dt])
-	d_fnc = lambda x: np.sqrt(dt)*torch.diag_embed(torch.FloatTensor([A1,A2,A3])).repeat(x.shape[0]).detach().cpu().numpy()[:,inds[0],inds[1]]
+	d_fnc = lambda x: np.sqrt(dt)*torch.diag_embed(torch.FloatTensor([A1,A2,A3]))[None,:,:].repeat(x.shape[0],1,1).detach().cpu().numpy()[:,inds[0],inds[1]]
 
 	eta_fnc = lambda x: np.hstack([(sigma * (x[:,1] - x[:,0])).detach().cpu().numpy() /A1**2,
 										(x[:,0]*(rho - x[:,2]) - x[:,1]).detach().cpu().numpy() /A2**2,
 										(x[:,0]*x[:,1] - beta*x[:,2]).detach().cpu().numpy() /A3**2])
-	lam_fnc = lambda x: torch.diag_embed(torch.FloatTensor([1/A1,1/A2,1/A3])).repeat(x.shape[0]).detach().cpu().numpy()[:,inds[0],inds[1]]/np.sqrt(dt)
+	lam_fnc = lambda x: torch.diag_embed(torch.FloatTensor([1/A1,1/A2,1/A3]))[None,:,:].repeat(x.shape[0],1,1).detach().cpu().numpy()[:,inds[0],inds[1]]/np.sqrt(dt)
 	return allPaths,(mu_fnc,d_fnc),(eta_fnc,lam_fnc)
 
 
