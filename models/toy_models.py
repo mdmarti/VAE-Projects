@@ -157,24 +157,24 @@ def run_2d_swirly_boy(zscore=False):
 		xTestDownsampled,_,_= z_score(xTestDownsampled)
 
 	lr = 1e-5
-	model1 = nonlinearLatentSDE(dim=2,save_dir=f'/home/miles/nonneg_lr_{lr}_diag',\
+	model1 = nonlinearLatentSDE(dim=2,save_dir=f'/home/miles/quiver_added_lr_{lr}',\
 			     plotDists=True,diag=False,true1=mu,true2=d)
 	
 	dls = makeToyDataloaders(xDownsampled,xTestDownsampled,dt=observeddt)
-	model2 = nonlinearLatentSDENatParams(dim=2,save_dir=f'/home/miles/nonneg_natparms_lr_{lr}_diag',\
+	model2 = nonlinearLatentSDENatParams(dim=2,save_dir=f'/home/miles/quiver_added_natparms_lr_{lr}',\
 				      plotDists=True,diag=False,true1=eta,true2=lam,\
 						p1name='eta',p2name='lambda')
 
-	assert model1.n_entries == 3
+	#assert model1.n_entries == 3
 	assert model2.n_entries == 3
 	model1 = train(model1,dls,nEpochs=5000,save_freq=500,test_freq=100,lr=lr,gamma=0.995)
-	model2 = train(model2,dls,nEpochs=5000,save_freq=500,test_freq=100,lr=lr,gamma=0.995)
+	#model2 = train(model2,dls,nEpochs=5000,save_freq=500,test_freq=100,lr=lr,gamma=0.995)
 	checkpointDir1 = f'/home/miles/nonneg_lr_{lr}_diag'
 	checkpointDir2 = f'/home/miles/nonneg_natparms_lr_{lr}_diag'
 	#checkpoint1 = os.path.join(checkpointDir1,'checkpoint_5000.tar')
-	#checkpoint2 = os.path.join(checkpointDir2,'checkpoint_5000.tar')
+	checkpoint2 = os.path.join(checkpointDir2,'checkpoint_5000.tar')
 	#model1.load(checkpoint1)
-	#model2.load(checkpoint2)
+	model2.load(checkpoint2)
 	#print(f"generating new data! {1000/.01} samples")
 	samples1 = []
 	samples2 = []

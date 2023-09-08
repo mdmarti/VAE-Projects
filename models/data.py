@@ -91,11 +91,12 @@ def generate_2d_swirls(n=100,T=1,dt=0.001,theta=10,mu=1.01,sigma=0.5,x0=np.array
 		allPaths.append(xx)
 
 	sigMat = np.eye(2) * sigma
+	LMat = np.eye(2) / sigma
 	inds = np.tril_indices(2)
 	mu_fnc = lambda x: (A @ x.detach().cpu().numpy()[:,:,None]).squeeze()
 	d_fnc = lambda x: torch.diag_embed(sigma * x).detach().cpu().numpy()[:,inds[0],inds[1]]
 
-	eta_fnc = lambda x: (torch.diag_embed(1/(sigma * x))**2 @ (torch.FloatTensor(A) @ x[:,:,None])).detach().cpu().numpy().squeeze()
+	eta_fnc = lambda x: ((LMat @ x[:,:,None].detach().cpu().numpy())**2 * (A @ x[:,:,None].detach().cpu().numpy())).squeeze()
 	lam_fnc = lambda x: (torch.diag_embed(1/(sigma * x))).detach().cpu().numpy()[:,inds[0],inds[1]]
 	return allPaths,(mu_fnc,d_fnc),(eta_fnc,lam_fnc)
 

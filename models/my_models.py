@@ -242,6 +242,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		#ground = ground.detach().cpu().numpy()
 		assert len(ground) > 1
 		assert len(estimates) > 1
+		
 		fig1 = plt.figure(figsize=(10,10))
 
 		plt.figure(fig1)
@@ -256,6 +257,27 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		plt.legend()
 
 		self.writer.add_figure(f'{epoch_type}/{name} dim {dim}',fig1,close=True,global_step=self.epoch)
+		
+
+	def _add_quiver(self,data:np.ndarray,estimates:np.ndarray,ground:np.ndarray,name:str,epoch_type:str='Train'):
+		
+		fig2 = plt.figure(figsize=(10,10))
+
+		plt.figure(fig2)
+		ax = plt.gca()
+		
+		ax.quiver(data[:,0],data[:,1],ground[:,0],ground[:,1],color="#58445F",label=f"Ground truth {name}")
+		ax.quiver(data[:,0],data[:,1],estimates[:,0],estimates[:,1],color="#3B93B3",label=f"Model estimated {name}")
+		ax.set_xlabel(f"{name} 1")
+		ax.set_ylabel(f"{name} 2")
+		ax.set_yticks([])
+		ax.set_xticks([])
+		#rangeVals = np.amax(estimates) - np.amin(estimates)
+		#ax.set_xlim([np.amin(estimates) - 3*rangeVals,np.amax(estimates) + 3*rangeVals])
+		plt.legend()
+		
+		self.writer.add_figure(f'{epoch_type}/{name} quiver',fig2,close=True,global_step=self.epoch)
+
 		return
 
 
@@ -381,7 +403,8 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		epoch_Ds = []
 		true_p1 = []
 		true_p2 = []
-		for batch in loader:
+		batchInd = np.random.choice(len(loader),1)
+		for ii,batch in enumerate(loader):
 			loss,mu,d = self.forward(batch)
 			loss.backward()
 			epoch_loss += loss.item()
@@ -392,6 +415,8 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 			true_p1.append(self.true1(batch[0]))
 			true_p2.append(self.true2(batch[0]))
 
+			if (ii == batchInd) & (self.epoch % 5 ==0) & self.plotDists:
+				self._add_quiver(batch[0].detach().cpu().numpy(),mu.detach().cpu().numpy(),self.true1(batch[0]),self.p1name,'Train')
 		epoch_mus = np.vstack(epoch_mus)
 		epoch_Ds = np.vstack(epoch_Ds)
 		true_p1 = np.vstack(true_p1)
@@ -399,7 +424,9 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 
 		self.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.epoch)
 		if self.plotDists & (self.epoch % 50 == 0):
+			
 			for d in range(self.dim):
+				
 				self._add_dist_figure(epoch_mus[:,d],true_p1[:,d],self.p1name,d+1,'Train')
 				#self.writer.add_scalars(f'Train/{self.p2name} dim {d+1}',{'estimated':epoch_sigs[d],'true':self.true2[d]},self.epoch)
 			for d in range(self.n_entries):
@@ -417,7 +444,8 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 			epoch_Ds = []
 			true_p1 = []
 			true_p2 = []
-			for batch in loader:
+			batchInd = np.random.choice(len(loader))
+			for ii,batch in enumerate(loader):
 				loss,mu,d = self.forward(batch)
 				
 				epoch_loss += loss.item()
@@ -426,6 +454,9 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 				epoch_Ds.append(d.detach().cpu().numpy())
 				true_p1.append(self.true1(batch[0]))
 				true_p2.append(self.true2(batch[0]))
+				if (ii == batchInd) & self.plotDists:
+					self._add_quiver(batch[0].detach().cpu().numpy(),mu.detach().cpu().numpy(),self.true1(batch[0]),self.p1name,'Test')
+
 		epoch_mus = np.vstack(epoch_mus)
 		epoch_Ds = np.vstack(epoch_Ds)
 		true_p1 = np.vstack(true_p1)

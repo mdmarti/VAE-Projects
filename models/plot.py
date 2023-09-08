@@ -107,29 +107,31 @@ def sde_gif(data):
 	else:
 		
 		for ii,traj in enumerate(data):
+			# traj is the data trajectory
 			mins = np.amin(traj,axis=0)
 			maxs = np.amax(traj,axis=0)
-			ax = fig.add_subplot(111,projection='3d')
+			ax = fig.add_subplot(111,projection='3d') # remove projection if 2d
 
 			ax.set_xlim([mins[0],maxs[0]])
 			ax.set_ylim([mins[1],maxs[1]])
-			ax.set_zlim([mins[2],maxs[2]])
+			ax.set_zlim([mins[2],maxs[2]]) # comment out if 2d
 
 			line, = ax.plot([],[])
-			ax.view_init(azim=180)
+			ax.view_init(azim=180) #comment out if 2d
 
 			def makeAni1(frame):
 				if frame < traj.shape[0]:
 					line.set_data_3d(traj[:frame+1,0],traj[:frame+1,1],traj[:frame+1,2])
-				ax.view_init(azim=180 + frame/6)
+					# line.set_data(traj[:frame+1,0],traj[:frame+1,1],traj[:frame+1,2]) this should be right for 2d
+				ax.view_init(azim=180 + frame/6) # rotate the figure (comment out if 2d)
 				ax.set_xlabel("dim 1")
 				ax.set_ylabel("dim 2")
-				ax.set_zlabel("dim 3")
+				ax.set_zlabel("dim 3") # comment out if 2d
 				return line,
 		
 			print("animating 1")
 			anim= animation.FuncAnimation(fig,makeAni1,frames=3000,interval=20,blit=True)
-			anim.save(f'changeAcrossTime{ii}.gif', writer = 'ffmpeg', fps = 50)
+			anim.save(f'changeAcrossTime{ii}.gif', writer = 'ffmpeg', fps = 50) # change name if saving somewhere else
 			plt.close('all')
 			
 
