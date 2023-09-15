@@ -121,23 +121,28 @@ def run_stochastic_lorenz_experiment():
 	dt = 0.001
 	observeddt=0.02
 	lr = 1e-5
-
+	print('generating data.....')
 	xs,(mu,d),(eta,lam) = generate_stochastic_lorenz(1024,dt=dt,T = 1,coeffs=[10,28,8/3,.15,.15,.15])
-	xsTest,_,_ = generate_stochastic_lorenz(1024,dt=dt,T = 1,coeffs=[10,28,8/3,.15,.15,.15])
+	xsTest,_,_ = generate_stochastic_lorenz(1024,dt=dt,T = 1,coeffs=[10,28,8/3, .15,.15,.15])
+	print('done!')
 	#plotSamples3d(xs,xs)
 	xsDownsampled = downsample(xs,origdt=dt,newdt=observeddt,noise=False)
 	xsTestDownsampled = downsample(xsTest,origdt=dt,newdt=observeddt,noise=False)
 	xsDownsampledZ,_,_ = z_score(xsDownsampled)
 	xsTestDownsampledZ,_,_ = z_score(xsTestDownsampled)
-	modelMoments = nonlinearLatentSDE(dim=3,save_dir='/home/miles/lorenz_normal_lr_{lr}',plotDists=True,\
-							diag=False,true1=mu,true2=d)
-	modelNatParms = nonlinearLatentSDENatParams(dim=3,save_dir='/home/miles/lorenz_normal_lr_{lr}',plotDists=True,\
-							diag=False,true1=eta,true2=lam,p1name='eta',p2name='lambda')
+	xsDownsampledScaled,_ = scale(xsDownsampled)
+	xsTestDownsampledScaled,_ = scale(xsTestDownsampled)
+	modelMoments = nonlinearLatentSDE(dim=3,save_dir=f'/home/miles/lorenz_normal_lr_{lr}_3hidden_hiddensize200',plotDists=True,\
+							diag=False,true1=mu,true2=d,n_hidden=3,hidden_size=200)
+	modelNatParms = nonlinearLatentSDENatParams(dim=3,save_dir=f'/home/miles/lorenz_natparms_lr_{lr}_3hidden_hiddensize200',plotDists=True,\
+							diag=False,true1=eta,true2=lam,p1name='eta',p2name='lambda',n_hidden=3,hidden_size=200)
 	dls = makeToyDataloaders(xsDownsampled,xsTestDownsampled,observeddt)
 	#model.load('/home/miles/test1/checkpoint_1000.tar')
-	lr = 5e-6
-	modelMoments = train(modelMoments,dls,nEpochs=5000,save_freq=500,test_freq=100,lr=lr,gamma=0.999)
-	modelNatParms = train(modelNatParms,dls,nEpochs=5000,save_freq=500,test_freq=100,lr=lr,gamma=0.999)
+	#lr = 5e-6
+	print(modelNatParms.MLP)
+	print(modelNatParms.D)
+	modelMoments = train(modelMoments,dls,nEpochs=5000,save_freq=500,test_freq=100,lr=lr,gamma=0.998)
+	modelNatParms = train(modelNatParms,dls,nEpochs=5000,opt='adam',save_freq=500,test_freq=100,lr=lr,gamma=0.998)
 	print(f"generating new data! {1000/.01} samples")
 	samples1 = []
 	samples2 = []

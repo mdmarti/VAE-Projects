@@ -215,17 +215,23 @@ class linearLatentSDE(latentSDE,nn.Module):
 class nonlinearLatentSDE(latentSDE,nn.Module):
 
 	def __init__(self,dim:int,save_dir:str ='',true1:"function"=None,true2:"function"=None,
-	      p1name:str='mu',p2name:str='sigma',plotDists:bool=True,diag:bool=True):
+	      p1name:str='mu',p2name:str='sigma',plotDists:bool=True,diag:bool=True,n_hidden=0,hidden_size=100):
 		
 		super(nonlinearLatentSDE,self).__init__(dim,save_dir=save_dir,diag=diag)
 
-
-		self.MLP = nn.Sequential(nn.Linear(self.dim,100),
-			   					nn.Softplus(),
-								nn.Linear(100,self.dim))
-		self.D = nn.Sequential(nn.Linear(self.dim,100),
-			 					nn.Softplus(),
-								nn.Linear(100,self.n_entries))
+		MLPhidden = []
+		DHidden = []
+		for _ in range(n_hidden):
+			MLPhidden = MLPhidden + [nn.Linear(hidden_size,hidden_size),nn.Softplus()] 
+			DHidden = DHidden + [nn.Linear(hidden_size,hidden_size),nn.Softplus()] 
+		mlp_layers = [nn.Linear(self.dim,hidden_size),nn.Softplus()] + \
+						MLPhidden + \
+						[nn.Linear(hidden_size,self.dim)]
+		D_layers = [nn.Linear(self.dim,hidden_size),nn.Softplus()] + \
+						DHidden + \
+						[nn.Linear(hidden_size,self.n_entries)]
+		self.MLP = nn.Sequential(*mlp_layers)
+		self.D = nn.Sequential(*D_layers)
 		
 
 		self.p1name = p1name
@@ -253,7 +259,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		ax.set_ylabel("Density")
 		ax.set_yticks([])
 		rangeVals = np.amax(estimates) - np.amin(estimates)
-		ax.set_xlim([np.amin(estimates) - 3*rangeVals,np.amax(estimates) + 3*rangeVals])
+		#ax.set_xlim([np.amin(estimates) - 3*rangeVals,np.amax(estimates) + 3*rangeVals])
 		plt.legend()
 
 		self.writer.add_figure(f'{epoch_type}/{name} dim {dim}',fig1,close=True,global_step=self.epoch)
@@ -416,6 +422,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 			true_p2.append(self.true2(batch[0]))
 
 			if (ii == batchInd) & (self.epoch % 5 ==0) & self.plotDists:
+				
 				self._add_quiver(batch[0].detach().cpu().numpy(),mu.detach().cpu().numpy(),self.true1(batch[0]),self.p1name,'Train')
 		epoch_mus = np.vstack(epoch_mus)
 		epoch_Ds = np.vstack(epoch_Ds)
@@ -566,10 +573,11 @@ class Simple1dTestDE(nonlinearLatentSDE,nn.Module):
 class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 
 	def __init__(self,dim:int,save_dir:str ='',true1:"function"=None,true2:"function"=None,
-	      p1name:str='mu',p2name:str='sigma',plotDists:bool=True,diag:bool=True):
+	      p1name:str='mu',p2name:str='sigma',plotDists:bool=True,diag:bool=True,n_hidden=0,hidden_size=100):
 		
 		super(nonlinearLatentSDENatParams,self).__init__(dim,save_dir=save_dir,\
-						   p1name=p1name,p2name=p2name,true1=true1,true2=true2,plotDists=plotDists,diag=diag)
+						   p1name=p1name,p2name=p2name,true1=true1,true2=true2,
+						   plotDists=plotDists,diag=diag,n_hidden=n_hidden,hidden_size=hidden_size)
 
 	def getMoments(self, data):
 		"""
