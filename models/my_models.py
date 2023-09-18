@@ -344,6 +344,55 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		zz = np.vstack(zz)
 		return zz
 
+	def _loss_debug(self,zt1,zt2,dt,mu,D):
+
+		"""
+		z_t's: batch x z_dim
+		mu: batch x z_dim x 1
+		D: batch x z_dim x 1
+		
+		returns loss for the batch,
+		mu for the batch, D for the batch
+		"""
+
+		
+		dt = dt[0]
+
+		### Loss target ####
+		dzTrue = (zt2-zt1).view(zt1.shape[0],zt1.shape[1],1)
+		### estimate mu ####
+		muM = (self.MLP(zt1) * dt)
+		muM = muM.view(muM.shape[0],muM.shape[1],1)
+		mu = mu.repeat(*muM.shape)*dt
+		### estimate cholesky factor ####
+		L = torch.zeros(zt1.shape[0],self.dim,self.dim).to(self.device)
+		DM = torch.exp(self.D(zt1))
+		D = D.repeat(*DM.shape)
+		L[:,self.chol_inds[0],self.chol_inds[1]] = D*torch.sqrt(dt) 
+		####### invert cholesky factor #######
+		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape[0],1,1).to(self.device)
+		invChol = torch.linalg.solve_triangular(L,eyes,upper=False)
+		###### get precision and covariance #####
+		precision = invChol.transpose(-2,-1) @ invChol 
+		cov = L @ L.transpose(-2,-1) 
+		##### calculate loss ###################
+
+		const = -self.dim/2 * np.log(2*torch.pi)
+		t1 = torch.logdet(cov).squeeze()
+		assert len(t1.shape) == 1, print(t1.shape)
+		t2 = (dzTrue.transpose(-2,-1) @ precision @ dzTrue).squeeze()
+		assert len(t2.shape)==1,print(t2.shape)
+		t3 = -2*(dzTrue.transpose(-2,-1) @ precision @ mu).squeeze()
+		assert len(t3.shape) == 1,print(t3.shape)
+		t4 = (mu.transpose(-2,-1)@precision @ mu).squeeze()
+		assert len(t4.shape) == 1,print(t4.shape)
+		log_pz2 = const - 1/2*(t1 + t2 + t3 + t4)
+		loss = - log_pz2
+
+		###########################################
+
+		return loss,mu.view(len(zt1),self.dim),D * torch.sqrt(dt)
+
 	def loss(self,zt1,zt2,dt):
 		
 		"""
@@ -686,5 +735,50 @@ class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 		loss = - log_pz2
 		###########################################
 		return loss.sum(),eta.view(len(zt1),self.dim),D/torch.sqrt(dt)
+	
+
+	def _loss_debug(self,zt1,zt2,dt,eta,D):
+
+		"""
+		instead of parameterizing mu, Sigma, parameterize
+		Lambda, eta (lambda * mu)
+		"""
+
+		dt = dt[0]
+		### Loss target ####
+		dzTrue = (zt2-zt1).view(zt1.shape[0],zt1.shape[1],1)
+		### estimate eta ####
+		etaM = self.MLP(zt1)
+		etaM = etaM.view(etaM.shape[0],etaM.shape[1],1)
+		eta = eta.repeat(*etaM.shape)
+		### estimate cholesky factor ####
+		DM = torch.exp(self.D(zt1))
+		D = D.repeat(*DM.shape)
+		L = torch.zeros(zt1.shape[0],self.dim,self.dim).to(self.device)
+		L[:,self.chol_inds[0],self.chol_inds[1]] = D/torch.sqrt(dt) 
+		#### Precision ###########
+		precision = L @ L.transpose(-2,-1)
+		####### invert cholesky factor #######
+		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape[0],1,1).to(self.device)
+		LInv = torch.linalg.solve_triangular(L,eyes,upper=False)
+		###### covariance #####
+		cov = LInv.transpose(-2,-1) @ LInv 
+		
+		##### calculate loss ###################
+		c = -self.dim/2 * np.log(2*torch.pi)
+		t1 = -torch.logdet(precision).squeeze()
+		assert (len(t1.shape) == 1) & (len(t1) == len(zt1)), print(t1.shape)
+		t2 = (dzTrue.transpose(-2,-1) @ precision @ dzTrue).squeeze()
+		assert (len(t2.shape)==1) &(len(t2) == len(zt1)),print(t2.shape)
+		t3 = -2*(dzTrue.transpose(-2,-1) @ eta).squeeze()
+		assert (len(t3.shape) == 1) &(len(t3) == len(zt1)),print(t3.shape)
+		t4 = (eta.transpose(-2,-1)@cov @ eta).squeeze()
+		assert (len(t4.shape) == 1) &(len(t4) == len(zt1)),print(t4.shape)
+		log_pz2 = c - 1/2*(t1 + t2 + t3+t4)
+		loss = - log_pz2
+
+		###########################################
+
+		return loss,eta.view(len(zt1),self.dim),D * torch.sqrt(dt)
 
 
