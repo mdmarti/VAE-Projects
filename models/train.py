@@ -1,6 +1,6 @@
 from torch.optim import Adam, lr_scheduler,SGD
 from tqdm import tqdm 
-from data import toyDataset
+#from data import toyDataset
 import torchvision
 
 def train(newNetwork,dataloaders,nEpochs,opt='adam',lr=5e-5,test_freq=5,save_freq=100,wd=0.,gamma=0.999):
