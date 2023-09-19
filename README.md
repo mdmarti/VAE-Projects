@@ -2,23 +2,13 @@
 this is what it sounds like! crazy how that works
 
 ## Current Projects
+### SimSiam Branch
 - VAE with smoothing prior for birdsong
-- ??
+- VAE with time reconstruction
+- simsiam
+- normed simsiam
+- mse simsiam
 
-## Smoothing Prior
-### To Complete:
-- Upload code lol
-- MMD analysis
-   - Implement plots:
-     - UMAP of consecutive days, colored by MMD
-     - Average MMD per vocalization, distribution per day. Line + scatter?
-     - Average MMD per window. Line + scatter?
-- Smoothness analysis
-   - check L_1 distance between consecutive points - total variation
-   - check squared distance
-   - check sign changes
-- Reconstruction of motif time
-  - Forcing motif time reconstruction may help out with smoothness, spacing points further apart
+### daily branch
+- latent SDE toy model testing
 
-
-### Completed:
