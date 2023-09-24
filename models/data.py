@@ -106,7 +106,7 @@ def generate_2d_swirls(n=100,T=1,dt=0.001,theta=10,mu=1.01,sigma=0.5,x0=np.array
 	lam_fnc = lambda x: (torch.diag_embed(1/(sigma * x))).detach().cpu().numpy()[:,inds[0],inds[1]]
 	return allPaths,(mu_fnc,d_fnc),(eta_fnc,lam_fnc)
 
-def generate_stochastic_lorenz(n=100,T=100,dt=1,coeffs=[10,28,8/3,0.15,0.15,0.15]):
+def generate_stochastic_lorenz(n=100,T=100,dt=1,coeffs=[10,28,8/3,0.15,0.15,0.15],zscore=False):
 
 	sigma,rho,beta = coeffs[0],coeffs[1],coeffs[2]
 	A1,A2,A3 = coeffs[0],coeffs[1],coeffs[2]
@@ -140,7 +140,10 @@ def generate_stochastic_lorenz(n=100,T=100,dt=1,coeffs=[10,28,8/3,0.15,0.15,0.15
 		
 		allPaths.append(xx)
 
+	if zscore:
+		allPaths = [(x - np.nanmean(x,axis=0,keepdims=True))/np.nanstd(x,axis=0,keepdims=True) for x in allPaths]
 	inds = np.tril_indices(3)
+	
 	mu_fnc = lambda x,dt=0.001: np.vstack([(sigma * (x[:,1] - x[:,0])).detach().cpu().numpy() * dt,
 										(x[:,0]*(rho - x[:,2]) - x[:,1]).detach().cpu().numpy() * dt,
 										(x[:,0]*x[:,1] - beta*x[:,2]).detach().cpu().numpy() * dt]).T

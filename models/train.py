@@ -3,7 +3,7 @@ from tqdm import tqdm
 from data import toyDataset
 import torchvision
 
-def train(newNetwork,dataloaders,nEpochs,opt='adam',lr=5e-5,test_freq=5,save_freq=100,wd=0.,gamma=0.999):
+def train(newNetwork,dataloaders,nEpochs,opt='adam',lr=5e-5,test_freq=5,save_freq=100,wd=0.,gamma=None):
 
     if opt=='adam':
         optimizer = Adam(newNetwork.parameters(), lr=lr,weight_decay=wd) # 8e-5
@@ -11,6 +11,8 @@ def train(newNetwork,dataloaders,nEpochs,opt='adam',lr=5e-5,test_freq=5,save_fre
         optimizer = SGD(newNetwork.parameters(), lr=lr,weight_decay=wd) # 8e-5
     if gamma != None:
         scheduler = lr_scheduler.ExponentialLR(optimizer=optimizer,gamma=gamma)
+    else:
+        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer=optimizer,mode='min',factor=0.5,patience=20,min_lr=1e-10)
     for epoch in tqdm(range(1,nEpochs + 1),desc='Training linear latent sde'):
 
         trainLoss,optimizer = newNetwork.train_epoch(dataloaders['train'],optimizer)
