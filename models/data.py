@@ -141,7 +141,10 @@ def generate_stochastic_lorenz(n=100,T=100,dt=1,coeffs=[10,28,8/3,0.15,0.15,0.15
 		allPaths.append(xx)
 
 	if zscore:
-		allPaths = [(x - np.nanmean(x,axis=0,keepdims=True))/np.nanstd(x,axis=0,keepdims=True) for x in allPaths]
+		stacked = np.vstack(allPaths)
+		mu = np.nanmean(stacked,axis=0)
+		sd = np.nanstd(stacked,axis=0)
+		allPaths = [(x - mu)/sd for x in allPaths]
 	inds = np.tril_indices(3)
 	
 	mu_fnc = lambda x,dt=0.001: np.vstack([(sigma * (x[:,1] - x[:,0])).detach().cpu().numpy() * dt,

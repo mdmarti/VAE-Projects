@@ -1,6 +1,6 @@
 from torch.optim import Adam, lr_scheduler,SGD
 from tqdm import tqdm 
-from data import toyDataset
+#from data import toyDataset
 import torchvision
 
 def train(newNetwork,dataloaders,nEpochs,opt='adam',lr=5e-5,test_freq=5,save_freq=100,wd=0.,gamma=None):
@@ -33,25 +33,36 @@ def train(newNetwork,dataloaders,nEpochs,opt='adam',lr=5e-5,test_freq=5,save_fre
     print(f"Final test loss: {testLoss/len(dataloaders['test'])}")
     return newNetwork
 
-def trainAlternating(newNetwork,dataloaders,nEpochs,lr=5e-5,test_freq=5,save_freq=100,wd=0.,step_size=100):
+def trainAlternating(newNetwork,dataloaders,nEpochs,lr=5e-5,switch_freq = 2,test_freq=5,save_freq=100,wd=0.,gamma=None):
 
     mlpOptimizer = Adam(newNetwork.MLP.parameters(),lr=lr,weight_decay=wd)
     sigmaOptimizer = Adam(newNetwork.D.parameters(),lr=lr,weight_decay=wd)
     
-    if step_size != None:
-        mlpscheduler = lr_scheduler.StepLR(optimizer=mlpOptimizer,step_size=step_size//2,gamma=0.9)
-        sigmascheduler = lr_scheduler.StepLR(optimizer=sigmaOptimizer,step_size=step_size//2,gamma=0.9)
+    if gamma != None:
+        mlpscheduler = lr_scheduler.ExponentialLR(optimizer=mlpOptimizer,gamma=gamma)
+        sigmascheduler = lr_scheduler.ExponentialLR(optimizer=sigmaOptimizer,gamma=gamma)
+    else:
+        mlpscheduler = lr_scheduler.ReduceLROnPlateau(optimizer=mlpOptimizer,mode='min',factor=0.5,patience=20,min_lr=1e-10) 
+        sigmascheduler = lr_scheduler.ReduceLROnPlateau(optimizer=sigmaOptimizer,mode='min',factor=0.5,patience=20,min_lr=1e-10)    
+    
+    type = 'mu'
     for epoch in tqdm(range(1,nEpochs + 1),desc='Training linear latent sde'):
 
-        if epoch % 2 == 0:
+        if type == 'mu':
             trainLoss,mlpOptimizer = newNetwork.train_epoch(dataloaders['train'],mlpOptimizer)
-            if step_size != None:
-                mlpscheduler.step()
+            
+            mlpscheduler.step()
+
+            if epoch % switch_freq == 0:
+                type == 'sigma'
 
         else:
             trainLoss,sigmaOptimizer = newNetwork.train_epoch(dataloaders['train'],sigmaOptimizer)
-            if step_size != None:
-                sigmascheduler.step()
+            
+            sigmascheduler.step()
+
+            if epoch % switch_freq == 0:
+                type == 'mu'
            
         
         if epoch % test_freq == 0:
