@@ -51,23 +51,26 @@ def trainAlternating(newNetwork,dataloaders,nEpochs,lr=5e-5,switch_freq = 2,test
         if type == 'mu':
             trainLoss,mlpOptimizer = newNetwork.train_epoch(dataloaders['train'],mlpOptimizer)
             
-            mlpscheduler.step()
+            
 
             if epoch % switch_freq == 0:
                 type == 'sigma'
 
+            testLoss = newNetwork.test_epoch(dataloaders['test'])
+            mlpscheduler.step(testLoss)
         else:
             trainLoss,sigmaOptimizer = newNetwork.train_epoch(dataloaders['train'],sigmaOptimizer)
             
-            sigmascheduler.step()
+            
 
             if epoch % switch_freq == 0:
                 type == 'mu'
-           
-        
-        if epoch % test_freq == 0:
             testLoss = newNetwork.test_epoch(dataloaders['test'])
-            
+            sigmascheduler.step(testLoss)
+        
+        
+        
+        
             #Ds = newNetwork.D(next(iter(dataloaders['test']))).detach().cpu()
             #grid = torchvision.utils.make_grid(Ds[0:4,:],nrow=1)
             #newNetwork.writer.add_image('D matrix',grid,newNetwork.epoch)
