@@ -165,7 +165,7 @@ class linearLatentSDE(latentSDE,nn.Module):
 
 		return loss
 	
-	def train_epoch(self, loader, optimizer):
+	def train_epoch(self, loader, optimizer,grad_clipper=None):
 
 		self.train()
 
@@ -173,6 +173,8 @@ class linearLatentSDE(latentSDE,nn.Module):
 		for batch in loader:
 			loss = self.forward(batch)
 			loss.backward()
+			if grad_clipper != None:
+				grad_clipper(self.parameters())
 			epoch_loss += loss.item()
 			optimizer.step()
 
@@ -449,7 +451,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 
 		return loss,F,D
 	
-	def train_epoch(self, loader, optimizer):
+	def train_epoch(self, loader, optimizer,grad_clipper=None):
 
 		self.train()
 
@@ -462,6 +464,8 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		for ii,batch in enumerate(loader):
 			loss,mu,d = self.forward(batch)
 			loss.backward()
+			if grad_clipper != None:
+				grad_clipper(self.parameters())
 			epoch_loss += loss.item()
 			optimizer.step()
 			epoch_mus.append(mu.detach().cpu().numpy())
