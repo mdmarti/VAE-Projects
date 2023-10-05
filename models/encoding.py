@@ -34,18 +34,22 @@ class encoder(ABC):
 		raise NotImplementedError
 	
 
-class linearEncoder(encoder):
+class linearEncoder(encoder,nn.Module):
 
 	def __init__(
 			self,
 			data_dim: int,
 			latent_dim: int,
-			has_bias: bool=True) -> None:
+			has_bias: bool=True,
+			device: str='cuda') -> None:
 		
+		super(linearEncoder,self).__init__()
 		self.data_dim = data_dim
 		self.latent_dim = latent_dim
 		self.bias= has_bias
 		self.F = nn.Linear(data_dim,latent_dim,bias=has_bias)
+		self.device = device
+		self.to(self.device)
 
 	def forward(self, 
 				data: torch.FloatTensor, 
@@ -58,7 +62,7 @@ class linearEncoder(encoder):
 			return self.F(data.detach())
 		
 
-class MLPEncoder(linearEncoder):
+class MLPEncoder(linearEncoder,nn.Module):
 
 	def __init__(
 			self,
@@ -66,11 +70,10 @@ class MLPEncoder(linearEncoder):
 			latent_dim: int,
 			n_hidden=0,
 			hidden_size=10,
-			has_bias: bool=True) -> None:
+			has_bias: bool=True,
+			device: str='cuda') -> None:
 		
-		self.data_dim = data_dim
-		self.latent_dim = latent_dim
-		self.bias= has_bias
+		super(linearEncoder,self).__init__(data_dim,latent_dim,has_bias,device)
 		F = []
 		for _ in range(n_hidden):
 			F = F + [nn.Linear(hidden_size,hidden_size),nn.Softplus()] 
@@ -79,6 +82,8 @@ class MLPEncoder(linearEncoder):
 						[nn.Linear(hidden_size,self.latent_dim)]
 
 		self.F = nn.Sequential(*F)
+		
+		self.to(self.device)
 
 class ConvEncoder(linearEncoder):
 
@@ -88,7 +93,8 @@ class ConvEncoder(linearEncoder):
 			latent_dim: int,
 			n_conv=5,
 			hidden_size=10,
-			has_bias: bool=True) -> None:
+			has_bias: bool=True,
+			device:str='cuda') -> None:
 		
 		"""
 		this is going to be hard-coded because i dont want to
@@ -101,11 +107,12 @@ class ConvEncoder(linearEncoder):
 
 		WIP
 		"""
-		self.data_dim = data_dim
-		self.latent_dim = latent_dim
-		self.bias= has_bias
-		F = [nn.Conv2d(in_channels=1,out_channels=4)]
+		super(linearEncoder,self).__init__(data_dim,latent_dim,has_bias)
 
+		
+		F = [nn.Conv2d(in_channels=1,out_channels=4)]
+		
+		self.to(self.device)
 
 
 def _softmax(x:np.array):
