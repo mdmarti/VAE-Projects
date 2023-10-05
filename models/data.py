@@ -233,3 +233,40 @@ def makeToyDataloaders(ds1,ds2,dt,batch_size=512):
 			      num_workers=4)
 	
 	return {'train':trainDataLoader,'test':testDataLoader}
+
+
+def compareSwirlsModels(nTrajs, dim,muFnc, sigFnc, model,dt=0.001,T=1):
+
+	trueTrajs = []
+	modelTrajs=[]
+	t = np.arange(0,T,dt)
+	for traj in range(nTrajs):
+		xnot = 0.1 + 0.03**2 * np.random.randn(dim)
+		noisePath = np.random.randn((dim,len(t)))*np.sqrt(dt)
+		
+		xxTrue = [xnot]
+		xxModel = [torch.from_numpy(xnot).type(torch.FloatTensor).to(model.device)]
+		for time in range(len(t)):
+
+
+			xPrevTrue = xxTrue[time]
+			xPrevModel = xxModel[time]
+
+			dzTrue = muFnc(xPrevTrue)*dt + noisePath[:,time] * sigFnc(xPrevTrue)
+			mu,L = model.getMoments(xPrevModel)
+			dzModel = mu * dt + L @ noisePath[:,time]
+
+			xxTrue.append(xxTrue[time] + dzTrue)
+			xxModel.append(xxModel[time] + dzModel)
+
+		xxModel = [x.detach().cpu().numpy() for x in xxModel]
+
+		trueTrajs.append(np.array(xxTrue))
+		modelTrajs.append(np.array(xxModel))
+
+	return trueTrajs,modelTrajs
+
+
+
+
+
