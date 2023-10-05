@@ -417,7 +417,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		### estimate cholesky factor ####
 		L = torch.zeros(zt1.shape[0],self.dim,self.dim).to(self.device)
 		D = torch.exp(self.D(zt1))
-		L[:,self.chol_inds[0],self.chol_inds[1]] = D 
+		L[:,self.chol_inds[0],self.chol_inds[1]] = D* torch.sqrt(dt) 
 		####### invert cholesky factor #######
 		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape[0],1,1).to(self.device)
 		invChol = torch.linalg.solve_triangular(L,eyes,upper=False)
@@ -474,7 +474,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 			true_p1.append(self.true1(batch[0]))
 			true_p2.append(self.true2(batch[0]))
 
-			if (ii == batchInd) & (self.epoch % 5 ==0) & self.plotDists:
+			if (ii == batchInd) & (self.epoch % 100 ==0) & self.plotDists:
 				
 				self._add_quiver(batch[0].detach().cpu().numpy(),mu.detach().cpu().numpy(),self.true1(batch[0]),self.p1name,'Train')
 		epoch_mus = np.vstack(epoch_mus)
@@ -494,7 +494,36 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		self.epoch += 1
 	
 		return epoch_loss,optimizer
-	
+
+	def val_epoch(self,loader):
+
+		self.eval()
+		with torch.no_grad():
+			epoch_loss = 0.
+			epoch_mus = []
+			epoch_Ds = []
+			true_p1 = []
+			true_p2 = []
+			batchInd = np.random.choice(len(loader))
+			for ii,batch in enumerate(loader):
+				loss,mu,d = self.forward(batch)
+				
+				epoch_loss += loss.item()
+
+				epoch_mus.append(mu.detach().cpu().numpy())
+				epoch_Ds.append(d.detach().cpu().numpy())
+				true_p1.append(self.true1(batch[0]))
+				true_p2.append(self.true2(batch[0]))
+				
+		epoch_mus = np.vstack(epoch_mus)
+		epoch_Ds = np.vstack(epoch_Ds)
+		true_p1 = np.vstack(true_p1)
+		true_p2 = np.vstack(true_p2)
+
+		self.writer.add_scalar('Test/loss',epoch_loss/len(loader),self.epoch)
+
+		return epoch_loss
+
 	def test_epoch(self,loader):
 
 		self.eval()
@@ -716,14 +745,14 @@ class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 		### estimate cholesky factor ####
 		D = torch.exp(self.D(zt1))
 		L = torch.zeros(zt1.shape[0],self.dim,self.dim).to(self.device)
-		L[:,self.chol_inds[0],self.chol_inds[1]] = D 
+		L[:,self.chol_inds[0],self.chol_inds[1]] = D /torch.sqrt(dt)
 		#### Precision ###########
-		precision = L @ L.transpose(-2,-1) /dt
+		precision = L @ L.transpose(-2,-1)#/dt
 		####### invert cholesky factor #######
 		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape[0],1,1).to(self.device)
 		LInv = torch.linalg.solve_triangular(L,eyes,upper=False)
 		###### covariance #####
-		cov = LInv.transpose(-2,-1) @ LInv * dt
+		cov = LInv.transpose(-2,-1) @ LInv# * dt
 		
 		##### calculate loss ###################
 		c = -self.dim/2 * np.log(2*torch.pi)

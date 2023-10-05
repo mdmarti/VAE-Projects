@@ -106,10 +106,11 @@ def generate_2d_swirls(n=100,T=1,dt=0.001,theta=10,mu=1.01,sigma=0.5,x0=np.array
 	lam_fnc = lambda x: (torch.diag_embed(1/(sigma * x))).detach().cpu().numpy()[:,inds[0],inds[1]]
 	return allPaths,(mu_fnc,d_fnc),(eta_fnc,lam_fnc)
 
-def generate_stochastic_lorenz(n=100,T=100,dt=1,coeffs=[10,28,8/3,0.15,0.15,0.15],zscore=False):
+def generate_stochastic_lorenz(n=100,T=1,dt=0.001,coeffs=[10,28,8/3,0.15,0.15,0.15],zscore=False):
 
 	sigma,rho,beta = coeffs[0],coeffs[1],coeffs[2]
-	A1,A2,A3 = coeffs[0],coeffs[1],coeffs[2]
+	A = np.array([coeffs[0],coeffs[1],coeffs[2]])
+	Sig = np.eye(3) * A
 	t = np.arange(0,T,dt)
 	
 	allPaths = [ ]
@@ -127,13 +128,13 @@ def generate_stochastic_lorenz(n=100,T=100,dt=1,coeffs=[10,28,8/3,0.15,0.15,0.15
 			y = prev[1]
 			z = prev[2]
 
-			sample_dW = np.sqrt(dt) * np.random.randn(3)
-			dx = sigma * (y - x)*dt +A1 * sample_dW[0]
-			dy = (x * (rho - z) - y)*dt +A2 * sample_dW[1]
-			dz = (x*y  - beta*z)*dt +A3 * sample_dW[2]
+			sample_dW = A @ (np.sqrt(dt) * np.random.randn(3))
+			dx = sigma * (y - x)*dt #+ sample_dW[0]
+			dy = (x * (rho - z) - y)*dt #+ sample_dW[1]
+			dz = (x*y  - beta*z)*dt #+ sample_dW[2]
 
 			#assert (abs(dx) < 200) & (abs(dy) < 200) & (abs(dz)<200),print(dx,dy,dz,ii,jj)
-			xx.append(xx[jj-1] + np.hstack([dx,dy,dz]))
+			xx.append(xx[jj-1] + np.hstack([dx,dy,dz]) + sample_dW)
 
 		xx = np.vstack(xx)
 		assert xx.shape[0] == (len(t) + 1), print(xx.shape)

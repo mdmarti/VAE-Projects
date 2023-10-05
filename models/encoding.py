@@ -1,7 +1,7 @@
 from abc import ABC 
 from abc import abstractmethod
 from typing import Optional, Union, Tuple, Any
-
+import numpy as np
 import torch
 import torch.nn as nn
 
@@ -97,9 +97,63 @@ class ConvEncoder(linearEncoder):
 		YOU BREAK IT
 
 		YOU BUY IT BADABING BADABOOM
+		Just use the version from AVA
+
+		WIP
 		"""
 		self.data_dim = data_dim
 		self.latent_dim = latent_dim
 		self.bias= has_bias
 		F = [nn.Conv2d(in_channels=1,out_channels=4)]
+
+
+
+def _softmax(x:np.array):
+
+	m = np.amax (x,axis=1)
+	e_x = np.exp(x - m)
+	return e_x/np.sum(e_x,axis=1) 
+
+class projection:
+
+	"""
+	
+	we just need one class for this
+	"""
+
+	def __init__(self,origDim,newDim, projType='linear') -> None:
+		self.d1 = origDim
+		self.d2 = newDim
+		self.projType=projType 
+		self.W = np.random.randn(origDim,newDim)
+		if projType == 'linear':
+			
+
+			self.projection = lambda x: x @ self.W 
 		
+		elif projType == 'softmax':
+
+			self.projection = lambda x: _softmax(x @ self.W)
+
+		else:
+			print('Method must be softmax or linear')
+			raise NotImplementedError
+
+	
+	def project(
+		self,
+		data: np.array,
+	 ) -> np.array:
+		
+		r"""
+		Return batch projectiojns.
+		
+
+		Args: 
+			data: what we are embedding in a higher-d space
+			
+		"""
+
+		return self.projection(data)
+	
+

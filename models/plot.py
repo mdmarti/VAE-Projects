@@ -7,7 +7,7 @@ def plotSamples3d(true,generated,n=100):
 	fig = plt.figure()
 	ax1 = fig.add_subplot(121,projection='3d')
 	ax2 = fig.add_subplot(122,projection='3d')
-	order = np.random.choice(len(true),100,replace=False)
+	order = np.random.choice(len(true),n,replace=False)
 	for o in order:
 		t = true[o]
 		ax1.plot(t[:,0],t[:,1],t[:,2])
@@ -15,7 +15,7 @@ def plotSamples3d(true,generated,n=100):
 	ax1.set_yticks([])
 	ax1.set_zticks([])
 		
-	order = np.random.choice(len(true),100,replace=False)
+	order = np.random.choice(len(true),n,replace=False)
 
 	for o in order:
 		g = generated[o]
@@ -25,11 +25,11 @@ def plotSamples3d(true,generated,n=100):
 	ax2.set_zticks([])
 	plt.show()
 
-def plotSamples1d(true,generated):
+def plotSamples1d(true,generated,n=100):
 	fig = plt.figure()
 	ax1 = fig.add_subplot(121)
 	ax2 = fig.add_subplot(122)
-	order = np.random.choice(len(true),100,replace=False)
+	order = np.random.choice(len(true),n,replace=False)
 	true_lims = (np.amin(true)-0.1,np.amax(true)+0.1)
 	for o in order:
 		t = true[o].squeeze()
@@ -41,7 +41,7 @@ def plotSamples1d(true,generated):
 	#ax1.set_yticks([])
 
 	
-	order = np.random.choice(len(generated),100,replace=False)
+	order = np.random.choice(len(generated),n,replace=False)
 
 	for o in order:
 		g = generated[o].squeeze()
@@ -53,12 +53,12 @@ def plotSamples1d(true,generated):
 	#ax1.set_yticks([])
 	plt.show()
 
-def plotSamples2d(true: list, samples: list) -> None:
+def plotSamples2d(true: list, samples: list,n=100) -> None:
 
 	fig = plt.figure()
 	ax1 = fig.add_subplot(121)
 	ax2 = fig.add_subplot(122)
-	order = np.random.choice(len(true),100,replace=False)
+	order = np.random.choice(len(true),n,replace=False)
 	mins, maxs = np.amin(np.vstack(true),axis=0),np.amax(np.vstack(true),axis=0)
 	
 	true_xlims = (mins[0]-0.1,maxs[0]+0.1)
@@ -75,7 +75,7 @@ def plotSamples2d(true: list, samples: list) -> None:
 	#ax1.set_yticks([])
 
 	
-	order = np.random.choice(len(samples),100,replace=False)
+	order = np.random.choice(len(samples),n,replace=False)
 	mins, maxs = np.amin(np.vstack(samples),axis=0),np.amax(np.vstack(samples),axis=0)
 	
 	true_xlims = (mins[0]-0.1,maxs[0]+0.1)
