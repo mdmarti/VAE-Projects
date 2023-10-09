@@ -16,7 +16,48 @@ class EmbeddingSDE(nn.Module):
 		self.device=device
 		self.to(self.device)
 
+	def _add_dist_figure(self,estimates:np.ndarray,name:str,dim:int,epoch_type:str='Train'):
+		plt.rcParams.update({'font.size': 22})
+		#estimates = estimates.detach().cpu().numpy()
+		#ground = ground.detach().cpu().numpy()
+		
+		assert len(estimates) > 1
+		
+		fig1 = plt.figure(figsize=(10,10))
 
+		plt.figure(fig1)
+		ax = plt.gca()
+		sns.kdeplot(data=estimates,color="#3B93B3",alpha=0.8,label=f"Model estimated {name}",ax=ax)
+		ax.set_xlabel(f"{name}")
+		ax.set_ylabel("Density")
+		ax.set_yticks([])
+		rangeVals = np.amax(estimates) - np.amin(estimates)
+		#ax.set_xlim([np.amin(estimates) - 3*rangeVals,np.amax(estimates) + 3*rangeVals])
+		plt.legend()
+
+		self.sde.writer.add_figure(f'{epoch_type}/{name} dim {dim}',fig1,close=True,global_step=self.sde.epoch)
+		
+
+	def _add_quiver(self,data:np.ndarray,estimates:np.ndarray,name:str,epoch_type:str='Train'):
+		
+		fig2 = plt.figure(figsize=(10,10))
+
+		plt.figure(fig2)
+		ax = plt.gca()
+		
+		ax.quiver(data[:,0],data[:,1],estimates[:,0],estimates[:,1],color="#3B93B3",label=f"Model estimated {name}")
+		ax.set_xlabel(f"{name} 1")
+		ax.set_ylabel(f"{name} 2")
+		#ax.set_yticks([])
+		#ax.set_xticks([])
+		#rangeVals = np.amax(estimates) - np.amin(estimates)
+		#ax.set_xlim([np.amin(estimates) - 3*rangeVals,np.amax(estimates) + 3*rangeVals])
+		plt.legend()
+		
+		self.sde.writer.add_figure(f'{epoch_type}/{name} quiver',fig2,close=True,global_step=self.sde.epoch)
+
+		return
+	
 	def encode_trajectory(self,data):
 
 		return self.encoder.forward(data.to(self.device)).detach().cpu().numpy()
@@ -62,8 +103,7 @@ class EmbeddingSDE(nn.Module):
 		epoch_loss = 0.
 		epoch_mus = []
 		epoch_Ds = []
-		true_p1 = []
-		true_p2 = []
+
 		batchInd = np.random.choice(len(loader),1)
 
 		for ii,batch in enumerate(loader):
@@ -77,28 +117,24 @@ class EmbeddingSDE(nn.Module):
 			optimizer.step()
 			epoch_mus.append(mu.detach().cpu().numpy())
 			epoch_Ds.append(d.detach().cpu().numpy())
-			
-			true_p1.append(self.sde.true1(z1))
-			true_p2.append(self.sde.true2(z1))
 
 
 			if (ii == batchInd) & (self.sde.epoch % 100 ==0) & self.sde.plotDists:
 				
-				self.sde._add_quiver(z1.detach().cpu().numpy(),mu.detach().cpu().numpy(),self.sde.true1(z1),self.sde.p1name,'Train')
+				self._add_quiver(z1.detach().cpu().numpy(),mu.detach().cpu().numpy(),self.sde.p1name,'Train')
 		epoch_mus = np.vstack(epoch_mus)
 		epoch_Ds = np.vstack(epoch_Ds)
-		true_p1 = np.vstack(true_p1)
-		true_p2 = np.vstack(true_p2)
+
 
 		self.sde.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.sde.epoch)
-		if self.sde.plotDists & (self.sde.epoch % 50 == 0):
+		if self.sde.plotDists & (self.sde.epoch % 100 == 0):
 			
 			for d in range(self.sde.dim):
 				
-				self.sde._add_dist_figure(epoch_mus[:,d],true_p1[:,d],self.sde.p1name,d+1,'Train')
+				self._add_dist_figure(epoch_mus[:,d],self.sde.p1name,d+1,'Train')
 				#self.sde.writer.add_scalars(f'Train/{self.sde.p2name} dim {d+1}',{'estimated':epoch_sigs[d],'true':self.sde.true2[d]},self.sde.epoch)
 			for d in range(self.sde.n_entries):
-				self.sde._add_dist_figure(epoch_Ds[:,d],true_p2[:,d],self.sde.p2name,d+1,'Train')
+				self._add_dist_figure(epoch_Ds[:,d],self.sde.p2name,d+1,'Train')
 		self.sde.epoch += 1
 	
 		return epoch_loss,optimizer
@@ -111,9 +147,7 @@ class EmbeddingSDE(nn.Module):
 			epoch_loss = 0.
 			epoch_mus = []
 			epoch_Ds = []
-			true_p1 = []
-			true_p2 = []
-			batchInd = np.random.choice(len(loader))
+
 			for ii,batch in enumerate(loader):
 				loss,z1,z2,mu,d = self.forward(batch)
 				
@@ -121,13 +155,11 @@ class EmbeddingSDE(nn.Module):
 
 				epoch_mus.append(mu.detach().cpu().numpy())
 				epoch_Ds.append(d.detach().cpu().numpy())
-				true_p1.append(self.sde.true1(z1))
-				true_p2.append(self.sde.true2(z1))
+
 				
 		epoch_mus = np.vstack(epoch_mus)
 		epoch_Ds = np.vstack(epoch_Ds)
-		true_p1 = np.vstack(true_p1)
-		true_p2 = np.vstack(true_p2)
+
 
 		self.sde.writer.add_scalar('Test/loss',epoch_loss/len(loader),self.sde.epoch)
 
@@ -140,8 +172,7 @@ class EmbeddingSDE(nn.Module):
 			epoch_loss = 0.
 			epoch_mus = []
 			epoch_Ds = []
-			true_p1 = []
-			true_p2 = []
+
 			batchInd = np.random.choice(len(loader))
 			for ii,batch in enumerate(loader):
 				loss,z1,z2,mu,d = self.forward(batch)
@@ -150,23 +181,20 @@ class EmbeddingSDE(nn.Module):
 
 				epoch_mus.append(mu.detach().cpu().numpy())
 				epoch_Ds.append(d.detach().cpu().numpy())
-				true_p1.append(self.sde.true1(z1))
-				true_p2.append(self.sde.true2(z1))
+
 				if (ii == batchInd) & self.sde.plotDists:
-					self.sde._add_quiver(z1.detach().cpu().numpy(),mu.detach().cpu().numpy(),self.sde.true1(z1),self.sde.p1name,'Test')
+					self._add_quiver(z1.detach().cpu().numpy(),mu.detach().cpu().numpy(),self.sde.p1name,'Test')
 
 		epoch_mus = np.vstack(epoch_mus)
 		epoch_Ds = np.vstack(epoch_Ds)
-		true_p1 = np.vstack(true_p1)
-		true_p2 = np.vstack(true_p2)
 
 		self.sde.writer.add_scalar('Test/loss',epoch_loss/len(loader),self.sde.epoch)
 		if self.sde.plotDists:
 			for d in range(self.sde.dim):
-				self.sde._add_dist_figure(epoch_mus[:,d],true_p1[:,d],self.sde.p1name,d+1,'Test')
+				self._add_dist_figure(epoch_mus[:,d],self.sde.p1name,d+1,'Test')
 				#self.sde.writer.add_scalars(f'Train/{self.sde.p2name} dim {d+1}',{'estimated':epoch_sigs[d],'true':self.sde.true2[d]},self.sde.epoch)
 			for d in range(self.sde.n_entries):
-				self.sde._add_dist_figure(epoch_Ds[:,d],true_p2[:,d],self.sde.p2name,d+1,'Test')
+				self._add_dist_figure(epoch_Ds[:,d],self.sde.p2name,d+1,'Test')
 		"""
 		for d in range(self.sde.dim):
 			if self.sde.plotDists:

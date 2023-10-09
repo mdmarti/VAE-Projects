@@ -82,7 +82,7 @@ class MLPEncoder(linearEncoder,nn.Module):
 						[nn.Linear(hidden_size,self.latent_dim)]
 
 		self.F = nn.Sequential(*F)
-		
+
 		self.to(self.device)
 
 class ConvEncoder(linearEncoder):
@@ -91,8 +91,6 @@ class ConvEncoder(linearEncoder):
 			self,
 			data_dim: int,
 			latent_dim: int,
-			n_conv=5,
-			hidden_size=10,
 			has_bias: bool=True,
 			device:str='cuda') -> None:
 		
@@ -107,12 +105,54 @@ class ConvEncoder(linearEncoder):
 
 		WIP
 		"""
-		super(linearEncoder,self).__init__(data_dim,latent_dim,has_bias)
+		super(ConvEncoder,self).__init__(data_dim,latent_dim,has_bias)
 
 		
-		F = [nn.Conv2d(in_channels=1,out_channels=4)]
+		self.conv = nn.Sequential([nn.BatchNorm2d(1),
+						  nn.Conv2d(1, 8, 3,1,padding=1),
+						  nn.ReLU(),
+						  nn.BatchNorm2d(8),
+						  nn.Conv2d(8, 8, 3,2,padding=1),
+						  nn.ReLU(),
+						  nn.BatchNorm2d(8),
+						  nn.Conv2d(8, 16,3,1,padding=1),
+						  nn.ReLU(),
+						  nn.BatchNorm2d(16),
+						  nn.Conv2d(16,16,3,2,padding=1),
+						  nn.ReLU(),
+						  nn.BatchNorm2d(16),
+						  nn.Conv2d(16,24,3,1,padding=1),
+						  nn.ReLU(),
+						  nn.BatchNorm2d(24),
+						  nn.Conv2d(24,24,3,2,padding=1),
+						  nn.ReLU(),
+						  nn.BatchNorm2d(24),
+						  nn.Conv2d(24,32,3,1,padding=1),
+						  nn.ReLU()])
+		self.linear = nn.Sequential([nn.Linear(8192,1024),
+							   nn.ReLU(),
+							   nn.Linear(1024,256),
+							   nn.ReLU(),
+							   nn.Linear(256,64),
+							   nn.ReLU(),
+							   nn.Linear(64,self.z_dim)])
 		
+		self.device=device
 		self.to(self.device)
+
+	def forward(self, 
+				data: torch.FloatTensor, 
+				pass_gradient: bool = True
+				) -> torch.FloatTensor:
+		
+		if pass_gradient:
+			intmdt = self.conv(data)
+			
+		else:
+			intmdt = self.conv(data.detach())
+		
+		intmdt = intmdt.view(-1,8192)
+		return self.linear(intmdt)
 
 
 def _softmax(x:np.array):
