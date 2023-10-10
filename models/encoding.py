@@ -73,7 +73,7 @@ class MLPEncoder(linearEncoder,nn.Module):
 			has_bias: bool=True,
 			device: str='cuda') -> None:
 		
-		super(linearEncoder,self).__init__(data_dim,latent_dim,has_bias,device)
+		super(MLPEncoder,self).__init__(data_dim,latent_dim,has_bias,device)
 		F = []
 		for _ in range(n_hidden):
 			F = F + [nn.Linear(hidden_size,hidden_size),nn.Softplus()] 

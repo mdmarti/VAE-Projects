@@ -1,5 +1,5 @@
 import torch
-from encoding import *
+from encoding import linearEncoder
 from decoding import *
 import torch.nn as nn
 from torch.distributions import LowRankMultivariateNormal
@@ -108,8 +108,115 @@ class VAE(nn.Module):
 	
 	def encode_trajectory(self,data):
 
-		return self.encoder.forward(data.to(self.device)).detach().cpu().numpy()
+		return self.encoder.forward(data.to(self.device)).detach().cpu().numpy()	
 
+class MLPEncoder(linearEncoder,nn.Module):
+
+	def __init__(
+			self,
+			data_dim: int,
+			latent_dim: int,
+			n_hidden=0,
+			hidden_size=10,
+			has_bias: bool=True,
+			device: str='cuda') -> None:
+		
+		super(MLPEncoder,self).__init__(data_dim,latent_dim,has_bias,device)
+		F = []
+		for _ in range(n_hidden):
+			F = F + [nn.Linear(hidden_size,hidden_size),nn.Softplus()] 
+		F = [nn.Linear(self.data_dim,hidden_size),nn.Softplus()] + F 
+		self.F = nn.Sequential(*F)
+		self.mu = nn.Linear(hidden_size,self.latent_dim)
+
+		self.u = nn.Linear(hidden_size,self.latent_dim)
+		self.d = nn.Linear(hidden_size,self.latent_dim)
+		self.to(self.device)
+
+	def forward(self, 
+				data: torch.FloatTensor, 
+				pass_gradient: bool = True
+				) -> torch.FloatTensor:
+		
+		if pass_gradient:
+			intmdt = self.F(data)
 			
+		else:
+			intmdt = self.F(data.detach())
+		
+		return self.mu(intmdt),self.u(intmdt).unsqueeze(-1), torch.exp(self.d(intmdt))
 
+class ConvEncoder(linearEncoder):
 
+	def __init__(
+			self,
+			data_dim: int,
+			latent_dim: int,
+			has_bias: bool=True,
+			device:str='cuda') -> None:
+		
+		"""
+		this is going to be hard-coded because i dont want to
+		do any math if you wanna change it deal with it yourself
+
+		YOU BREAK IT
+
+		YOU BUY IT BADABING BADABOOM
+		Just use the version from AVA
+
+		WIP
+		"""
+		super(ConvEncoder,self).__init__(data_dim,latent_dim,has_bias)
+
+		
+		self.conv = nn.Sequential([nn.BatchNorm2d(1),
+						  nn.Conv2d(1, 8, 3,1,padding=1),
+						  nn.ReLU(),
+						  nn.BatchNorm2d(8),
+						  nn.Conv2d(8, 8, 3,2,padding=1),
+						  nn.ReLU(),
+						  nn.BatchNorm2d(8),
+						  nn.Conv2d(8, 16,3,1,padding=1),
+						  nn.ReLU(),
+						  nn.BatchNorm2d(16),
+						  nn.Conv2d(16,16,3,2,padding=1),
+						  nn.ReLU(),
+						  nn.BatchNorm2d(16),
+						  nn.Conv2d(16,24,3,1,padding=1),
+						  nn.ReLU(),
+						  nn.BatchNorm2d(24),
+						  nn.Conv2d(24,24,3,2,padding=1),
+						  nn.ReLU(),
+						  nn.BatchNorm2d(24),
+						  nn.Conv2d(24,32,3,1,padding=1),
+						  nn.ReLU()])
+		self.linear = nn.Sequential([nn.Linear(8192,1024),
+							   nn.ReLU(),
+							   nn.Linear(1024,256),
+							   nn.ReLU()])
+		self.mu = nn.Sequential([nn.Linear(256,64),
+							   nn.ReLU(),
+							   nn.Linear(64,self.z_dim)])
+		self.u = nn.Sequential([nn.Linear(256,64),
+							   nn.ReLU(),
+							   nn.Linear(64,self.z_dim)])
+		self.d = nn.Sequential([nn.Linear(256,64),
+							   nn.ReLU(),
+							   nn.Linear(64,self.z_dim)])
+		self.device=device
+		self.to(self.device)
+
+	def forward(self, 
+				data: torch.FloatTensor, 
+				pass_gradient: bool = True
+				) -> torch.FloatTensor:
+		
+		if pass_gradient:
+			intmdt = self.conv(data)
+			
+		else:
+			intmdt = self.conv(data.detach())
+		
+		intmdt = intmdt.view(-1,8192)
+		intmdt = self.linear(intmdt)
+		return self.mu(intmdt),self.u(intmdt).unsqueeze(-1), torch.exp(self.d(intmdt))
