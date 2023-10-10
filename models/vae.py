@@ -5,6 +5,7 @@ import torch.nn as nn
 from torch.distributions import LowRankMultivariateNormal
 from torch.utils.tensorboard import SummaryWriter
 import os
+import numpy as np
 
 class VAE(nn.Module):
 
@@ -16,7 +17,7 @@ class VAE(nn.Module):
 		self.latent_dim=latent_dim
 		self.data_shape = data_shape
 		self.data_dim = np.prod(data_shape)
-		self.precision=model_precision 
+		self.model_precision=model_precision 
 		
 		self.encoder = encoder 
 		self.decoder = decoder 
@@ -31,10 +32,10 @@ class VAE(nn.Module):
 
 		mu,u,d = self.encoder.forward(x)
 		latent_dist = LowRankMultivariateNormal(mu,u,d)
-		z = latent_dist.rsample
+		z = latent_dist.rsample()
 		x_rec = self.decoder.forward(z)
 
-		elbo = -0.5 * (torch.sum(torch.pow(z,2)) + self.z_dim * np.log(2*np.pi))
+		elbo = -0.5 * (torch.sum(torch.pow(z,2)) + self.latent_dim * np.log(2*np.pi))
 		# E_{q(z|x)} p(x|z)
 		pxz_term = -0.5 * self.data_dim * (np.log(2*np.pi/self.model_precision))
 		l2s = torch.sum(torch.pow(x.view(x.shape[0],-1) - x_rec, 2), dim=1)
@@ -73,6 +74,8 @@ class VAE(nn.Module):
 			optimizer.step()
 
 		self.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.epoch)
+		self.epoch += 1
+		return epoch_loss, optimizer
 
 
 	def test_epoch(self,loader):
@@ -196,13 +199,13 @@ class ConvEncoder(linearEncoder):
 							   nn.ReLU()])
 		self.mu = nn.Sequential([nn.Linear(256,64),
 							   nn.ReLU(),
-							   nn.Linear(64,self.z_dim)])
+							   nn.Linear(64,self.latent_dim)])
 		self.u = nn.Sequential([nn.Linear(256,64),
 							   nn.ReLU(),
-							   nn.Linear(64,self.z_dim)])
+							   nn.Linear(64,self.latent_dim)])
 		self.d = nn.Sequential([nn.Linear(256,64),
 							   nn.ReLU(),
-							   nn.Linear(64,self.z_dim)])
+							   nn.Linear(64,self.latent_dim)])
 		self.device=device
 		self.to(self.device)
 

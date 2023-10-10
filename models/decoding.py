@@ -4,6 +4,7 @@ from abc import abstractmethod
 import torch 
 
 
+
 class decoder(ABC):
 	"""
 	
@@ -72,11 +73,11 @@ class MLPDecoder(linearDecoder,nn.Module):
 			has_bias: bool=True,
 			device: str='cuda') -> None:
 		
-		super(linearDecoder,self).__init__(data_dim,latent_dim,has_bias,device)
+		super(MLPDecoder,self).__init__(data_dim,latent_dim,has_bias,device)
 		F = []
 		for _ in range(n_hidden):
 			F = F + [nn.Linear(hidden_size,hidden_size),nn.Softplus()] 
-		F = [nn.Linear(self.latent,hidden_size),nn.Softplus()] + \
+		F = [nn.Linear(self.latent_dim,hidden_size),nn.Softplus()] + \
 						F + \
 						[nn.Linear(hidden_size,self.data_dim)]
 
