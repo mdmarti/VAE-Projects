@@ -154,7 +154,8 @@ class linearLatentSDE(latentSDE,nn.Module):
 		"""
 		##### calculate loss ###################
 		const = -self.dim/2 * np.log(2*torch.pi)
-		t1 = -torch.diagonal(precision,dim1=-2,dim2=-1).log().sum(axis=-1)
+		## |LL^T| = |L| |L^T| = 2|L| = 2 \prod_i L_ii
+		t1 = -torch.diagonal(chol,dim1=-2,dim2=-1).log().sum(axis=-1) + 2
 		assert len(t1.shape) == 1, print(t1.shape)
 		t2 = (dzTrue.transpose(-2,-1) @ precision @ dzTrue).squeeze()
 		assert len(t2.shape)==1,print(t2.shape)
@@ -396,7 +397,8 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		##### calculate loss ###################
 
 		const = -self.dim/2 * np.log(2*torch.pi)
-		t1 = -torch.diagonal(precision,dim1=-2,dim2=-1).log().sum(axis=-1)
+		## |LL^T| = |L| |L^T| = 2|L| = 2 \prod_i L_ii
+		t1 = -torch.diagonal(L,dim1=-2,dim2=-1).log().sum(axis=-1) + 2
 		assert len(t1.shape) == 1, print(t1.shape)
 		t2 = (dzTrue.transpose(-2,-1) @ precision @ dzTrue).squeeze()
 		assert len(t2.shape)==1,print(t2.shape)
@@ -443,7 +445,8 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		##### calculate loss ###################
 
 		const = -self.dim/2 * np.log(2*torch.pi)
-		t1 = -torch.diagonal(precision,dim1=-2,dim2=-1).log().sum(axis=-1)
+		## |LL^T| = |L| |L^T| = 2|L| = 2 \prod_i L_ii
+		t1 = -torch.diagonal(L,dim1=-2,dim2=-1).log().sum(axis=-1) + 2
 		assert len(t1.shape) == 1, print(t1.shape)
 		t2 = (dzTrue.transpose(-2,-1) @ precision @ dzTrue).squeeze()
 		assert len(t2.shape)==1,print(t2.shape)
@@ -776,7 +779,8 @@ class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 		
 		##### calculate loss ###################
 		c = -self.dim/2 * np.log(2*torch.pi)
-		t1 = -torch.diagonal(precision,dim1=-2,dim2=-1).log().sum(axis=-1)
+		## |LL^T| = |L| |L^T| = 2|L| = 2 \prod_i L_ii
+		t1 = -torch.diagonal(L,dim1=-2,dim2=-1).log().sum(axis=-1) + 2
 		assert (len(t1.shape) == 1) & (len(t1) == len(zt1)), print(t1.shape)
 		t2 = (dzTrue.transpose(-2,-1) @ precision @ dzTrue).squeeze()
 		assert (len(t2.shape)==1) &(len(t2) == len(zt1)),print(t2.shape)
