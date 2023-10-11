@@ -66,6 +66,9 @@ class latentSDE(nn.Module):
 		raise NotImplementedError 
 
 class linearLatentSDE(latentSDE,nn.Module):
+	"""
+	update here: parameterizing \mu (no change) and log square root factor of PRECISION
+	"""
 
 	def __init__(self,dim,save_dir='',diag=True):
 		super(linearLatentSDE,self).__init__(dim,save_dir=save_dir,diag=diag)
@@ -86,7 +89,11 @@ class linearLatentSDE(latentSDE,nn.Module):
 		chol = torch.zeros(data.shape[0],self.dim,self.dim).to(self.device)
 		D = torch.exp(self.D(data))
 		chol[:,self.chol_inds[0],self.chol_inds[1]] = D
-		return mu,chol
+		####### invert cholesky factor #######
+		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(data.shape,1,1).to(self.device)
+		invChol = torch.linalg.solve_triangular(chol,eyes)
+
+		return mu,invChol
 	
 	def getNatParams(self, data):
 		mu = self.MLP(data).view(data.shape[0],data.shape[1],1)
@@ -94,12 +101,10 @@ class linearLatentSDE(latentSDE,nn.Module):
 		chol = torch.zeros(data.shape[0],self.dim,self.dim).to(self.device)
 		D = torch.exp(self.D(data))
 		chol[:,self.chol_inds[0],self.chol_inds[1]] = D
-		####### invert cholesky factor #######
-		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(data.shape,1,1).to(self.device)
-		invChol = torch.linalg.solve_triangular(chol,eyes)
-		###### get precision and covariance #####
-		precision = invChol.transpose(-2,-1) @ invChol
-		return (precision @ mu).squeeze(),invChol
+		
+		###### get precision  #####
+		precision = chol.transpose(-2,-1) @ chol
+		return (precision @ mu).squeeze(),chol
 	
 	def generate(self,z0,T,dt):
 		t = np.arange(0,T,dt)
@@ -112,11 +117,15 @@ class linearLatentSDE(latentSDE,nn.Module):
 				prev = zz[jj]
 				
 				prev = torch.from_numpy(prev).type(torch.FloatTensor)
-				### estimate cholesky factor ####
+				
+				mu,chol = self.getMoments(prev)
+				mu = mu.view(1,mu.shape[1])
+				"""
 				chol = torch.zeros(prev.shape[0],self.dim,self.dim).to(self.device)
 				D = torch.exp(self.D(prev))
 				chol[:,self.chol_inds[0],self.chol_inds[1]] = D
-				dz = self.MLP(prev)*dt + chol @ sample_dW[jj,:]
+				"""
+				dz = mu*dt + chol @ sample_dW[jj,:]
 
 				zz.append(zz[jj] +dz.detach().cpu().numpy())
 
@@ -134,15 +143,18 @@ class linearLatentSDE(latentSDE,nn.Module):
 		chol = torch.zeros(zt1.shape[0],self.dim,self.dim).to(self.device)
 		D = torch.exp(self.D(zt1))
 		chol[:,self.chol_inds[0],self.chol_inds[1]] = D*np.sqrt(dt)
+		precision = chol.transpose(-2,-1) @ chol
+		"""
 		####### invert cholesky factor #######
 		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape,1,1).to(self.device)
 		invChol = torch.linalg.solve_triangular(chol,eyes)
 		###### get precision and covariance #####
 		precision = invChol.transpose(-2,-1) @ invChol
 		cov = chol.transpose(-2,1) @ chol
+		"""
 		##### calculate loss ###################
 		const = -self.dim/2 * np.log(2*torch.pi)
-		t1 = torch.logdet(cov).squeeze()
+		t1 = -torch.logdet(precision).squeeze()
 		assert len(t1.shape) == 1, print(t1.shape)
 		t2 = (dzTrue.transpose(-2,-1) @ precision @ dzTrue).squeeze()
 		assert len(t2.shape)==1,print(t2.shape)
@@ -215,7 +227,9 @@ class linearLatentSDE(latentSDE,nn.Module):
 		return
 	
 class nonlinearLatentSDE(latentSDE,nn.Module):
-
+	"""
+	new change: parameterize mu (no change) and log square root factor of PRECISION
+	"""
 	def __init__(self,dim:int,save_dir:str ='',true1:"function"=None,true2:"function"=None,
 	      p1name:str='mu',p2name:str='sigma',plotDists:bool=True,diag:bool=True,n_hidden=0,hidden_size=100):
 		
@@ -300,7 +314,10 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		chol = torch.zeros(data.shape[0],self.dim,self.dim).to(self.device)
 		D = torch.exp(self.D(data))
 		chol[:,self.chol_inds[0],self.chol_inds[1]] = D
-		return mu,chol
+		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(data.shape,1,1).to(self.device)
+		invChol = torch.linalg.solve_triangular(chol,eyes)
+
+		return mu,invChol
 	
 	def getNatParams(self, data: torch.FloatTensor):
 
@@ -313,11 +330,10 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		D = torch.exp(self.D(data))
 		chol[:,self.chol_inds[0],self.chol_inds[1]] = D
 		####### invert cholesky factor #######
-		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(data.shape,1,1).to(self.device)
-		invChol = torch.linalg.solve_triangular(chol,eyes)
+		
 		###### get precision and covariance #####
-		precision = invChol.transpose(-2,-1) @ invChol
-		return (precision @ mu).squeeze(),invChol
+		precision = chol.transpose(-2,-1) @ chol
+		return (precision @ mu).squeeze(),chol
 	
 
 	def generate(self,z0,T,dt):
@@ -372,15 +388,15 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		D = D.repeat(*DM.shape)
 		L[:,self.chol_inds[0],self.chol_inds[1]] = D*torch.sqrt(dt) 
 		####### invert cholesky factor #######
-		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape[0],1,1).to(self.device)
-		invChol = torch.linalg.solve_triangular(L,eyes,upper=False)
+		#eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape[0],1,1).to(self.device)
+		#invChol = torch.linalg.solve_triangular(L,eyes,upper=False)
 		###### get precision and covariance #####
-		precision = invChol.transpose(-2,-1) @ invChol 
-		cov = L @ L.transpose(-2,-1) 
+		precision = L.transpose(-2,-1) @ L 
+		#cov = L @ L.transpose(-2,-1) 
 		##### calculate loss ###################
 
 		const = -self.dim/2 * np.log(2*torch.pi)
-		t1 = torch.logdet(cov).squeeze()
+		t1 = -torch.logdet(precision).squeeze()
 		assert len(t1.shape) == 1, print(t1.shape)
 		t2 = (dzTrue.transpose(-2,-1) @ precision @ dzTrue).squeeze()
 		assert len(t2.shape)==1,print(t2.shape)
@@ -419,15 +435,15 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		D = torch.exp(self.D(zt1))
 		L[:,self.chol_inds[0],self.chol_inds[1]] = D* torch.sqrt(dt) 
 		####### invert cholesky factor #######
-		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape[0],1,1).to(self.device)
-		invChol = torch.linalg.solve_triangular(L,eyes,upper=False)
+		#eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape[0],1,1).to(self.device)
+		#invChol = torch.linalg.solve_triangular(L,eyes,upper=False)
 		###### get precision and covariance #####
-		precision = invChol.transpose(-2,-1) @ invChol 
-		cov = L @ L.transpose(-2,-1) 
+		precision = L.transpose(-2,-1) @ L 
+		#cov = L @ L.transpose(-2,-1) 
 		##### calculate loss ###################
 
 		const = -self.dim/2 * np.log(2*torch.pi)
-		t1 = torch.logdet(cov).squeeze()
+		t1 = -torch.logdet(precision).squeeze()
 		assert len(t1.shape) == 1, print(t1.shape)
 		t2 = (dzTrue.transpose(-2,-1) @ precision @ dzTrue).squeeze()
 		assert len(t2.shape)==1,print(t2.shape)
