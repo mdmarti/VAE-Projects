@@ -90,8 +90,8 @@ class linearLatentSDE(latentSDE,nn.Module):
 		D = torch.exp(self.D(data))
 		chol[:,self.chol_inds[0],self.chol_inds[1]] = D
 		####### invert cholesky factor #######
-		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(data.shape,1,1).to(self.device)
-		invChol = torch.linalg.solve_triangular(chol,eyes)
+		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(data.shape[0],1,1).to(self.device)
+		invChol = torch.linalg.solve_triangular(chol,eyes,upper=False)
 
 		return mu,invChol
 	
@@ -154,7 +154,7 @@ class linearLatentSDE(latentSDE,nn.Module):
 		"""
 		##### calculate loss ###################
 		const = -self.dim/2 * np.log(2*torch.pi)
-		t1 = -torch.logdet(precision).squeeze()
+		t1 = -torch.diagonal(precision,dim1=-2,dim2=-1).log().sum(axis=-1)
 		assert len(t1.shape) == 1, print(t1.shape)
 		t2 = (dzTrue.transpose(-2,-1) @ precision @ dzTrue).squeeze()
 		assert len(t2.shape)==1,print(t2.shape)
@@ -314,8 +314,8 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		chol = torch.zeros(data.shape[0],self.dim,self.dim).to(self.device)
 		D = torch.exp(self.D(data))
 		chol[:,self.chol_inds[0],self.chol_inds[1]] = D
-		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(data.shape,1,1).to(self.device)
-		invChol = torch.linalg.solve_triangular(chol,eyes)
+		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(data.shape[0],1,1).to(self.device)
+		invChol = torch.linalg.solve_triangular(chol,eyes,upper=False)
 
 		return mu,invChol
 	
@@ -396,7 +396,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		##### calculate loss ###################
 
 		const = -self.dim/2 * np.log(2*torch.pi)
-		t1 = -torch.logdet(precision).squeeze()
+		t1 = -torch.diagonal(precision,dim1=-2,dim2=-1).log().sum(axis=-1)
 		assert len(t1.shape) == 1, print(t1.shape)
 		t2 = (dzTrue.transpose(-2,-1) @ precision @ dzTrue).squeeze()
 		assert len(t2.shape)==1,print(t2.shape)
@@ -443,7 +443,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		##### calculate loss ###################
 
 		const = -self.dim/2 * np.log(2*torch.pi)
-		t1 = -torch.logdet(precision).squeeze()
+		t1 = -torch.diagonal(precision,dim1=-2,dim2=-1).log().sum(axis=-1)
 		assert len(t1.shape) == 1, print(t1.shape)
 		t2 = (dzTrue.transpose(-2,-1) @ precision @ dzTrue).squeeze()
 		assert len(t2.shape)==1,print(t2.shape)
@@ -453,7 +453,11 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		assert len(t4.shape) == 1,print(t4.shape)
 		log_pz2 = const - 1/2*(t1 + t2 + t3 + t4)
 		loss = - log_pz2
+		##### add in log prob under wishart prior here!!! #######
 
+		### p(Lam) = |Lam|^{(n-p-1)/2}e^{tr(V^{-1} Lam)/2}/2/
+
+		## torch.special.multigammaln multivariate log-gamma - check by hand!!!!
 		###########################################
 
 		return loss.sum(),mu.view(len(zt1),self.dim),D * torch.sqrt(dt)
@@ -772,7 +776,7 @@ class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 		
 		##### calculate loss ###################
 		c = -self.dim/2 * np.log(2*torch.pi)
-		t1 = -torch.logdet(precision).squeeze()
+		t1 = -torch.diagonal(precision,dim1=-2,dim2=-1).log().sum(axis=-1)
 		assert (len(t1.shape) == 1) & (len(t1) == len(zt1)), print(t1.shape)
 		t2 = (dzTrue.transpose(-2,-1) @ precision @ dzTrue).squeeze()
 		assert (len(t2.shape)==1) &(len(t2) == len(zt1)),print(t2.shape)
