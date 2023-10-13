@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import os
 from torch.utils.tensorboard import SummaryWriter
+from torch.special import multigammaln 
 import numpy as np
 from tqdm import tqdm
 import seaborn as sns
@@ -30,6 +31,8 @@ class latentSDE(nn.Module):
 			elif dim == 4: assert self.n_entries == 10
 		self.save_dir = save_dir
 		self.writer = SummaryWriter(log_dir = os.path.join(self.save_dir,'runs'))
+		self.logConstPrior = multigammaln(torch.tensor([self.n_entries/2]).to(self.device),self.dim) + \
+								self.dim * self.n_entries /2 * np.log(2)
 		self.epoch=0
 
 	def getMoments(self,data):
@@ -166,7 +169,19 @@ class linearLatentSDE(latentSDE,nn.Module):
 		log_pz2 = const - 1/2*(t1 + t2 + t3 + t4)
 		loss = - log_pz2
 		
-		
+		################## log constant prior ###########
+		# 
+		# 
+		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape[0],1,1).to(self.device) 
+		V = eyes/dt
+		invV = dt*eyes
+		 
+		t1P = -t1 * (self.n_entries - self.dim - 1)/2
+		t2P = -1/2 * torch.diagonal(invV @ precision,dim1=-2,dim2=-1).sum(axis=-1)
+		t3P = self.n_entries/2 * torch.diagonal(V,dim1=-2,dim2=-1).log().sum(axis=-1)
+		t4P = self.logConstPrior	
+		loss -= (t1P + t2P + t3P + t4P)
+
 		return loss.sum() 
 	
 	def forward(self,data):
@@ -409,6 +424,15 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		log_pz2 = const - 1/2*(t1 + t2 + t3 + t4)
 		loss = - log_pz2
 
+		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape[0],1,1).to(self.device) 
+		V = eyes/dt
+		invV = dt*eyes
+		 
+		t1P = -t1 * (self.n_entries - self.dim - 1)/2
+		t2P = -1/2 * torch.diagonal(invV @ precision,dim1=-2,dim2=-1).sum(axis=-1)
+		t3P = self.n_entries/2 * torch.diagonal(V,dim1=-2,dim2=-1).log().sum(axis=-1)
+		t4P = self.logConstPrior	
+		loss -= (t1P + t2P + t3P + t4P)
 		###########################################
 
 		return loss,mu.view(len(zt1),self.dim),D * torch.sqrt(dt)
@@ -460,6 +484,15 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 
 		### p(Lam) = |Lam|^{(n-p-1)/2}e^{tr(V^{-1} Lam)/2}/2/
 
+		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape[0],1,1).to(self.device) 
+		V = eyes/dt
+		invV = dt*eyes
+		 
+		t1P = -t1 * (self.n_entries - self.dim - 1)/2
+		t2P = -1/2 * torch.diagonal(invV @ precision,dim1=-2,dim2=-1).sum(axis=-1)
+		t3P = self.n_entries/2 * torch.diagonal(V,dim1=-2,dim2=-1).log().sum(axis=-1)
+		t4P = self.logConstPrior	
+		loss -= (t1P + t2P + t3P + t4P)
 		## torch.special.multigammaln multivariate log-gamma - check by hand!!!!
 		###########################################
 
@@ -791,6 +824,15 @@ class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 		log_pz2 = c - 1/2*(t1 + t2 + t3+t4)
 		loss = - log_pz2
 		###########################################
+		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape[0],1,1).to(self.device) 
+		V = eyes/dt
+		invV = dt*eyes
+		 
+		t1P = -t1 * (self.n_entries - self.dim - 1)/2
+		t2P = -1/2 * torch.diagonal(invV @ precision,dim1=-2,dim2=-1).sum(axis=-1)
+		t3P = self.n_entries/2 * torch.diagonal(V,dim1=-2,dim2=-1).log().sum(axis=-1)
+		t4P = self.logConstPrior	
+		loss -= (t1P + t2P + t3P + t4P)
 		return loss.sum(),eta.view(len(zt1),self.dim),D/torch.sqrt(dt)
 	
 
