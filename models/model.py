@@ -14,6 +14,8 @@ class EmbeddingSDE(nn.Module):
 		self.dataDim=dataDim
 		self.latentDim=latentDim 
 		self.device=device
+		self.mu=25
+		self.gamma = 1
 		self.to(self.device)
 
 	def _add_dist_figure(self,estimates:np.ndarray,name:str,dim:int,epoch_type:str='Train'):
@@ -58,6 +60,22 @@ class EmbeddingSDE(nn.Module):
 
 		return
 	
+	def _reg_sd(self,data,mu,epsilon):
+
+		n = data.shape[0]
+		var = ((data - mu)**2).sum(axis=0)/(n-1)
+		
+		return (var+epsilon).sqrt()
+	
+	def var_loss(self,batch,epsilon=1e-5):
+
+
+		mu = batch.mean(axis=0,keepdims=True)
+		sd = self._reg_sd(batch,mu,epsilon)
+		hinge = self.gamma - sd
+		inds = hinge < 0
+		hinge[inds] = 0.
+		return hinge.sum()/self.latentDim
 	
 	def encode_trajectory(self,data):
 
@@ -103,7 +121,10 @@ class EmbeddingSDE(nn.Module):
 			with torch.no_grad():
 				loss,mu,d = self.sde.loss(z1,z2,dt)
 
-		return loss,z1,z2,mu,d
+		varLoss = self.var_loss(z1) + self.var_loss(z2)
+		
+		loss += self.mu * varLoss
+		return loss,z1,z2,mu,d,varLoss
 
 	def train_epoch(self,loader,optimizer,grad_clipper=None,encode_grad=True,sde_grad=True):
 
@@ -111,17 +132,17 @@ class EmbeddingSDE(nn.Module):
 		epoch_loss = 0.
 		epoch_mus = []
 		epoch_Ds = []
-
+		vL = 0.
 		batchInd = np.random.choice(len(loader),1)
 
 		for ii,batch in enumerate(loader):
 
-			loss,z1,z2,mu,d = self.forward(batch,encode_grad,sde_grad)
+			loss,z1,z2,mu,d,vl = self.forward(batch,encode_grad,sde_grad)
 			loss.backward()
 			if grad_clipper != None:
 				grad_clipper(self.parameters())
 			epoch_loss += loss.item()
-
+			vL += vl.item()
 			optimizer.step()
 			epoch_mus.append(mu.detach().cpu().numpy())
 			epoch_Ds.append(d.detach().cpu().numpy())
@@ -135,6 +156,7 @@ class EmbeddingSDE(nn.Module):
 
 
 		self.sde.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/variance loss',vL/len(loader),self.sde.epoch)
 		if self.sde.plotDists & (self.sde.epoch % 100 == 0):
 			
 			for d in range(self.sde.dim):
@@ -153,14 +175,15 @@ class EmbeddingSDE(nn.Module):
 		self.eval()
 		with torch.no_grad():
 			epoch_loss = 0.
+			epoch_vl = 0.
 			epoch_mus = []
 			epoch_Ds = []
 
 			for ii,batch in enumerate(loader):
-				loss,z1,z2,mu,d = self.forward(batch)
+				loss,z1,z2,mu,d,vl = self.forward(batch)
 				
 				epoch_loss += loss.item()
-
+				epoch_vl += vl.item()
 				epoch_mus.append(mu.detach().cpu().numpy())
 				epoch_Ds.append(d.detach().cpu().numpy())
 
@@ -170,6 +193,7 @@ class EmbeddingSDE(nn.Module):
 
 
 		self.sde.writer.add_scalar('Test/loss',epoch_loss/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Test/variance loss',epoch_vl/len(loader),self.sde.epoch)
 
 		return epoch_loss
 
@@ -178,14 +202,16 @@ class EmbeddingSDE(nn.Module):
 		self.eval()
 		with torch.no_grad():
 			epoch_loss = 0.
+			epoch_vl = 0.
 			epoch_mus = []
 			epoch_Ds = []
 
 			batchInd = np.random.choice(len(loader))
 			for ii,batch in enumerate(loader):
-				loss,z1,z2,mu,d = self.forward(batch)
+				loss,z1,z2,mu,d,vl = self.forward(batch)
 				
 				epoch_loss += loss.item()
+				epoch_vl += vl.item()
 
 				epoch_mus.append(mu.detach().cpu().numpy())
 				epoch_Ds.append(d.detach().cpu().numpy())
@@ -197,6 +223,7 @@ class EmbeddingSDE(nn.Module):
 		epoch_Ds = np.vstack(epoch_Ds)
 
 		self.sde.writer.add_scalar('Test/loss',epoch_loss/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Test/variance loss',epoch_vl/len(loader),self.sde.epoch)
 		if self.sde.plotDists:
 			for d in range(self.sde.dim):
 				self._add_dist_figure(epoch_mus[:,d],self.sde.p1name,d+1,'Test')

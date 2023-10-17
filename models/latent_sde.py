@@ -172,6 +172,7 @@ class linearLatentSDE(latentSDE,nn.Module):
 		################## log constant prior ###########
 		# 
 		# 
+		"""
 		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape[0],1,1).to(self.device) 
 		V = eyes/dt
 		invV = dt*eyes
@@ -181,7 +182,7 @@ class linearLatentSDE(latentSDE,nn.Module):
 		t3P = self.n_entries/2 * torch.diagonal(V,dim1=-2,dim2=-1).log().sum(axis=-1)
 		t4P = self.logConstPrior	
 		loss -= (t1P + t2P + t3P + t4P)
-
+		"""
 		return loss.sum() 
 	
 	def forward(self,data):
@@ -483,8 +484,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		##### add in log prob under wishart prior here!!! #######
 
 		### p(Lam) = |Lam|^{(n-p-1)/2}e^{tr(V^{-1} Lam)/2}/2/
-
-		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape[0],1,1).to(self.device) 
+		"""		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape[0],1,1).to(self.device) 
 		V = eyes/dt
 		invV = dt*eyes
 		 
@@ -493,6 +493,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		t3P = self.n_entries/2 * torch.diagonal(V,dim1=-2,dim2=-1).log().sum(axis=-1)
 		t4P = self.logConstPrior	
 		loss -= (t1P + t2P + t3P + t4P)
+		"""
 		## torch.special.multigammaln multivariate log-gamma - check by hand!!!!
 		###########################################
 
@@ -824,6 +825,7 @@ class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 		log_pz2 = c - 1/2*(t1 + t2 + t3+t4)
 		loss = - log_pz2
 		###########################################
+		"""
 		eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape[0],1,1).to(self.device) 
 		V = eyes/dt
 		invV = dt*eyes
@@ -833,6 +835,7 @@ class nonlinearLatentSDENatParams(nonlinearLatentSDE,nn.Module):
 		t3P = self.n_entries/2 * torch.diagonal(V,dim1=-2,dim2=-1).log().sum(axis=-1)
 		t4P = self.logConstPrior	
 		loss -= (t1P + t2P + t3P + t4P)
+		"""
 		return loss.sum(),eta.view(len(zt1),self.dim),D/torch.sqrt(dt)
 	
 
