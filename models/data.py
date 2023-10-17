@@ -1,6 +1,7 @@
 import torch
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
+from scipy.io import wavfile
 
 def z_score(data):
 
@@ -217,8 +218,131 @@ class toyDataset(Dataset):
 	
 	def transform(self,data):
 		return torch.from_numpy(data).type(torch.FloatTensor)
-						
-		
+
+
+######### TO DO #############
+# implement get spec
+# implement rest of dataset (sampling, etc)
+# choose windowlength manually
+# 			
+class FixedWindowDataset(Dataset):
+
+	def __init__(self, audio_filenames, roi_filenames, p,
+		dataset_length=2048, min_spec_val=None,dt=0.05,overlap=0.5):
+		"""
+		Create a torch.utils.data.Dataset for chunks of animal vocalization.
+
+		Parameters
+		----------
+		audio_filenames : list of str
+			List of wav files.
+		roi_filenames : list of str
+			List of files containing animal vocalization times.
+		transform : {``None``, function}, optional
+			Transformation to apply to each item. Defaults to ``None`` (no
+			transformation).
+		dataset_length : int, optional
+			Arbitrary number that determines batch size. Defaults to ``2048``.
+		min_spec_val : {float, None}, optional
+			Used to disregard silence. If not `None`, spectrogram with a maximum
+			value less than `min_spec_val` will be disregarded.
+		dt : float, optional
+			timestep between successive 
+		"""
+		self.filenames = np.array(sorted(audio_filenames))
+		with warnings.catch_warnings():
+			warnings.filterwarnings("ignore", category=WavFileWarning)
+			self.audio = [wavfile.read(fn)[1] for fn in self.filenames]
+			self.fs = wavfile.read(audio_filenames[0])[0]
+		self.roi_filenames = roi_filenames
+		self.dataset_length = dataset_length
+		self.min_spec_val = min_spec_val
+		self.p = p
+		self.rois = [np.loadtxt(i, ndmin=2) for i in roi_filenames]
+		self.file_weights = np.array([np.sum(np.diff(i)) for i in self.rois])
+		self.file_weights /= np.sum(self.file_weights)
+		self.roi_weights = []
+		for i in range(len(self.rois)):
+			temp = np.diff(self.rois[i]).flatten()
+			self.roi_weights.append(temp/np.sum(temp))
+
+
+	def __len__(self):
+		"""NOTE: length is arbitrary"""
+		return self.dataset_length
+
+
+	def __getitem__(self, index, seed=None, shoulder=0.05, \
+		return_seg_info=False):
+		"""
+		Get spectrograms.
+		Parameters
+		----------
+		index :
+		seed :
+		shoulder :
+		return_seg_info :
+
+		Returns
+		-------
+		specs :
+		file_indices :
+		onsets :
+		offsets :
+		"""
+		specs, file_indices, onsets, offsets = [], [], [], []
+		single_index = False
+		try:
+			iterator = iter(index)
+		except TypeError:
+			index = [index]
+			single_index = True
+		np.random.seed(seed)
+		for i in index:
+			while True:
+				# First find the file, then the ROI.
+				file_index = np.random.choice(np.arange(len(self.filenames)), \
+					p=self.file_weights)
+				load_filename = self.filenames[file_index]
+				roi_index = \
+					np.random.choice(np.arange(len(self.roi_weights[file_index])),
+					p=self.roi_weights[file_index])
+				roi = self.rois[file_index][roi_index]
+				# Then choose a chunk of audio uniformly at random.
+				onset = roi[0] + (roi[1] - roi[0] - self.p['window_length']) \
+					* np.random.rand()
+				offset = onset + self.p['window_length']
+				target_times = np.linspace(onset, offset, \
+						self.p['num_time_bins'])
+				# Then make a spectrogram.
+				spec, flag = self.p['get_spec'](max(0.0, onset-shoulder), \
+						offset+shoulder, self.audio[file_index], self.p, \
+						fs=self.fs, target_times=target_times)
+				if not flag:
+					continue
+				# Remake the spectrogram if it's silent.
+				if self.min_spec_val is not None and \
+						np.max(spec) < self.min_spec_val:
+					continue
+				if self.transform:
+					spec = self.transform(spec)
+				specs.append(spec)
+				file_indices.append(file_index)
+				onsets.append(onset)
+				offsets.append(offset)
+				break
+		np.random.seed(None)
+		if return_seg_info:
+			if single_index:
+				return specs[0], file_indices[0], onsets[0], offsets[0]
+			return specs, file_indices, onsets, offsets
+		if single_index:
+			return specs[0]
+		return specs
+
+	def transform(self,data):
+		return torch.from_numpy(data).type(torch.FloatTensor)
+	
 def makeToyDataloaders(ds1,ds2,dt,batch_size=512):
 
 	#assert ds1.shape[1] == 3
