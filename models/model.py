@@ -14,7 +14,7 @@ class EmbeddingSDE(nn.Module):
 		self.dataDim=dataDim
 		self.latentDim=latentDim 
 		self.device=device
-		self.mu=25
+		self.mu=10000
 		self.gamma = 1
 		self.to(self.device)
 
@@ -78,11 +78,12 @@ class EmbeddingSDE(nn.Module):
 		return hinge.sum()/self.latentDim
 	
 	def encode_trajectory(self,data):
+		self.eval()
 
 		return self.encoder.forward(data.to(self.device)).detach().cpu().numpy()
 	
 	def generate_trajectory(self,init_conditions,T,dt):
-
+		self.eval()
 		init_conditions = init_conditions.to(self.device)
 		if init_conditions.shape[-1] == self.dataDim:
 

@@ -2,6 +2,12 @@ import torch
 from torch.utils.data import Dataset, DataLoader
 import numpy as np
 from scipy.io import wavfile
+from scipy.signal import stft
+from scipy.interpolate import interp2d
+import warnings
+from scipy.io.wavfile import WavFileWarning
+
+EPSILON = 1e-12
 
 def z_score(data):
 
@@ -220,15 +226,11 @@ class toyDataset(Dataset):
 		return torch.from_numpy(data).type(torch.FloatTensor)
 
 
-######### TO DO #############
-# implement get spec
-# implement rest of dataset (sampling, etc)
-# choose windowlength manually
-# 			
+		
 class FixedWindowDataset(Dataset):
 
 	def __init__(self, audio_filenames, roi_filenames, p,
-		dataset_length=2048, min_spec_val=None,dt=0.05,overlap=0.5):
+		dataset_length=2048, min_spec_val=None,dt=0.05,win_length=0.05,overlap=0.5):
 		"""
 		Create a torch.utils.data.Dataset for chunks of animal vocalization.
 
@@ -257,11 +259,15 @@ class FixedWindowDataset(Dataset):
 		self.roi_filenames = roi_filenames
 		self.dataset_length = dataset_length
 		self.min_spec_val = min_spec_val
-		self.p = p
+		self.win_length=win_length
 		self.rois = [np.loadtxt(i, ndmin=2) for i in roi_filenames]
 		self.file_weights = np.array([np.sum(np.diff(i)) for i in self.rois])
 		self.file_weights /= np.sum(self.file_weights)
 		self.roi_weights = []
+		self.dt = win_length*(1 - overlap) 
+		self.win_length = win_length
+		self.overlap = overlap
+		self.p = p
 		for i in range(len(self.rois)):
 			temp = np.diff(self.rois[i]).flatten()
 			self.roi_weights.append(temp/np.sum(temp))
@@ -290,7 +296,7 @@ class FixedWindowDataset(Dataset):
 		onsets :
 		offsets :
 		"""
-		specs, file_indices, onsets, offsets = [], [], [], []
+		specs, specs2,dts,file_indices, onsets, offsets = [],[], [],[], [], []
 		single_index = False
 		try:
 			iterator = iter(index)
@@ -309,13 +315,18 @@ class FixedWindowDataset(Dataset):
 					p=self.roi_weights[file_index])
 				roi = self.rois[file_index][roi_index]
 				# Then choose a chunk of audio uniformly at random.
-				onset = roi[0] + (roi[1] - roi[0] - self.p['window_length']) \
+				onset = roi[0] + (roi[1] - roi[0] - 2*self.win_length) \
 					* np.random.rand()
-				offset = onset + self.p['window_length']
+				offset = onset + self.win_length
+
+				onset2 = onset + self.dt 
+				offset2 = onset2 + self.win_length
 				target_times = np.linspace(onset, offset, \
 						self.p['num_time_bins'])
+				target_times2 = np.linspace(onset2, offset2, \
+						self.p['num_time_bins'])
 				# Then make a spectrogram.
-				spec, flag = self.p['get_spec'](max(0.0, onset-shoulder), \
+				spec, flag = get_spec(max(0.0, onset-shoulder), \
 						offset+shoulder, self.audio[file_index], self.p, \
 						fs=self.fs, target_times=target_times)
 				if not flag:
@@ -324,21 +335,28 @@ class FixedWindowDataset(Dataset):
 				if self.min_spec_val is not None and \
 						np.max(spec) < self.min_spec_val:
 					continue
-				if self.transform:
-					spec = self.transform(spec)
+
+				spec2, flag2 = get_spec(max(0.0, onset2-shoulder), \
+						offset2+shoulder, self.audio[file_index], self.p, \
+						fs=self.fs, target_times=target_times2)
+				
+				spec = self.transform(spec).view(1,spec.shape[0],spec.shape[1])
+				spec2 = self.transform(spec2).view(1,spec2.shape[0],spec2.shape[1])
 				specs.append(spec)
+				specs2.append(spec2)
 				file_indices.append(file_index)
 				onsets.append(onset)
 				offsets.append(offset)
+				dts.append(self.dt)
 				break
 		np.random.seed(None)
 		if return_seg_info:
 			if single_index:
-				return specs[0], file_indices[0], onsets[0], offsets[0]
-			return specs, file_indices, onsets, offsets
+				return specs[0], specs2[0],dts[0], file_indices[0], onsets[0], offsets[0]
+			return specs, specs2,dts,file_indices, onsets, offsets
 		if single_index:
-			return specs[0]
-		return specs
+			return specs[0],specs2[0],dts[0]
+		return specs,specs2,dts
 
 	def transform(self,data):
 		return torch.from_numpy(data).type(torch.FloatTensor)
@@ -390,6 +408,110 @@ def compareSwirlsModels(nTrajs, dim,muFnc, sigFnc, model,dt=0.001,T=1):
 
 	return trueTrajs,modelTrajs
 
+def get_spec(t1, t2, audio, p, fs=32000, target_freqs=None, target_times=None, \
+	fill_value=-1/EPSILON, max_dur=None, remove_dc_offset=True):
+	"""
+	Norm, scale, threshold, stretch, and resize a Short Time Fourier Transform.
+
+	Notes
+	-----
+	* ``fill_value`` necessary?
+	* Look at all references and see what can be simplified.
+	* Why is a flag returned?
+
+	Parameters
+	----------
+	t1 : float
+		Onset time.
+	t2 : float
+		Offset time.
+	audio : numpy.ndarray
+		Raw audio.
+	p : dict
+		Parameters. Must include keys: ...
+	fs : float
+		Samplerate.
+	target_freqs : numpy.ndarray or ``None``, optional
+		Interpolated frequencies.
+	target_times : numpy.ndarray or ``None``, optional
+		Intepolated times.
+	fill_value : float, optional
+		Defaults to ``-1/EPSILON``.
+	max_dur : float, optional
+		Maximum duration. Defaults to ``None``.
+	remove_dc_offset : bool, optional
+		Whether to remove any DC offset from the audio. Defaults to ``True``.
+
+	Returns
+	-------
+	spec : numpy.ndarray
+		Spectrogram.
+	flag : bool
+		``True``
+	"""
+	if max_dur is None:
+		max_dur = p['max_dur']
+	if t2 - t1 > max_dur + 1e-4:
+		message = "Found segment longer than max_dur: " + str(t2-t1) + \
+				"s, max_dur = " + str(max_dur) + "s"
+		#warnings.warn(message)
+	s1, s2 = int(round(t1*fs)), int(round(t2*fs))
+	assert s1 < s2, "s1: " + str(s1) + " s2: " + str(s2) + " t1: " + str(t1) + \
+			" t2: " + str(t2)
+	# Get a spectrogram and define the interpolation object.
+	temp = min(len(audio),s2) - max(0,s1)
+	if temp < p['nperseg'] or s2 <= 0 or s1 >= len(audio):
+		return np.zeros((p['num_freq_bins'], p['num_time_bins'])), True
+	else:
+		temp_audio = audio[max(0,s1):min(len(audio),s2)]
+		if remove_dc_offset:
+			temp_audio = temp_audio - np.mean(temp_audio)
+		f, t, spec = stft(temp_audio, fs=fs, nperseg=p['nperseg'], \
+				noverlap=p['noverlap'])
+	t += max(0,t1)
+	spec = np.log(np.abs(spec) + EPSILON)
+	interp = interp2d(t, f, spec, copy=False, bounds_error=False, \
+		fill_value=fill_value)
+	# Define target frequencies.
+	if target_freqs is None:
+		if p['mel']:
+			target_freqs = np.linspace(_mel(p['min_freq']), \
+					_mel(p['max_freq']), p['num_freq_bins'])
+			target_freqs = _inv_mel(target_freqs)
+		else:
+			target_freqs = np.linspace(p['min_freq'], p['max_freq'], \
+					p['num_freq_bins'])
+	# Define target times.
+	if target_times is None:
+		duration = t2 - t1
+		if p['time_stretch']:
+			duration = np.sqrt(duration * max_dur) # stretched duration
+		shoulder = 0.5 * (max_dur - duration)
+		target_times = np.linspace(t1-shoulder, t2+shoulder, p['num_time_bins'])
+	# Then interpolate.
+	interp_spec = interp(target_times, target_freqs, assume_sorted=True)
+	spec = interp_spec
+	# Normalize.
+	spec -= p['spec_min_val']
+	spec /= (p['spec_max_val'] - p['spec_min_val'])
+	spec = np.clip(spec, 0.0, 1.0)
+	# Within-syllable normalize.
+	if p['within_syll_normalize']:
+		spec -= np.quantile(spec, p['normalize_quantile'])
+		spec[spec<0.0] = 0.0
+		spec /= np.max(spec) + EPSILON
+	return spec, True
+
+
+
+def _mel(a):
+	"""https://en.wikipedia.org/wiki/Mel-frequency_cepstrum"""
+	return 1127 * np.log(1 + a / 700)
+
+
+def _inv_mel(a):
+	"""https://en.wikipedia.org/wiki/Mel-frequency_cepstrum"""
+	return 700 * (np.exp(a / 1127) - 1)
 
 
 
