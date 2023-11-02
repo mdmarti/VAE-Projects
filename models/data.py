@@ -82,6 +82,7 @@ def generate_vanderpol(n=100,T = 1, dt=0.001,rho=2,tau=15,sigma=0.25,x0=np.array
 	t = np.arange(0,T,dt)
 	#print("not adding noise")
 	sig = np.eye(2) * sigma
+	lam = np.eye(2)/sigma
 	for ii in range(n):
 
 		xnot = x0 + 0.03**2 * np.random.randn(1)
@@ -107,11 +108,14 @@ def generate_vanderpol(n=100,T = 1, dt=0.001,rho=2,tau=15,sigma=0.25,x0=np.array
 		
 		allPaths.append(xx)
 
-	mu_fnc = lambda x: mu * x.detach().cpu().numpy() 
-	d_fnc = lambda x: sigma * x.detach().cpu().numpy()
+	inds = np.tril_indices(3)
+	mu_fnc = lambda x,dt=0.001: np.vstack([rho * tau * (x[:,0] - x[:,0]**3/3 - x[:,1]).detach().cpu().numpy() * dt,
+										(rho/tau * x[:,0]*dt).detach().cpu().numpy()*dt ]).T
+	d_fnc = lambda x: np.sqrt(dt)*torch.FloatTensor(sig)[None,:,:].repeat(x.shape[0],1,1).detach().cpu().numpy()
 
-	eta_fnc = lambda x: mu_fnc(x)/d_fnc(x)**2
-	lam_fnc = lambda x: 1/d_fnc(x)
+	eta_fnc = lambda x:  np.vstack([rho * tau * (x[:,0] - x[:,0]**3/3 - x[:,1]).detach().cpu().numpy() * dt,
+										(rho/tau * x[:,0]*dt).detach().cpu().numpy()*dt ]).T
+	lam_fnc = lambda x: torch.FloatTensor(lam)[None,:,:].repeat(x.shape[0],1,1).detach().cpu().numpy()/np.sqrt(dt)
 
 	return allPaths,(mu_fnc,d_fnc),(eta_fnc,lam_fnc)
 
@@ -174,7 +178,7 @@ def generate_stochastic_lorenz(n=100,T=1,dt=0.001,coeffs=[10,28,8/3,0.15,0.15,0.
 			y = prev[1]
 			z = prev[2]
 
-			sample_dW = A @ (np.sqrt(dt) * np.random.randn(3))
+			sample_dW = Sig @ (np.sqrt(dt) * np.random.randn(3))
 			dx = sigma * (y - x)*dt #+ sample_dW[0]
 			dy = (x * (rho - z) - y)*dt #+ sample_dW[1]
 			dz = (x*y  - beta*z)*dt #+ sample_dW[2]
@@ -197,12 +201,12 @@ def generate_stochastic_lorenz(n=100,T=1,dt=0.001,coeffs=[10,28,8/3,0.15,0.15,0.
 	mu_fnc = lambda x,dt=0.001: np.vstack([(sigma * (x[:,1] - x[:,0])).detach().cpu().numpy() * dt,
 										(x[:,0]*(rho - x[:,2]) - x[:,1]).detach().cpu().numpy() * dt,
 										(x[:,0]*x[:,1] - beta*x[:,2]).detach().cpu().numpy() * dt]).T
-	d_fnc = lambda x: np.sqrt(dt)*torch.diag_embed(torch.FloatTensor([A1,A2,A3]))[None,:,:].repeat(x.shape[0],1,1).detach().cpu().numpy()[:,inds[0],inds[1]]
+	d_fnc = lambda x: np.sqrt(dt)*torch.FloatTensor(A)[None,:,:].repeat(x.shape[0],1,1).detach().cpu().numpy()[:,inds[0],inds[1]]
 
 	eta_fnc = lambda x: np.vstack([(sigma * (x[:,1] - x[:,0])).detach().cpu().numpy() /A1**2,
 										(x[:,0]*(rho - x[:,2]) - x[:,1]).detach().cpu().numpy() /A2**2,
 										(x[:,0]*x[:,1] - beta*x[:,2]).detach().cpu().numpy() /A3**2]).T
-	lam_fnc = lambda x: torch.diag_embed(torch.FloatTensor([1/A1,1/A2,1/A3]))[None,:,:].repeat(x.shape[0],1,1).detach().cpu().numpy()[:,inds[0],inds[1]]/np.sqrt(dt)
+	lam_fnc = lambda x: torch.FloatTensor(1/A)[None,:,:].repeat(x.shape[0],1,1).detach().cpu().numpy()[:,inds[0],inds[1]]/np.sqrt(dt)
 	return allPaths,(mu_fnc,d_fnc),(eta_fnc,lam_fnc)
 
 
