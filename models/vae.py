@@ -172,7 +172,7 @@ class ConvEncoder(linearEncoder):
 		super(ConvEncoder,self).__init__(data_dim,latent_dim,has_bias)
 
 		
-		self.conv = nn.Sequential([nn.BatchNorm2d(1),
+		self.conv = nn.Sequential(*[nn.BatchNorm2d(1),
 						  nn.Conv2d(1, 8, 3,1,padding=1),
 						  nn.ReLU(),
 						  nn.BatchNorm2d(8),
@@ -193,17 +193,17 @@ class ConvEncoder(linearEncoder):
 						  nn.BatchNorm2d(24),
 						  nn.Conv2d(24,32,3,1,padding=1),
 						  nn.ReLU()])
-		self.linear = nn.Sequential([nn.Linear(8192,1024),
+		self.linear = nn.Sequential(*[nn.Linear(8192,1024),
 							   nn.ReLU(),
 							   nn.Linear(1024,256),
 							   nn.ReLU()])
-		self.mu = nn.Sequential([nn.Linear(256,64),
+		self.mu = nn.Sequential(*[nn.Linear(256,64),
 							   nn.ReLU(),
 							   nn.Linear(64,self.latent_dim)])
-		self.u = nn.Sequential([nn.Linear(256,64),
+		self.u = nn.Sequential(*[nn.Linear(256,64),
 							   nn.ReLU(),
 							   nn.Linear(64,self.latent_dim)])
-		self.d = nn.Sequential([nn.Linear(256,64),
+		self.d = nn.Sequential(*[nn.Linear(256,64),
 							   nn.ReLU(),
 							   nn.Linear(64,self.latent_dim)])
 		self.device=device

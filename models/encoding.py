@@ -191,6 +191,7 @@ class projection:
 	def project(
 		self,
 		data: np.array,
+		noise: float= 0.
 	 ) -> np.array:
 		
 		r"""
@@ -201,7 +202,10 @@ class projection:
 			data: what we are embedding in a higher-d space
 			
 		"""
-
-		return self.projection(data)
+		if noise:
+			proj = self.projection(data)
+			return  proj + noise * np.random.normal(size=proj.shape)
+		else:
+			return self.projection(data)
 	
 

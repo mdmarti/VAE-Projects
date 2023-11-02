@@ -15,7 +15,7 @@ class EmbeddingSDE(nn.Module):
 		self.latentDim=latentDim 
 		self.device=device
 		self.mu=10000
-		self.gamma = 1
+		self.gamma = self.latentDim
 		self.to(self.device)
 
 	def _add_dist_figure(self,estimates:np.ndarray,name:str,dim:int,epoch_type:str='Train'):
@@ -65,17 +65,17 @@ class EmbeddingSDE(nn.Module):
 		n = data.shape[0]
 		var = ((data - mu)**2).sum(axis=0)/(n-1)
 		
-		return (var+epsilon).sqrt()
+		return var+epsilon#).sqrt()
 	
 	def var_loss(self,batch,epsilon=1e-5):
 
 
 		mu = batch.mean(axis=0,keepdims=True)
 		sd = self._reg_sd(batch,mu,epsilon)
-		hinge = self.gamma - sd
-		inds = hinge < 0
-		hinge[inds] = 0.
-		return hinge.sum()/self.latentDim
+		hinge = self.gamma - sd.sum() # gamma = latentDim
+		#inds = hinge < 0
+		#hinge[inds] = 0.
+		return hinge * (hinge >= 0)
 	
 	def encode_trajectory(self,data):
 		self.eval()
@@ -120,9 +120,11 @@ class EmbeddingSDE(nn.Module):
 			loss,mu,d = self.sde.loss(z1,z2,dt)
 		else:
 			with torch.no_grad():
+
 				loss,mu,d = self.sde.loss(z1,z2,dt)
 
-		varLoss = self.var_loss(z1) + self.var_loss(z2)
+		zs = torch.vstack([z1,z2])
+		varLoss = self.var_loss(zs) #+ self.var_loss(z2)
 		
 		loss += self.mu * varLoss
 		return loss,z1,z2,mu,d,varLoss
