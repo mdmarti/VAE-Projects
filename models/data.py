@@ -76,6 +76,45 @@ def generate_geometric_brownian(n=100,T=100,dt=1,mu=1,sigma=0.5,x0=0.1):
 
 	return allPaths,(mu_fnc,d_fnc),(eta_fnc,lam_fnc)
 
+def generate_vanderpol(n=100,T = 1, dt=0.001,rho=2,tau=15,sigma=0.25,x0=np.array([1,1])):
+
+	allPaths=[]
+	t = np.arange(0,T,dt)
+	#print("not adding noise")
+	sig = np.eye(2) * sigma
+	for ii in range(n):
+
+		xnot = x0 + 0.03**2 * np.random.randn(1)
+		xx = [xnot]
+
+		for jj in range(1,len(t)+1):
+
+			prev = xx[jj-1]
+			x1 = prev[0]
+			x2 = prev[1]
+			#z = prev[2]
+
+			sample_dW = sig @ (np.sqrt(dt) * np.random.randn(2))
+			dx1 = rho * tau * (x1 - x1**3/3 - x2)*dt #+ sample_dW[0]
+			dx2 = tau/rho * x1 *dt  #+ sample_dW[1]
+			
+
+			#assert (abs(dx) < 200) & (abs(dy) < 200) & (abs(dz)<200),print(dx,dy,dz,ii,jj)
+			xx.append(xx[jj-1] + np.hstack([dx1,dx2]) + sample_dW)
+
+		xx = np.vstack(xx)
+		assert xx.shape[0] == (len(t) + 1), print(xx.shape)
+		
+		allPaths.append(xx)
+
+	mu_fnc = lambda x: mu * x.detach().cpu().numpy() 
+	d_fnc = lambda x: sigma * x.detach().cpu().numpy()
+
+	eta_fnc = lambda x: mu_fnc(x)/d_fnc(x)**2
+	lam_fnc = lambda x: 1/d_fnc(x)
+
+	return allPaths,(mu_fnc,d_fnc),(eta_fnc,lam_fnc)
+
 def generate_2d_swirls(n=100,T=1,dt=0.001,theta=10,mu=1.01,sigma=0.5,x0=np.array([0.1,0.1])):
 
 	allPaths=[]
@@ -116,7 +155,7 @@ def generate_2d_swirls(n=100,T=1,dt=0.001,theta=10,mu=1.01,sigma=0.5,x0=np.array
 def generate_stochastic_lorenz(n=100,T=1,dt=0.001,coeffs=[10,28,8/3,0.15,0.15,0.15],zscore=False):
 
 	sigma,rho,beta = coeffs[0],coeffs[1],coeffs[2]
-	A = np.array([coeffs[0],coeffs[1],coeffs[2]])
+	A = np.array([coeffs[3],coeffs[4],coeffs[5]])
 	Sig = np.eye(3) * A
 	t = np.arange(0,T,dt)
 	
