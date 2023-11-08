@@ -79,11 +79,12 @@ class MLPEncoder(linearEncoder,nn.Module):
 			F = F + [nn.Linear(hidden_size,hidden_size),nn.Softplus()] 
 		F = [nn.Linear(self.data_dim,hidden_size),nn.Softplus()] + \
 						F + \
-						[nn.Linear(hidden_size,self.latent_dim),nn.BatchNorm1d(self.latent_dim)]
+						[nn.Linear(hidden_size,self.latent_dim)]
 
 		self.F = nn.Sequential(*F)
 
-		self.to(self.device)
+		self.F.to(self.device)
+		
 
 class ConvEncoder(linearEncoder):
 
@@ -135,8 +136,7 @@ class ConvEncoder(linearEncoder):
 							   nn.ReLU(),
 							   nn.Linear(256,64),
 							   nn.ReLU(),
-							   nn.Linear(64,self.latent_dim),
-							   nn.BatchNorm1d(self.latent_dim)])
+							   nn.Linear(64,self.latent_dim)])
 		
 		self.device=device
 		self.to(self.device)

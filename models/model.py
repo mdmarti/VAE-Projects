@@ -106,12 +106,14 @@ class EmbeddingSDE(nn.Module):
 
 		return traj 
 	
-	def forward(self,batch,encode_grad=True,sde_grad=True):
+	def forward(self,batch,encode_grad=True,sde_grad=True,stopgrad=True):
 		
 		x1,x2,dt = batch
 		x1,x2,dt = x1.to(self.device),x2.to(self.device),dt.to(self.device)
 
-		if encode_grad:
+		if stopgrad:
+			z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2,pass_gradient=False)
+		elif encode_grad:
 			z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2)
 		else:
 			z1,z2 = self.encoder.forward(x1,pass_gradient=False),self.encoder.forward(x2,pass_gradient=False)
@@ -129,7 +131,7 @@ class EmbeddingSDE(nn.Module):
 		loss += self.mu * varLoss
 		return loss,z1,z2,mu,d,varLoss
 
-	def train_epoch(self,loader,optimizer,grad_clipper=None,encode_grad=True,sde_grad=True):
+	def train_epoch(self,loader,optimizer,grad_clipper=None,encode_grad=True,sde_grad=True,stopgrad=False):
 
 		self.train()
 		epoch_loss = 0.
@@ -140,7 +142,7 @@ class EmbeddingSDE(nn.Module):
 
 		for ii,batch in enumerate(loader):
 
-			loss,z1,z2,mu,d,vl = self.forward(batch,encode_grad,sde_grad)
+			loss,z1,z2,mu,d,vl = self.forward(batch,encode_grad,sde_grad,stopgrad)
 			loss.backward()
 			if grad_clipper != None:
 				grad_clipper(self.parameters())

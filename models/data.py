@@ -85,7 +85,7 @@ def generate_vanderpol(n=100,T = 1, dt=0.001,rho=2,tau=15,sigma=0.25,x0=np.array
 	lam = np.eye(2)/sigma
 	for ii in range(n):
 
-		xnot = x0 + 0.03**2 * np.random.randn(1)
+		xnot = x0 + 0.03**2 * np.random.randn(2)
 		xx = [xnot]
 
 		for jj in range(1,len(t)+1):
@@ -101,7 +101,7 @@ def generate_vanderpol(n=100,T = 1, dt=0.001,rho=2,tau=15,sigma=0.25,x0=np.array
 			
 
 			#assert (abs(dx) < 200) & (abs(dy) < 200) & (abs(dz)<200),print(dx,dy,dz,ii,jj)
-			xx.append(xx[jj-1] + np.hstack([dx1,dx2]) + sample_dW)
+			xx.append(xx[jj-1] + np.hstack([dx1,dx2]) + sample_dW * prev)
 
 		xx = np.vstack(xx)
 		assert xx.shape[0] == (len(t) + 1), print(xx.shape)
