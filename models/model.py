@@ -125,9 +125,9 @@ class EmbeddingSDE(nn.Module):
 
 				loss,mu,d = self.sde.loss(z1,z2,dt)
 
-		zs = torch.vstack([z1,z2])
-		varLoss = self.var_loss(zs) #+ self.var_loss(z2)
-		
+		zs = torch.vstack([z1,z2]) # bsz x latent dim
+		#varLoss = self.var_loss(zs) #+ self.var_loss(z2)
+		varLoss = self.JohnReg(zs) 
 		loss += self.mu * varLoss
 		return loss,z1,z2,mu,d,varLoss
 
