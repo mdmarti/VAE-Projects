@@ -158,7 +158,7 @@ class linearLatentSDE(latentSDE,nn.Module):
 		##### calculate loss ###################
 		const = -self.dim/2 * np.log(2*torch.pi)
 		## |LL^T| = |L| |L^T| = 2|L| = 2 \prod_i L_ii
-		t1 = -torch.diagonal(chol,dim1=-2,dim2=-1).log().sum(axis=-1) + 2
+		t1 = -torch.diagonal(chol,dim1=-2,dim2=-1).sum(axis=-1) + 2
 		assert len(t1.shape) == 1, print(t1.shape)
 		t2 = (dzTrue.transpose(-2,-1) @ precision @ dzTrue).squeeze()
 		assert len(t2.shape)==1,print(t2.shape)
