@@ -2,7 +2,7 @@ import torch.nn as nn
 from abc import ABC 
 from abc import abstractmethod
 import torch 
-
+import torch.nn.functional as F
 
 
 class decoder(ABC):
@@ -137,18 +137,41 @@ class ConvDecoder(linearDecoder,nn.Module):
                                nn.Linear(1024,8192),
 							   nn.ReLU()])
 		self.device=device
+		self.fc5 = nn.Linear(self.latent_dim,64)
+		self.fc6 = nn.Linear(64,256)
+		self.fc7 = nn.Linear(256,1024)
+		self.fc8 = nn.Linear(1024,8192)
+		self.convt1 = nn.ConvTranspose2d(32,24,3,1,padding=1)
+		self.convt2 = nn.ConvTranspose2d(24,24,3,2,padding=1,output_padding=1)
+		self.convt3 = nn.ConvTranspose2d(24,16,3,1,padding=1)
+		self.convt4 = nn.ConvTranspose2d(16,16,3,2,padding=1,output_padding=1)
+		self.convt5 = nn.ConvTranspose2d(16,8,3,1,padding=1)
+		self.convt6 = nn.ConvTranspose2d(8,8,3,2,padding=1,output_padding=1)
+		self.convt7 = nn.ConvTranspose2d(8,1,3,1,padding=1)
+		self.bn8 = nn.BatchNorm2d(32)
+		self.bn9 = nn.BatchNorm2d(24)
+		self.bn10 = nn.BatchNorm2d(24)
+		self.bn11 = nn.BatchNorm2d(16)
+		self.bn12 = nn.BatchNorm2d(16)
+		self.bn13 = nn.BatchNorm2d(8)
+		self.bn14 = nn.BatchNorm2d(8)
 		self.to(self.device)
 
 	def forward(self, 
 				data: torch.FloatTensor, 
-				pass_gradient: bool = True
 				) -> torch.FloatTensor:
 		
-		if pass_gradient:
-			intmdt = self.linear(data)
-			
-		else:
-			intmdt = self.linear(data.detach())
-		
-		intmdt = intmdt.view(-1,32,16,16)
-		return self.conv(intmdt)
+
+		z = F.relu(self.fc5(data))
+		z = F.relu(self.fc6(z))
+		z = F.relu(self.fc7(z))
+		z = F.relu(self.fc8(z))
+		z = z.view(-1,32,16,16)
+		z = F.relu(self.convt1(self.bn8(z)))
+		z = F.relu(self.convt2(self.bn9(z)))
+		z = F.relu(self.convt3(self.bn10(z)))
+		z = F.relu(self.convt4(self.bn11(z)))
+		z = F.relu(self.convt5(self.bn12(z)))
+		z = F.relu(self.convt6(self.bn13(z)))
+		z = self.convt7(self.bn14(z))
+		return z.view(-1, 128)
