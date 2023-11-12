@@ -252,7 +252,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 	      p1name:str='mu',p2name:str='sigma',plotDists:bool=True,diag:bool=True,n_hidden=0,hidden_size=100):
 		
 		super(nonlinearLatentSDE,self).__init__(dim,save_dir=save_dir,diag=diag)
-
+		print("I'mve been updated")
 		MLPhidden = []
 		DHidden = []
 		for _ in range(n_hidden):
@@ -414,8 +414,9 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		##### calculate loss ###################
 
 		const = -self.dim/2 * np.log(2*torch.pi)
-		## |LL^T| = |L| |L^T| = 2|L| = 2 \prod_i L_ii
-		t1 = -torch.diagonal(L,dim1=-2,dim2=-1).log().sum(axis=-1) + 2
+		## |LL^T| = |L| |L^T| = |L|^2 =  (\prod_i L_ii)^2
+		## LOG |LL^T| = 2(\SUM_I  LOG L_II
+		t1 = -2* torch.diagonal(L,dim1=-2,dim2=-1).log().sum(axis=-1) 
 		assert len(t1.shape) == 1, print(t1.shape)
 		t2 = (dzTrue.transpose(-2,-1) @ precision @ dzTrue).squeeze()
 		assert len(t2.shape)==1,print(t2.shape)
@@ -471,8 +472,9 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		##### calculate loss ###################
 
 		const = -self.dim/2 * np.log(2*torch.pi)
-		## |LL^T| = |L| |L^T| = 2|L| = 2 \prod_i L_ii
-		t1 = -torch.diagonal(L,dim1=-2,dim2=-1).log().sum(axis=-1) + 2
+		## |LL^T| = |L| |L^T| = |L|^2 =  (\prod_i L_ii)^2
+		## LOG |LL^T| = 2(\SUM_I  LOG L_II
+		t1 = -2*torch.diagonal(L,dim1=-2,dim2=-1).log().sum(axis=-1) 
 		assert len(t1.shape) == 1, print(t1.shape)
 		t2 = (dzTrue.transpose(-2,-1) @ precision @ dzTrue).squeeze()
 		assert len(t2.shape)==1,print(t2.shape)
