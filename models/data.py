@@ -52,6 +52,13 @@ def generate_geometric_brownian(n=100,T=100,dt=1,mu=1,sigma=0.5,x0=0.1):
 	allPaths=[]
 	t = np.arange(0,T,dt)
 	#print("not adding noise")
+	def f(x,t):
+		return mu*x
+	def g(x,t):
+		return sigma*x
+	
+	def dW(dt):
+		return np.random.normal(loc=0.,scale=np.sqrt(dt))
 	for ii in range(n):
 
 		xnot = x0 + 0.03**2 * np.random.randn(1)
@@ -59,9 +66,8 @@ def generate_geometric_brownian(n=100,T=100,dt=1,mu=1,sigma=0.5,x0=0.1):
 
 		for jj in range(1,len(t)+1):
 			x = xx[jj-1]
-			sample_dW = np.sqrt(dt) * np.random.randn(1)
-			dx = mu*x *dt + sigma*x * sample_dW
-			xx.append(xx[jj-1] + dx)
+			tt = t[jj-1]
+			xx.append(x + f(x,tt)*dt + g(x,tt)*dW(dt))
 		xx = np.hstack(xx)[:,None]
 
 		#xx = xx + (0.01)*(dt/0.02)*np.random.randn(*xx.shape)
@@ -83,6 +89,16 @@ def generate_vanderpol(n=100,T = 1, dt=0.001,rho=2,tau=15,sigma=0.25,x0=np.array
 	#print("not adding noise")
 	sig = np.eye(2) * sigma
 	lam = np.eye(2)/sigma
+	def f(x,t):
+		dx1 = rho * tau * (x[0] - x[0]**3/3 - x[1])
+		dx2 = tau/rho * x[0]
+		return np.hstack([dx1,dx2])
+	def g(x,t):
+		return sigma*x
+	
+	def dW(dt):
+		return np.random.normal(loc=np.zeros((2,)),scale=np.sqrt(dt))
+	
 	for ii in range(n):
 
 		xnot = x0 + 0.03**2 * np.random.randn(2)
@@ -90,18 +106,9 @@ def generate_vanderpol(n=100,T = 1, dt=0.001,rho=2,tau=15,sigma=0.25,x0=np.array
 
 		for jj in range(1,len(t)+1):
 
-			prev = xx[jj-1]
-			x1 = prev[0]
-			x2 = prev[1]
-			#z = prev[2]
-
-			sample_dW = sig @ (np.sqrt(dt) * np.random.randn(2))
-			dx1 = rho * tau * (x1 - x1**3/3 - x2)*dt #+ sample_dW[0]
-			dx2 = tau/rho * x1 *dt  #+ sample_dW[1]
-			
-
-			#assert (abs(dx) < 200) & (abs(dy) < 200) & (abs(dz)<200),print(dx,dy,dz,ii,jj)
-			xx.append(xx[jj-1] + np.hstack([dx1,dx2]) + sample_dW * prev)
+			x = xx[jj-1]
+			tt = t[jj-1]
+			xx.append(x + f(x,tt)*dt + g(x,tt)*dW(dt))
 
 		xx = np.vstack(xx)
 		assert xx.shape[0] == (len(t) + 1), print(xx.shape)
@@ -119,16 +126,22 @@ def generate_vanderpol(n=100,T = 1, dt=0.001,rho=2,tau=15,sigma=0.25,x0=np.array
 
 	return allPaths,(mu_fnc,d_fnc),(eta_fnc,lam_fnc)
 
-def generate_2d_swirls(n=100,T=1,dt=0.001,theta=10,mu=1.01,sigma=0.5,x0=np.array([0.1,0.1])):
+def generate_2d_swirls(n=100,T=1,dt=0.001,mu=25,sigma=0.5,x0=np.array([0.1,0.1])):
 
 	allPaths=[]
 	t = np.arange(0,T,dt)
 	#print("not adding noise")
-	R = np.array([[np.cos(theta*np.pi/180),-np.sin(theta*np.pi/180)],\
-		[np.sin(theta*np.pi/180),np.cos(theta*np.pi/180)]])
-	A = mu*(R - np.eye(2))
-	evals,_ = np.linalg.eig(A)
-	print(evals)
+	
+	def f(x,t):
+		dx1 = -mu * x[1]
+		dx2 = mu * x[0]
+		#assert np.all(dx == dx2)
+		return np.hstack([dx1,dx2])
+	def g(x,t):
+		return sigma*x
+	
+	def dW(dt):
+		return np.random.normal(loc=np.zeros((2,)),scale=np.sqrt(dt))
 	for ii in range(n):
 
 		xnot = x0 + 0.03**2 * np.random.randn(2)
@@ -138,9 +151,8 @@ def generate_2d_swirls(n=100,T=1,dt=0.001,theta=10,mu=1.01,sigma=0.5,x0=np.array
 
 		for jj in range(1,len(t)+1):
 			x = xx[jj-1]
-			sample_dW = np.sqrt(dt) * np.random.randn(2)
-			dx = A @ x + sigma*x * sample_dW
-			xx.append(xx[jj-1] + dx)
+			tt = t[jj-1]
+			xx.append(x + f(x,tt)*dt + g(x,tt)*dW(dt))
 		xx = np.vstack(xx)
 		#xx = xx + (0.01)*(dt/0.02)*np.random.randn(*xx.shape)
 		
@@ -149,7 +161,7 @@ def generate_2d_swirls(n=100,T=1,dt=0.001,theta=10,mu=1.01,sigma=0.5,x0=np.array
 	sigMat = np.eye(2) * sigma
 	LMat = np.eye(2) / sigma
 	inds = np.tril_indices(2)
-	mu_fnc = lambda x: (A @ x.detach().cpu().numpy()[:,:,None]).squeeze()
+	mu_fnc = lambda x: (f(x,0)).squeeze()
 	d_fnc = lambda x: torch.diag_embed(sigma * x).detach().cpu().numpy()[:,inds[0],inds[1]]
 
 	eta_fnc = lambda x: ((LMat @ x[:,:,None].detach().cpu().numpy())**2 * (A @ x[:,:,None].detach().cpu().numpy())).squeeze()
@@ -165,6 +177,18 @@ def generate_stochastic_lorenz(n=100,T=1,dt=0.001,coeffs=[10,28,8/3,0.15,0.15,0.
 	
 	allPaths = [ ]
 
+	def f(x,t):
+		dx = sigma * (x[1] - x[0]) #+ sample_dW[0]
+		dy = (x[0] * (rho - x[2]) - x[1]) #+ sample_dW[1]
+		dz = (x[0]*x[1]  - beta*x[2]) #+ sample_dW[2]
+		return np.hstack([dx,dy,dz])
+	
+	def g(x,t):
+		return A[0]
+	
+	def dW(dt):
+		return np.random.normal(loc=np.zeros((3,)),scale=np.sqrt(dt))
+	
 	for ii in range(n):
 
 		
@@ -173,18 +197,9 @@ def generate_stochastic_lorenz(n=100,T=1,dt=0.001,coeffs=[10,28,8/3,0.15,0.15,0.
 		xx = [xnot]
 		for jj in range(1,len(t)+1):
 
-			prev = xx[jj-1]
-			x = prev[0]
-			y = prev[1]
-			z = prev[2]
-
-			sample_dW = Sig @ (np.sqrt(dt) * np.random.randn(3))
-			dx = sigma * (y - x)*dt #+ sample_dW[0]
-			dy = (x * (rho - z) - y)*dt #+ sample_dW[1]
-			dz = (x*y  - beta*z)*dt #+ sample_dW[2]
-
-			#assert (abs(dx) < 200) & (abs(dy) < 200) & (abs(dz)<200),print(dx,dy,dz,ii,jj)
-			xx.append(xx[jj-1] + np.hstack([dx,dy,dz]) + sample_dW)
+			x = xx[jj-1]
+			tt = t[jj-1]
+			xx.append(x + f(x,tt)*dt + g(x,tt)*dW(dt))
 
 		xx = np.vstack(xx)
 		assert xx.shape[0] == (len(t) + 1), print(xx.shape)
