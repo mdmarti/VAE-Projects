@@ -133,7 +133,8 @@ class EmbeddingSDE(nn.Module):
 		elif encode_grad:
 			z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2)
 		else:
-			z1,z2 = self.encoder.forward(x1,pass_gradient=False),self.encoder.forward(x2,pass_gradient=False)
+			with torch.no_grad():
+				z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2)
 
 		if sde_grad:
 			lp,mu,d = self.sde.loss(z1,z2,dt)
