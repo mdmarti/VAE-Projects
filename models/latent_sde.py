@@ -471,7 +471,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		#cov = L @ L.transpose(-2,-1) 
 		##### calculate loss ###################
 
-		const = -self.dim/2 * torch.log(2*torch.pi)
+		const = -self.dim/2 * np.log(2*torch.pi)
 		## |LL^T| = |L| |L^T| = |L|^2 =  (\prod_i L_ii)^2
 		## LOG |LL^T| = 2(\SUM_I  LOG L_II
 		t1 = -torch.logdet(precision)#-2*torch.diagonal(L,dim1=-2,dim2=-1).log().sum(axis=-1) 
