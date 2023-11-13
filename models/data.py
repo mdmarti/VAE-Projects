@@ -244,15 +244,15 @@ class toyDataset(Dataset):
 		"""
 
 		lens = list(map(len,data))
-		lens = [0] + list(np.cumsum([l for l in lens][:-1]))
-		#lenall.append([l - 1 for l in lens][:-1])
-		validInds = np.hstack([list(range(l,len(t)-1 + l)) \
-			 for l,t in zip(lens,data)])
-	
+		lens2 = [0] + list(np.cumsum([l for l in lens][:-1]))
+		pairs = [np.vstack([np.arange(0,l-1),np.arange(1,l)]).T for l in lens]
+		sumPairs = [p+l for p,l in zip(pairs,lens2)]
+		validInds = np.vstack(sumPairs)
 		self.data= np.vstack(data)
 		self.data_inds = validInds
 		self.dt = dt
 		self.length = len(validInds)
+		print('we no longer sampling now')
 		## needed: slice data by dt? need true dt, ds dt for that
 		## should be fine to add though
 
@@ -271,9 +271,9 @@ class toyDataset(Dataset):
 			single_index = True
 
 		for ii in index:
-			ind1 = self.data_inds[ii]
-			ind2 = ind1 + 1
-			s1,s2 = self.transform(self.data[ind1]),self.transform(self.data[ind2])
+			inds = self.data_inds[ii]
+						
+			s1,s2 = self.transform(self.data[inds[0]]),self.transform(self.data[inds[1]])
 			result.append((s1,s2,self.dt))
 
 		if single_index:
