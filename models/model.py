@@ -147,7 +147,7 @@ class EmbeddingSDE(nn.Module):
 		varLoss = self.var_loss(zs) #+ self.var_loss(z2)
 		#varLoss = self.snr_loss(zs) 
 		loss = lp + self.mu * varLoss#self.mu * varLoss
-		return loss,z1,z2,mu,d,varLoss,lp
+		return loss,z1,z2,mu,d,self.mu*varLoss,lp
 
 	def train_epoch(self,loader,optimizer,grad_clipper=None,encode_grad=True,sde_grad=True,stopgrad=False):
 

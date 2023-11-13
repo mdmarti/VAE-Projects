@@ -145,7 +145,7 @@ class linearLatentSDE(latentSDE,nn.Module):
 		### estimate cholesky factor ####
 		chol = torch.zeros(zt1.shape[0],self.dim,self.dim).to(self.device)
 		D = torch.exp(self.D(zt1))
-		chol[:,self.chol_inds[0],self.chol_inds[1]] = D*np.sqrt(dt)
+		chol[:,self.chol_inds[0],self.chol_inds[1]] = D/np.sqrt(dt)
 		precision = chol.transpose(-2,-1) @ chol
 		"""
 		####### invert cholesky factor #######
@@ -404,7 +404,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		L = torch.zeros(zt1.shape[0],self.dim,self.dim).to(self.device)
 		DM = torch.exp(self.D(zt1))
 		D = D.repeat(*DM.shape)
-		L[:,self.chol_inds[0],self.chol_inds[1]] = D*torch.sqrt(dt) 
+		L[:,self.chol_inds[0],self.chol_inds[1]] = D/torch.sqrt(dt) 
 		####### invert cholesky factor #######
 		#eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape[0],1,1).to(self.device)
 		#invChol = torch.linalg.solve_triangular(L,eyes,upper=False)
@@ -462,7 +462,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		### estimate cholesky factor ####
 		L = torch.zeros(zt1.shape[0],self.dim,self.dim).to(self.device)
 		D = torch.exp(self.D(zt1))
-		L[:,self.chol_inds[0],self.chol_inds[1]] = D* torch.sqrt(dt) 
+		L[:,self.chol_inds[0],self.chol_inds[1]] = D/ torch.sqrt(dt) 
 		####### invert cholesky factor #######
 		#eyes = torch.eye(self.dim).view(1,self.dim,self.dim).repeat(zt1.shape[0],1,1).to(self.device)
 		#invChol = torch.linalg.solve_triangular(L,eyes,upper=False)
