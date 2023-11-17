@@ -6,7 +6,9 @@ from scipy.signal import stft
 from scipy.interpolate import interp2d
 import warnings
 from scipy.io.wavfile import WavFileWarning
-
+import sys
+sys.path.append('/home/miles/github/AMCParser')
+import amc_parser as amc
 EPSILON = 1e-12
 
 def z_score(data):
@@ -22,6 +24,70 @@ def scale(data):
 	sd = np.nanstd(x_stacked,axis=0,keepdims=True)
 	mag = np.amax(np.abs(x_stacked))
 	return [d/mag for d in data],mag
+
+
+def getRotation(joints,motion,excluded = ['toes','hand','fingers','thumb','hipjoint']):
+    
+    rotations = []
+    globalrots = []
+    #print(len(joints))
+    for j in joints.keys():
+        joint = joints[j]
+        drop = False
+        for kk in excluded:
+            if kk in joint.name:
+                drop = True
+                #print(f'dropping {joint.name}')
+                continue
+        if not drop:
+            if joint.name == 'root':
+                #print(motion['root'])
+                #print(len(motion['root']))
+                globalRot = np.deg2rad(motion['root'][3:])
+                #print(len(rotation))
+                globalrots.append(globalRot)
+            else:
+                idx = 0
+                rotation = []
+                for axis, lm in enumerate(joint.limits):
+                    if not np.array_equal(lm, np.zeros(2)):
+                        rotation.append(motion[joint.name][idx])
+                        idx += 1
+                #print(joint.name)
+                rotation = np.hstack(rotation)
+                rotation = np.deg2rad(rotation)
+
+                rotations.append(rotation)
+    #rotations.append(globalRot)
+    return np.hstack(rotations),np.array(globalrots)
+
+def preprocess_mocap(jointList,motionsList):
+
+	allTrajs = []
+	for subject,motions in zip(jointList,motionsList):
+
+		subjTrajs = []
+		for trial in motions:
+			rotTrial,globalRotTrial = [],[]
+			for frame in trial:
+				rot,globalrot = getRotation(subject,frame)
+				rotTrial.append(rot)
+				globalRotTrial.append(globalrot)
+
+			rotTrial = np.vstack(rotTrial)
+			globalRots = np.vstack(globalRotTrial)
+			globalTranslation = np.diff(globalRots,axis=0)
+			globalTranslation = np.vstack([globalTranslation,globalTranslation[-1:,:]])
+			allRots = np.hstack([rotTrial,globalRots,globalTranslation])
+			allRots = allRots - np.nanmean(allRots,axis=0)
+
+			subjTrajs.append(allRots)
+
+		allTrajs = allTrajs + subjTrajs
+
+	return allTrajs
+
+
 
 def generate_ndim_benes(n=100,d = 20,T=100,dt=1):
 
