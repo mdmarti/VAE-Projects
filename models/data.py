@@ -7,8 +7,8 @@ from scipy.interpolate import interp2d
 import warnings
 from scipy.io.wavfile import WavFileWarning
 import sys
-sys.path.append('/hdds/miles/AMCParser')
-#import amc_parser as amc
+sys.path.append('/home/miles/github/AMCParser')
+import amc_parser as amc
 EPSILON = 1e-12
 
 def z_score(data):
