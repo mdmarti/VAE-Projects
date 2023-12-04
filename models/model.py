@@ -162,7 +162,40 @@ class EmbeddingSDE(nn.Module):
 		
 		traj = self.sde.generate(z0,T,dt)
 
-		return traj 
+		return traj
+
+	def e_step(self,batch):
+
+		x1,x2,dt = batch 
+		x1,x2,dt = x1.to(self.device),x2.to(self.device),dt.to(self.device)
+
+		z1 = self.encoder.forward(x1)
+		with torch.no_grad():
+			z2 = self.encoder.forward(x2)
+
+		lp,mu,d = self.sde.loss(z1,z2.detach(),dt)
+		entropy = self.entropy_loss(z1)
+
+		loss = lp - entropy 
+
+		return loss,lp,entropy 
+
+	def m_step(self,batch):
+
+		x1,x2,dt = batch 
+		x1,x2,dt = x1.to(self.device),x2.to(self.device),dt.to(self.device)
+
+		
+		with torch.no_grad():
+			z1 = self.encoder.forward(x1)
+			z2 = self.encoder.forward(x2)
+
+		lp,mu,d = self.sde.loss(z1,z2,dt)
+		
+		loss = lp 
+
+		return loss 
+	
 	
 	def forward(self,batch,encode_grad=True,sde_grad=True,stopgrad=True):
 		
@@ -191,6 +224,61 @@ class EmbeddingSDE(nn.Module):
 		loss = lp - entropy + self.mu*muLoss#+ self.mu * (varLoss + covarLoss) + muLoss #self.mu * varLoss
 		return loss,z1,z2,mu,d,entropy,lp,self.mu*covarLoss
 
+	def train_epoch_em(self,loader,encode_optimizer,sde_optimizer,grad_clipper=None,nperpass=50):
+
+		self.train()
+		
+		batchInd = np.random.choice(len(loader),1)
+
+		for p in range(1,nperpass+1):
+			epoch_loss = 0.
+		
+			vL = 0.
+			lP = 0.
+			entropy = 0.
+
+			for ii,batch in enumerate(loader):
+
+				loss,lp,e = self.e_step(batch)
+				loss.backward()
+				if grad_clipper != None:
+					grad_clipper(self.parameters())
+				epoch_loss += loss.item()
+				lP += lp.item()
+				entropy += e.item()
+				
+				encode_optimizer.step()
+
+			self.sde.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.sde.epoch)
+			self.sde.writer.add_scalar('Train/Entropy',entropy/len(loader),self.sde.epoch)
+			self.sde.writer.add_scalar('Train/log prob',lP/len(loader),self.sde.epoch)
+
+			self.sde.epoch += 1
+
+			
+
+		for p in range(1,nperpass+1):
+			#epoch_loss = 0.
+		
+			lP = 0.
+			for ii,batch in enumerate(loader):
+
+				loss = self.m_step(batch)
+				loss.backward()
+				if grad_clipper != None:
+					grad_clipper(self.parameters())
+				#epoch_loss += loss.item()
+				lP += loss.item()
+				sde_optimizer.step()
+
+			self.sde.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.sde.epoch)
+			self.sde.writer.add_scalar('Train/Entropy',entropy/len(loader),self.sde.epoch)
+			self.sde.writer.add_scalar('Train/log prob',lP/len(loader),self.sde.epoch)
+
+			self.sde.epoch += 1
+		
+		return epoch_loss,encode_optimizer,sde_optimizer
+	
 	def train_epoch(self,loader,optimizer,grad_clipper=None,encode_grad=True,sde_grad=True,stopgrad=False):
 
 		self.train()
