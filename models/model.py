@@ -164,8 +164,9 @@ class EmbeddingSDE(nn.Module):
 
 		return traj
 
-	def e_step(self,batch):
+	def e_step(self,batch,optimizer):
 
+		optimizer.zero_grad()
 		x1,x2,dt = batch 
 		x1,x2,dt = x1.to(self.device),x2.to(self.device),dt.to(self.device)
 
@@ -179,10 +180,13 @@ class EmbeddingSDE(nn.Module):
 
 		loss = lp - entropy 
 
-		return loss,lp,entropy 
+		loss.backward()
+		optimizer.step()
+		return (loss,lp,entropy),optimizer 
 
-	def m_step(self,batch):
+	def m_step(self,batch,optimizer):
 
+		optimizer.zero_grad()
 		x1,x2,dt = batch 
 		x1,x2,dt = x1.to(self.device),x2.to(self.device),dt.to(self.device)
 		
@@ -193,8 +197,9 @@ class EmbeddingSDE(nn.Module):
 		lp,mu,d = self.sde.loss(z1,z2,dt)
 		
 		loss = lp 
-
-		return loss
+		loss.backward()
+		optimizer.step()
+		return loss,optimizer
 
 	def em_step(self,batch):
 
