@@ -201,6 +201,7 @@ class linearLatentSDE(latentSDE,nn.Module):
 
 		epoch_loss = 0.
 		for batch in loader:
+			optimizer.zero_grad()
 			loss = self.forward(batch)
 			loss.backward()
 			if grad_clipper != None:
@@ -456,9 +457,10 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 
 		### Loss target ####
 		dzTrue = (zt2-zt1).view(zt1.shape[0],zt1.shape[1],1)
+		zt2 = zt2.view(zt2.shape[0],zt2.shape[1],1)
 		### estimate mu ####
 		mu = (self.MLP(zt1) * dt)
-		mu = mu.view(mu.shape[0],mu.shape[1],1)
+		mu = mu.view(mu.shape[0],mu.shape[1],1) + zt1.view(zt1.shape[0],zt1.shape[1],1)
 		### estimate cholesky factor ####
 		L = torch.zeros(zt1.shape[0],self.dim,self.dim).to(self.device)
 		D = torch.exp(self.D(zt1))
@@ -476,9 +478,9 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		## LOG |LL^T| = 2(\SUM_I  LOG L_II
 		t1 = -2*torch.diagonal(L,dim1=-2,dim2=-1).log().sum(axis=-1) 
 		assert len(t1.shape) == 1, print(t1.shape)
-		t2 = (dzTrue.transpose(-2,-1) @ precision @ dzTrue).squeeze()
+		t2 = (zt2.transpose(-2,-1) @ precision @ zt2).squeeze()
 		assert len(t2.shape)==1,print(t2.shape)
-		t3 = -2*(dzTrue.transpose(-2,-1) @ precision @ mu).squeeze()
+		t3 = -2*(zt2.transpose(-2,-1) @ precision @ mu).squeeze()
 		assert len(t3.shape) == 1,print(t3.shape)
 		t4 = (mu.transpose(-2,-1)@precision @ mu).squeeze()
 		assert len(t4.shape) == 1,print(t4.shape)
