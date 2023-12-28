@@ -19,6 +19,7 @@ class EmbeddingSDE(nn.Module):
 		self.gamma = self.latentDim
 		self.covarGamma = 0.5
 		self.to(self.device)
+		print("New entropy version")
 
 	def _add_dist_figure(self,estimates:np.ndarray,name:str,dim:int,epoch_type:str='Train'):
 		plt.rcParams.update({'font.size': 22})
