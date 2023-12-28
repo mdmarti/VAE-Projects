@@ -88,7 +88,7 @@ class EmbeddingSDE(nn.Module):
 		const = self.latentDim/2 * (np.log(2*np.pi) + 1)
 		det = torch.logdet(cov)/2
 
-		return n*det + const
+		return n*(det + const)
 	
 	def entropy_loss_sumbatch(self,batch):
 
@@ -252,10 +252,10 @@ class EmbeddingSDE(nn.Module):
 		zs = torch.vstack([z1,z2]) # bsz x latent dim
 		varLoss,covarLoss,muLoss = self.var_loss(zs),self.covar_loss(zs),self.mu_reg(zs) #+ self.var_loss(z2)
 		entropy = self.entropy_loss(zs)
-		entropy_dz = self.entropy_loss_sumbatch(z2 - z1)
+		entropy_dz = self.entropy_loss(z2 - z1)
 		#varLoss = self.snr_loss(zs) 
 		loss = lp - entropy_dz + self.mu*muLoss#+ self.mu * (varLoss + covarLoss) + muLoss #self.mu * varLoss
-		return loss,z1,z2,mu,d,entropy,lp,self.mu*covarLoss
+		return loss,z1,z2,mu,d,entropy_dz,lp,self.mu*covarLoss
 
 	def train_epoch_em_simultaneous(self,loader,optimizer,grad_clipper=None):
 
