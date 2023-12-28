@@ -98,7 +98,7 @@ class EmbeddingSDE(nn.Module):
 		const = self.latentDim/2 * (np.log(2*np.pi) + 1)
 		det = torch.logdet(cov)/2
 		assert det.shape[0] == n,print(det.shape)
-		assert det.shape[1] == 1,print(det.shape)
+		assert len(det.shape) == 1,print(det.shape)
 		#es = det + const
 		return det.sum() + n*const
 
