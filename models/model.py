@@ -19,7 +19,7 @@ class EmbeddingSDE(nn.Module):
 		self.gamma = self.latentDim
 		self.covarGamma = 0.5
 		self.to(self.device)
-		print("New entropy version")
+		print("using full entropy version")
 
 	def _add_dist_figure(self,estimates:np.ndarray,name:str,dim:int,epoch_type:str='Train'):
 		plt.rcParams.update({'font.size': 22})
@@ -80,26 +80,28 @@ class EmbeddingSDE(nn.Module):
 		return masked
 
 	
-	def entropy_loss(self,batch):
+	def entropy_loss(self,batch,dt=1):
 
 		n = batch.shape[0]
 		mu = torch.mean(batch,axis=0,keepdim=True)
-		cov = (batch-mu).T @ (batch-mu)/(n-1)
+		cov = (batch-mu).T @ (batch-mu)/(n-1)/dt
 		const = self.latentDim/2 * (np.log(2*np.pi) + 1)
 		det = torch.logdet(cov)/2
 
 		return n*(det + const)
 	
-	def entropy_loss_sumbatch(self,batch):
+	def entropy_loss_sumbatch(self,batch,dt=1):
 
 		n,m = batch.shape
+		
 		batch = batch.view(n,1,m)
-		cov = batch.transpose(-2,-1) @ batch
+		cov = batch.transpose(-2,-1) @ batch/dt
 		const = self.latentDim/2 * (np.log(2*np.pi) + 1)
 		det = torch.logdet(cov)/2
 		assert det.shape[0] == n,print(det.shape)
 		assert len(det.shape) == 1,print(det.shape)
 		#es = det + const
+		det = torch.nan_to_num(det)
 		return det.sum() + n*const
 
 	def snr_loss(self,batch):
@@ -252,7 +254,8 @@ class EmbeddingSDE(nn.Module):
 		zs = torch.vstack([z1,z2]) # bsz x latent dim
 		varLoss,covarLoss,muLoss = self.var_loss(zs),self.covar_loss(zs),self.mu_reg(zs) #+ self.var_loss(z2)
 		entropy = self.entropy_loss(zs)
-		entropy_dz = self.entropy_loss(z2 - z1)
+		#entropy_dz = self.entropy_loss(z2 - z1,dt=dt[0])
+		entropy_dz = self.entropy_loss(z2 - z1,dt=dt[0])
 		#varLoss = self.snr_loss(zs) 
 		loss = lp - entropy_dz + self.mu*muLoss#+ self.mu * (varLoss + covarLoss) + muLoss #self.mu * varLoss
 		return loss,z1,z2,mu,d,entropy_dz,lp,self.mu*covarLoss
