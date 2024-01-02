@@ -2,6 +2,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib import animation
 import matplotlib
+import torch 
+
 def plotSamples3d(true,generated,n=100):
 
 	fig = plt.figure()
@@ -53,13 +55,50 @@ def plotSamples1d(true,generated,n=100):
 	#ax1.set_yticks([])
 	plt.show()
 
+def assess2dModels(models: list, losses:list, data:list,dt:float,savedir:str =''):
+
+
+	allTrajs = np.vstack(data)
+	mu = np.nanmean(allTrajs,axis=0,keepdims=True)
+	allTrajs= allTrajs - mu
+	_,_,vh1 = np.linalg.svd(allTrajs)
+	pcTrajs = allTrajs @ vh1.T
+	pcTrajList = [(e - mu)@vh1.T for e in data] 
+	trajTensor = torch.from_numpy(allTrajs).type(torch.FloatTensor)#.to(fullModel1.device)
+	for ii,(model,loss) in enumerate(zip(models,losses)):
+		embedding = model.encode_trajectory(trajTensor)
+		_,_,vh = np.linalg.svd(embedding)
+		pcEmbed = embedding @ vh.T 
+
+		latentTensors = torch.from_numpy(embedding).type(torch.FloatTensor)
+
+		latentMus,latentCs = model.sde.getMoments(latentTensors.to(model.device))
+		latentMus = latentMus.detach().cpu().numpy()*dt #@ vh.T
+		fig = plt.figure(figsize=(15,7.5))
+		ax1 = fig.add_subplot(131)#,projection='3d')
+		ax2 = fig.add_subplot(132)#,projection='3d')
+		ax3 = fig.add_subplot(133)#,projection='3d')
+
+		ax1.scatter(pcTrajs[:,0],pcTrajs[:,1],s=2,alpha=0.5,color='tab:blue')
+		ax2.scatter(pcEmbed[:,0],pcEmbed[:,1],s=2,alpha=0.5,color='tab:orange')
+		#ax3.scatter(embedding[:,0],embedding[:,1],embedding[:,2],alpha=0.01)
+		ax3.quiver(embedding[:,0],embedding[:,1],latentMus[:,0],latentMus[:,1])
+		
+		plt.suptitle(f"Initialization {ii+1}, van der pol: loss = {loss}")
+		ax1.set_title("Data (PCs)")
+		ax2.set_title("Model embedding (PCs)")
+		ax3.set_title("Model quiver plot")
+		plt.savefig(savedir + f'/model_{ii+1}.png')
+		plt.close(fig)
+
+		
 def plotSamples2d(true: list, samples: list,n=100) -> None:
 
 	fig = plt.figure()
 	ax1 = fig.add_subplot(121)
 	ax2 = fig.add_subplot(122)
 	order = np.random.choice(len(true),n,replace=False)
-	mins, maxs = np.amin(np.vstack(true),axis=0),np.amax(np.vstack(true),axis=0)
+	mins, maxs = np.amin(np.nan_to_num(np.vstack(true),posinf=0,neginf=0),axis=0),np.amax(np.nan_to_num(np.vstack(true),posinf=0,neginf=0),axis=0)
 	
 	true_xlims = (mins[0]-0.1,maxs[0]+0.1)
 	true_ylims = (mins[1]-0.1,maxs[1]+0.1)
