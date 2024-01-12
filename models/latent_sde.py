@@ -502,7 +502,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		## torch.special.multigammaln multivariate log-gamma - check by hand!!!!
 		###########################################
 
-		return loss.sum(),mu.view(len(zt1),self.dim),D * torch.sqrt(dt)
+		return loss.sum(),mu.view(len(zt1),self.dim),L
 	
 	def forward(self,data: torch.FloatTensor):
 

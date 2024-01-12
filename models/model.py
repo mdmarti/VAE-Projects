@@ -1,7 +1,7 @@
 from latent_sde import *
 from encoding import *
 
-
+EPS = 1e-10
 class EmbeddingSDE(nn.Module):
 
 
@@ -79,6 +79,20 @@ class EmbeddingSDE(nn.Module):
 
 		return masked
 
+	def kl_new_loss(self,z1,z2,dt):
+
+		lp,mu,Linv = self.sde.loss(z1,z2,dt)
+		dz = z2-z1 
+		diff = (dz - mu)[:,:,None]
+		transformedNormal = Linv @ (diff)
+
+		empericalMean = torch.nanmean(transformedNormal,axis=0).squeeze()
+		empericalCov = (diff.squeeze() - empericalMean).T @ (diff.squeeze() - empericalMean)
+
+		kl = (empericalMean **2).sum() - self.latentDim + \
+			  torch.trace(empericalCov) - torch.logdet(empericalCov)
+
+		return kl
 	
 	def entropy_loss(self,batch,dt=1):
 
@@ -88,20 +102,20 @@ class EmbeddingSDE(nn.Module):
 		const = self.latentDim/2 * (np.log(2*np.pi) + 1)
 		det = torch.logdet(cov)/2
 
-		return n*(det + const)
+		return (n-1)*(det + const) #n*(det + const)
 	
 	def entropy_loss_sumbatch(self,batch,dt=1):
 
 		n,m = batch.shape
 		
-		batch = batch.view(n,1,m)
-		cov = batch.transpose(-2,-1) @ batch/dt
+		batch = batch.view(n,1,m) #+ 
+		cov = batch.transpose(-2,-1) @ batch /dt
 		const = self.latentDim/2 * (np.log(2*np.pi) + 1)
-		det = torch.logdet(cov)/2
+		det = torch.logdet(cov + EPS)/2
 		assert det.shape[0] == n,print(det.shape)
 		assert len(det.shape) == 1,print(det.shape)
 		#es = det + const
-		det = torch.nan_to_num(det)
+		#det = torch.nan_to_num(det)
 		return det.sum() + n*const
 
 	def snr_loss(self,batch):
@@ -179,7 +193,7 @@ class EmbeddingSDE(nn.Module):
 
 		return traj
 
-	def e_step(self,batch,optimizer):
+	def e_step(self,batch,optimizer,grad_clipper = None):
 
 		optimizer.zero_grad()
 		x1,x2,dt = batch 
@@ -187,32 +201,36 @@ class EmbeddingSDE(nn.Module):
 
 		z1 = self.encoder.forward(x1)
 		
-		with torch.no_grad():
-			z2 = self.encoder.forward(x2)
+		#with torch.no_grad():
+		z2 = self.encoder.forward(x2)
 
 		lp,mu,d = self.sde.loss(z1,z2,dt)
 		entropy = self.entropy_loss(z1)
 
-		loss = lp - entropy 
+		loss = -entropy#lp - entropy 
 
 		loss.backward()
+		if grad_clipper != None:
+			grad_clipper(self.parameters())
 		optimizer.step()
 		return (loss,lp,entropy),optimizer 
 
-	def m_step(self,batch,optimizer):
+	def m_step(self,batch,optimizer,grad_clipper=None):
 
 		optimizer.zero_grad()
 		x1,x2,dt = batch 
 		x1,x2,dt = x1.to(self.device),x2.to(self.device),dt.to(self.device)
 		
-		with torch.no_grad():
-			z1 = self.encoder.forward(x1)
-			z2 = self.encoder.forward(x2)
+		#with torch.no_grad():
+		z1 = self.encoder.forward(x1)
+		z2 = self.encoder.forward(x2)
 
 		lp,mu,d = self.sde.loss(z1,z2,dt)
 		
 		loss = lp 
 		loss.backward()
+		if grad_clipper != None:
+			grad_clipper(self.parameters())
 		optimizer.step()
 		return loss,optimizer
 
@@ -252,12 +270,14 @@ class EmbeddingSDE(nn.Module):
 				lp,mu,d = self.sde.loss(z1,z2,dt)
 
 		zs = torch.vstack([z1,z2]) # bsz x latent dim
-		varLoss,covarLoss,muLoss = self.var_loss(zs),self.covar_loss(zs),self.mu_reg(zs) #+ self.var_loss(z2)
-		entropy = self.entropy_loss(zs)
-		#entropy_dz = self.entropy_loss(z2 - z1,dt=dt[0])
+		varLoss,covarLoss,muLoss = 0,0,0#self.var_loss(zs),self.covar_loss(zs),self.mu_reg(zs) #+ self.var_loss(z2)
+		entropy = 0#,self.entropy_loss(zs)
 		entropy_dz = self.entropy_loss(z2 - z1,dt=dt[0])
+
+		kl_loss = self.kl_new_loss(z1,z2,dt)
+		#entropy_dz = self.entropy_loss_sumbatch(z2 - z1,dt=dt[0])
 		#varLoss = self.snr_loss(zs) 
-		loss = lp - entropy_dz + self.mu*muLoss#+ self.mu * (varLoss + covarLoss) + muLoss #self.mu * varLoss
+		loss = kl_loss#lp - entropy_dz + self.mu*muLoss#+ self.mu * (varLoss + covarLoss) + muLoss #self.mu * varLoss
 		return loss,z1,z2,mu,d,entropy_dz,lp,self.mu*covarLoss
 
 	def train_epoch_em_simultaneous(self,loader,optimizer,grad_clipper=None):
@@ -289,62 +309,44 @@ class EmbeddingSDE(nn.Module):
 		
 		return epoch_loss,optimizer
 	
-	def train_epoch_em(self,loader,encode_optimizer,sde_optimizer,grad_clipper=None,nperpass=50):
+	def train_epoch_em(self,loader,optimizer,grad_clipper=None,nperpass=1):
 
 		self.train()
 		
 		batchInd = np.random.choice(len(loader),1)
-
-		for p in range(1,nperpass+1):
-			epoch_loss = 0.
+		epoch_loss = 0.
 		
-			vL = 0.
-			lP = 0.
-			entropy = 0.
+		vL = 0.
+		lP = 0.
+		entropy = 0.
+		"""
+		for p in range(1,nperpass+1):
+			
+		"""
 
-			for ii,batch in enumerate(loader):
+		for ii,batch in enumerate(loader):
 
-				encode_optimizer.zero_grad()
-				loss,lp,e = self.e_step(batch)
-				loss.backward()
-				if grad_clipper != None:
-					grad_clipper(self.parameters())
-				epoch_loss += loss.item()
-				lP += lp.item()
-				entropy += e.item()
-				
-				encode_optimizer.step()
-
-			self.sde.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.sde.epoch)
-			self.sde.writer.add_scalar('Train/Entropy',entropy/len(loader),self.sde.epoch)
-			self.sde.writer.add_scalar('Train/log prob',lP/len(loader),self.sde.epoch)
-
-			self.sde.epoch += 1
-
+			optimizer.zero_grad()
+			(loss,_,e),optimizer = self.e_step(batch,optimizer,grad_clipper=grad_clipper)
+			
+			epoch_loss += loss.item()
+			#lP += lp.item()
+			entropy += e.item()
+			optimizer.zero_grad()
+			lp,optimizer = self.m_step(batch,optimizer,grad_clipper=grad_clipper)
+			lP += lp.item()
+			epoch_loss += lp.item()
+			
 			
 
-		for p in range(1,nperpass+1):
-			#epoch_loss = 0.
-		
-			lP = 0.
-			for ii,batch in enumerate(loader):
-				sde_optimizer.zero_grad()
-				loss = self.m_step(batch)
-				loss.backward()
-				if grad_clipper != None:
-					grad_clipper(self.parameters())
-				#epoch_loss += loss.item()
-				lP += loss.item()
-				sde_optimizer.step()
+		self.sde.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/Entropy',entropy/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/log prob',lP/len(loader),self.sde.epoch)
 
-			self.sde.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.sde.epoch)
-			self.sde.writer.add_scalar('Train/Entropy',entropy/len(loader),self.sde.epoch)
-			self.sde.writer.add_scalar('Train/log prob',lP/len(loader),self.sde.epoch)
+		self.sde.epoch += 1
 
-			self.sde.epoch += 1
+		return epoch_loss,optimizer
 		
-		return epoch_loss,encode_optimizer,sde_optimizer
-	
 	def train_epoch(self,loader,optimizer,grad_clipper=None,encode_grad=True,sde_grad=True,stopgrad=False):
 
 		self.train()
@@ -367,6 +369,7 @@ class EmbeddingSDE(nn.Module):
 			lP += lp.item()
 			cVL += cv.item()
 			optimizer.step()
+			
 			epoch_mus.append(mu.detach().cpu().numpy())
 			epoch_Ds.append(d.detach().cpu().numpy())
 

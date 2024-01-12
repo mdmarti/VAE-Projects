@@ -158,10 +158,17 @@ class ConvEncoder(linearEncoder):
 
 def _softmax(x:np.array):
 
-	m = np.amax (x,axis=1)
+	m = np.amax (x,axis=1,keepdims=True)
 	e_x = np.exp(x - m)
-	return e_x/np.sum(e_x,axis=1) 
+	return e_x/np.sum(e_x,axis=1,keepdims=True) 
 
+def _combine_dims(x:np.array):
+
+	xOut = x 
+	for ii in range(x.shape[-1]-1):
+		xOut[:,ii] = x[:,ii]*x[:,ii+1]
+
+	return xOut
 class projection:
 
 	"""
@@ -183,6 +190,9 @@ class projection:
 
 			self.projection = lambda x: _softmax(x @ self.W)
 
+		elif projType == 'combine':
+
+			self.projection = lambda x: _combine_dims(x @ self.W)
 		else:
 			print('Method must be softmax or linear')
 			raise NotImplementedError

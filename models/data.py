@@ -7,7 +7,7 @@ from scipy.interpolate import interp2d
 import warnings
 from scipy.io.wavfile import WavFileWarning
 import sys
-sys.path.append('/home/miles/github/AMCParser')
+sys.path.append('/hdd/miles/AMCParser')
 import amc_parser as amc
 EPSILON = 1e-12
 
