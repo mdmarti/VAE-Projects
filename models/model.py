@@ -251,7 +251,7 @@ class EmbeddingSDE(nn.Module):
 
 		return loss,lp,entropy
 	
-	def forward(self,batch,encode_grad=True,sde_grad=True,stopgrad=True):
+	def forward(self,batch,encode_grad=True,sde_grad=True,stopgrad=True,mode='kl'):
 		
 		x1,x2,dt = batch
 		x1,x2,dt = x1.to(self.device),x2.to(self.device),dt.to(self.device)
@@ -280,7 +280,15 @@ class EmbeddingSDE(nn.Module):
 		kl_loss = self.kl_new_loss(dz,mu,d,dt)
 		#entropy_dz = self.entropy_loss_sumbatch(z2 - z1,dt=dt[0])
 		#varLoss = self.snr_loss(zs) 
-		loss = kl_loss #+ lp#lp - entropy_dz + self.mu*muLoss#+ self.mu * (varLoss + covarLoss) + muLoss #self.mu * varLoss
+		if mode == 'kl':
+			loss = kl_loss #+ lp#lp - entropy_dz + self.mu*muLoss#+ self.mu * (varLoss + covarLoss) + muLoss #self.mu * varLoss
+		elif mode == 'lp':
+			loss = lp 
+		elif mode == 'both':
+			loss = lp + kl_loss
+		else:
+			raise Exception("Mode must be one of ['kl', 'lp', 'both']")
+		
 		return loss,z1,z2,mu,d,kl_loss,lp,self.mu*covarLoss
 
 	def train_epoch_em_simultaneous(self,loader,optimizer,grad_clipper=None):
