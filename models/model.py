@@ -79,20 +79,22 @@ class EmbeddingSDE(nn.Module):
 
 		return masked
 
-	def kl_new_loss(self,z1,z2,dt):
+	def kl_new_loss(self,dz,mu,Linv,dt):
 
-		lp,mu,Linv = self.sde.loss(z1,z2,dt)
-		dz = z2-z1 
+		n = dz.shape[0]
+		#lp,mu,Linv = self.sde.loss(z1,z2,dt)
+		
 		diff = (dz - mu)[:,:,None]
 		transformedNormal = Linv @ (diff)
 
 		empericalMean = torch.nanmean(transformedNormal,axis=0).squeeze()
-		empericalCov = (diff.squeeze() - empericalMean).T @ (diff.squeeze() - empericalMean)
+		empericalCov = (diff.squeeze() - empericalMean).T @ (diff.squeeze() - empericalMean)/(n-1)
 
+		empericalCov = empericalCov + torch.eye(self.latentDim).to(self.device)*EPS
 		kl = (empericalMean **2).sum() - self.latentDim + \
 			  torch.trace(empericalCov) - torch.logdet(empericalCov)
 
-		return kl
+		return kl*n
 	
 	def entropy_loss(self,batch,dt=1):
 
@@ -269,16 +271,17 @@ class EmbeddingSDE(nn.Module):
 
 				lp,mu,d = self.sde.loss(z1,z2,dt)
 
+		dz = z2 - z1
 		zs = torch.vstack([z1,z2]) # bsz x latent dim
-		varLoss,covarLoss,muLoss = 0,0,0#self.var_loss(zs),self.covar_loss(zs),self.mu_reg(zs) #+ self.var_loss(z2)
-		entropy = 0#,self.entropy_loss(zs)
-		entropy_dz = self.entropy_loss(z2 - z1,dt=dt[0])
+		varLoss,covarLoss,muLoss = torch.zeros([0]),self.covar_loss(zs),torch.zeros([0])#0,0,0#self.var_loss(zs),self.covar_loss(zs),self.mu_reg(zs) #+ self.var_loss(z2)
+		entropy = torch.zeros([0])#0#,self.entropy_loss(zs)
+		entropy_dz = self.entropy_loss(dz,dt=dt[0])
 
-		kl_loss = self.kl_new_loss(z1,z2,dt)
+		kl_loss = self.kl_new_loss(dz,mu,d,dt)
 		#entropy_dz = self.entropy_loss_sumbatch(z2 - z1,dt=dt[0])
 		#varLoss = self.snr_loss(zs) 
-		loss = kl_loss#lp - entropy_dz + self.mu*muLoss#+ self.mu * (varLoss + covarLoss) + muLoss #self.mu * varLoss
-		return loss,z1,z2,mu,d,entropy_dz,lp,self.mu*covarLoss
+		loss = kl_loss + lp#lp - entropy_dz + self.mu*muLoss#+ self.mu * (varLoss + covarLoss) + muLoss #self.mu * varLoss
+		return loss,z1,z2,mu,d,kl_loss,lp,self.mu*covarLoss
 
 	def train_epoch_em_simultaneous(self,loader,optimizer,grad_clipper=None):
 
@@ -382,7 +385,7 @@ class EmbeddingSDE(nn.Module):
 
 
 		self.sde.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/Entropy',vL/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/KL',vL/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Train/log prob',lP/len(loader),self.sde.epoch)
 		#self.sde.writer.add_scalar('Train/covar loss',cVL/len(loader),self.sde.epoch)
 		if self.sde.plotDists & (self.sde.epoch % 100 == 0):
@@ -425,7 +428,7 @@ class EmbeddingSDE(nn.Module):
 
 
 		self.sde.writer.add_scalar('Test/loss',epoch_loss/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Test/Entropy',epoch_vl/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Test/KL',epoch_vl/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Test/log prob',epoch_lp/len(loader),self.sde.epoch)
 		#self.sde.writer.add_scalar('Test/covar loss',epoch_cVL/len(loader),self.sde.epoch)
 
@@ -461,7 +464,7 @@ class EmbeddingSDE(nn.Module):
 		epoch_Ds = np.vstack(epoch_Ds)
 
 		self.sde.writer.add_scalar('Test/loss',epoch_loss/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Test/Entropy',epoch_vl/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Test/KL',epoch_vl/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Test/log prob',epoch_lp/len(loader),self.sde.epoch)
 		#self.sde.writer.add_scalar('Test/covar loss',epoch_cVL/len(loader),self.sde.epoch)
 		if self.sde.plotDists:
