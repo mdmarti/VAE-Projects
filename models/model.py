@@ -1,7 +1,7 @@
 from latent_sde import *
 from encoding import *
 
-EPS = 1e-10
+EPS = 1e-6
 class EmbeddingSDE(nn.Module):
 
 
