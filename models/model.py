@@ -405,7 +405,7 @@ class EmbeddingSDE(nn.Module):
 			for d in range(self.sde.n_entries):
 				self._add_dist_figure(epoch_Ds[:,d],self.sde.p2name,d+1,'Train')
 		self.sde.epoch += 1
-	
+		optimizer.zero_grad()
 		return epoch_loss,optimizer
 	
 
