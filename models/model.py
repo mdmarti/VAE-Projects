@@ -358,7 +358,7 @@ class EmbeddingSDE(nn.Module):
 
 		return epoch_loss,optimizer
 		
-	def train_epoch(self,loader,optimizer,grad_clipper=None,encode_grad=True,sde_grad=True,stopgrad=False):
+	def train_epoch(self,loader,optimizer,grad_clipper=None,encode_grad=True,sde_grad=True,stopgrad=False,mode='kl'):
 
 		self.train()
 		epoch_loss = 0.
@@ -371,7 +371,7 @@ class EmbeddingSDE(nn.Module):
 
 		for ii,batch in enumerate(loader):
 			optimizer.zero_grad()
-			loss,z1,z2,mu,d,vl,lp,cv = self.forward(batch,encode_grad,sde_grad,stopgrad)
+			loss,z1,z2,mu,d,vl,lp,cv = self.forward(batch,encode_grad,sde_grad,stopgrad,mode=mode)
 			loss.backward()
 			if grad_clipper != None:
 				grad_clipper(self.parameters())
