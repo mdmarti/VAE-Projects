@@ -97,7 +97,7 @@ class EmbeddingSDE(nn.Module):
 
 		# E[log p] = -k/2 log (2pi) - 1/2 log | \Sigma| - 1/2 (x-\mu)^T \Sigma^{-1}(x-\mu)
 		
-		lp = -self.latentDim/2 * np.log(2*np.pi) - (1/2 *(transformedNormal.squeeze() @ transformedNormal.squeeze().T).sum())/n
+		lp = -self.latentDim/2 * np.log(2*np.pi) - (1/2 *(transformedNormal @ transformedNormal.transpose(-2,-1)).sum())/n
 
 
 		#empericalCov = empericalCov + torch.eye(self.latentDim).to(self.device)*EPS
