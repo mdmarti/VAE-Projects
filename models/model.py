@@ -90,11 +90,21 @@ class EmbeddingSDE(nn.Module):
 		empericalMean = torch.nanmean(transformedNormal,axis=0).squeeze()
 		empericalCov = (diff.squeeze() - empericalMean).T @ (diff.squeeze() - empericalMean)/(n-1)
 
-		#empericalCov = empericalCov + torch.eye(self.latentDim).to(self.device)*EPS
-		kl = (empericalMean **2).sum() - self.latentDim + \
-			  torch.trace(empericalCov) - torch.logdet(empericalCov)
+		
+		const = self.latentDim/2 * (np.log(2*np.pi) + 1)
+		det = torch.logdet(empericalCov)/2
+		entropy = const + det
 
-		return kl*n
+		# E[log p] = -k/2 log (2pi) - 1/2 log | \Sigma| - 1/2 (x-\mu)^T \Sigma^{-1}(x-\mu)
+		
+		lp = -self.latentDim/2 * np.log(2*np.pi) - (1/2 *(transformedNormal.squeeze() @ transformedNormal.squeeze().T).sum())/n
+
+
+		#empericalCov = empericalCov + torch.eye(self.latentDim).to(self.device)*EPS
+		kl = -lp - entropy #(empericalMean **2).sum() - self.latentDim + \
+			  #torch.trace(empericalCov) - torch.logdet(empericalCov)
+
+		return kl
 	
 	def entropy_loss(self,batch,dt=1):
 
