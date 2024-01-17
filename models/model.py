@@ -1,7 +1,7 @@
 from latent_sde import *
 from encoding import *
 
-EPS = 1e-6
+#EPS = 1e-6
 class EmbeddingSDE(nn.Module):
 
 
@@ -90,7 +90,7 @@ class EmbeddingSDE(nn.Module):
 		empericalMean = torch.nanmean(transformedNormal,axis=0).squeeze()
 		empericalCov = (diff.squeeze() - empericalMean).T @ (diff.squeeze() - empericalMean)/(n-1)
 
-		empericalCov = empericalCov + torch.eye(self.latentDim).to(self.device)*EPS
+		#empericalCov = empericalCov + torch.eye(self.latentDim).to(self.device)*EPS
 		kl = (empericalMean **2).sum() - self.latentDim + \
 			  torch.trace(empericalCov) - torch.logdet(empericalCov)
 
