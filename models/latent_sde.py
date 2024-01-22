@@ -460,7 +460,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		zt2 = zt2.view(zt2.shape[0],zt2.shape[1],1)
 		### estimate mu ####
 		mu = (self.MLP(zt1) * dt)
-		mu = mu.view(mu.shape[0],mu.shape[1],1) + zt1.view(zt1.shape[0],zt1.shape[1],1)
+		z2Hat = mu.view(mu.shape[0],mu.shape[1],1) + zt1.view(zt1.shape[0],zt1.shape[1],1)
 		### estimate cholesky factor ####
 		L = torch.zeros(zt1.shape[0],self.dim,self.dim).to(self.device)
 		D = torch.exp(self.D(zt1))
@@ -480,9 +480,9 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		assert len(t1.shape) == 1, print(t1.shape)
 		t2 = (zt2.transpose(-2,-1) @ precision @ zt2).squeeze()
 		assert len(t2.shape)==1,print(t2.shape)
-		t3 = -2*(zt2.transpose(-2,-1) @ precision @ mu).squeeze()
+		t3 = -2*(zt2.transpose(-2,-1) @ precision @ z2Hat).squeeze()
 		assert len(t3.shape) == 1,print(t3.shape)
-		t4 = (mu.transpose(-2,-1)@precision @ mu).squeeze()
+		t4 = (z2Hat.transpose(-2,-1)@precision @ z2Hat).squeeze()
 		assert len(t4.shape) == 1,print(t4.shape)
 		log_pz2 = const - 1/2*(t1 + t2 + t3 + t4)
 		loss = - log_pz2
