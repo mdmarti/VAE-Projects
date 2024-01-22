@@ -79,43 +79,82 @@ class EmbeddingSDE(nn.Module):
 
 		return masked
 
-	def kl_new_loss(self,dz,mu,Linv,dt):
+	def kl_dim_only(self,dz,mu,Linv):
+
+		"""
+		current version: -lp - entropy_dims
+		"""
 
 		n = dz.shape[0]
-		#lp,mu,Linv = self.sde.loss(z1,z2,dt)
-		
+
 		diff = (dz - mu)[:,:,None]
 		transformedNormal = Linv @ (diff)
 
-		empericalMean = torch.nanmean(transformedNormal,axis=0).squeeze()
-		empericalCov = (diff.squeeze() - empericalMean).T @ (diff.squeeze() - empericalMean)/(n-1)
-
+		empericalMeanDim = torch.nanmean(transformedNormal,axis=0).squeeze()
+		empericalCovDim = (diff.squeeze() - empericalMeanDim).T @ (diff.squeeze() - empericalMeanDim)/(n-1)
+		const_dim = self.latentDim/2 * (np.log(2*np.pi) + 1)
+		det_dim = torch.logdet(empericalCovDim)/2
+		entropy_dim = const_dim + det_dim
 		
-		const = self.latentDim/2 * (np.log(2*np.pi) + 1)
-		det = torch.logdet(empericalCov)/2
-		entropy = const + det
-
 		# E[log p] = -k/2 log (2pi) - 1/2 log | \Sigma| - 1/2 (x-\mu)^T \Sigma^{-1}(x-\mu)
 		
 		lp = n*(-self.latentDim/2 * np.log(2*np.pi)) - (1/2 *(transformedNormal @ transformedNormal.transpose(-2,-1)).sum())
 
+		#empericalCov = empericalCov + torch.eye(self.latentDim).to(self.device)*EPS
+		kl = -lp - entropy_dim
+		#kl = (empericalMeanDim **2).sum() - self.latentDim + \
+		#	  torch.trace(empericalCovDim) - torch.logdet(empericalCovDim)
+
+		return kl
+
+	def kl_product_approx(self,dz,mu,Linv):
+		"""
+		current version: -lp - entropies, approximate full covar as tensor product of dim covar and batch covar
+		"""
+
+		n = dz.shape[0]
+				
+		diff = (dz - mu)[:,:,None]
+		transformedNormal = Linv @ (diff)
+
+		empericalMeanDim = torch.nanmean(transformedNormal,axis=0).squeeze()
+		empericalCovDim = (diff.squeeze() - empericalMeanDim).T @ (diff.squeeze() - empericalMeanDim)/(n-1)
+
+		empericalMeanBatch = torch.nanmean(transformedNormal,axis=1).squeeze()
+		empericalCovBatch = (diff.squeeze() - empericalMeanBatch) @ (diff.squeeze() - empericalMeanBatch).T/(self.latentDim - 1)
+
+		const_dim = self.latentDim/2 * (np.log(2*np.pi) + 1)
+		det_dim = torch.logdet(empericalCovDim)/2
+		entropy_dim = const_dim + det_dim
+		
+		const_batch = n/2 * (np.log(2*np.pi) + 1)
+		det_batch = torch.logdet(empericalCovBatch)/2
+		entropy_batch = const_batch + det_batch
+		
+		# E[log p] = -k/2 log (2pi) - 1/2 log | \Sigma| - 1/2 (x-\mu)^T \Sigma^{-1}(x-\mu)
+		
+		lp = n*(-self.latentDim/2 * np.log(2*np.pi)) - (1/2 *(transformedNormal @ transformedNormal.transpose(-2,-1)).sum())
 
 		#empericalCov = empericalCov + torch.eye(self.latentDim).to(self.device)*EPS
-		#kl = -lp - entropy 
-		kl = (empericalMean **2).sum() - self.latentDim + \
-			  torch.trace(empericalCov) - torch.logdet(empericalCov)
+		kl = -lp - entropy_dim - entropy_batch 
+		#kl = (empericalMeanDim **2).sum() - self.latentDim + \
+		#	  torch.trace(empericalCovDim) - torch.logdet(empericalCovDim)
 
-		return kl*n
+		return kl
 	
-	def entropy_loss(self,batch,dt=1):
+	def entropy_loss(self,batch): #,dt=1):
+		"""
+		converting to entropy of batch, as opposed to entropy of
+		latent distribution across dims
+		"""
 
 		n = batch.shape[0]
 		mu = torch.mean(batch,axis=0,keepdim=True)
-		cov = (batch-mu).T @ (batch-mu)/(n-1)/dt
-		const = self.latentDim/2 * (np.log(2*np.pi) + 1)
+		cov = (batch-mu) @ (batch-mu).T/(self.latentDim-1)
+		const = n/2 * (np.log(2*np.pi) + 1)
 		det = torch.logdet(cov)/2
 
-		return (n-1)*(det + const) #n*(det + const)
+		return (det + const) #n*(det + const)
 	
 	def entropy_loss_sumbatch(self,batch,dt=1):
 
@@ -286,17 +325,26 @@ class EmbeddingSDE(nn.Module):
 		zs = torch.vstack([z1,z2]) # bsz x latent dim
 		varLoss,covarLoss,muLoss = torch.zeros([0]),self.covar_loss(zs),torch.zeros([0])#0,0,0#self.var_loss(zs),self.covar_loss(zs),self.mu_reg(zs) #+ self.var_loss(z2)
 		entropy = torch.zeros([0])#0#,self.entropy_loss(zs)
-		entropy_dz = self.entropy_loss(dz,dt=dt[0])
+		#entropy_dz = self.entropy_loss(dz,dt=dt[0])
 
-		kl_loss = self.kl_new_loss(dz,mu,d,dt)
+		
 		#entropy_dz = self.entropy_loss_sumbatch(z2 - z1,dt=dt[0])
 		#varLoss = self.snr_loss(zs) 
 		if mode == 'kl':
+			kl_loss = self.kl_product_approx(dz,mu,d)
 			loss = kl_loss #+ lp#lp - entropy_dz + self.mu*muLoss#+ self.mu * (varLoss + covarLoss) + muLoss #self.mu * varLoss
 		elif mode == 'lp':
 			loss = lp 
 		elif mode == 'both':
+			kl_loss = self.kl_dim_only(dz,mu,d)
 			loss = lp + self.mu * kl_loss
+		elif mode == 'residuals_constrained':
+			kl_loss = self.kl_product_approx(dz,mu,d)
+			loss = kl_loss
+		elif mode == 'allspace_constrained':
+			kl_loss = self.kl_dim_only(dz,mu,d)
+			entropy_dz = self.entropy_loss(dz)
+			loss = lp + kl_loss - entropy_dz
 		else:
 			raise Exception("Mode must be one of ['kl', 'lp', 'both']")
 		
