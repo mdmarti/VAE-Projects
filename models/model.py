@@ -101,10 +101,11 @@ class EmbeddingSDE(nn.Module):
 
 
 		#empericalCov = empericalCov + torch.eye(self.latentDim).to(self.device)*EPS
-		kl = -lp - entropy #(empericalMean **2).sum() - self.latentDim + \
-			  #torch.trace(empericalCov) - torch.logdet(empericalCov)
+		#kl = -lp - entropy 
+		kl = (empericalMean **2).sum() - self.latentDim + \
+			  torch.trace(empericalCov) - torch.logdet(empericalCov)
 
-		return kl
+		return kl*n
 	
 	def entropy_loss(self,batch,dt=1):
 
@@ -295,7 +296,7 @@ class EmbeddingSDE(nn.Module):
 		elif mode == 'lp':
 			loss = lp 
 		elif mode == 'both':
-			loss = lp + kl_loss
+			loss = lp + self.mu * kl_loss
 		else:
 			raise Exception("Mode must be one of ['kl', 'lp', 'both']")
 		
