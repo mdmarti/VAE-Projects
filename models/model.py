@@ -92,8 +92,11 @@ class EmbeddingSDE(nn.Module):
 		return masked
 
 	def update_batch_covar(self,data):
+		print(data.shape)
 
 		newCovar = data.T @ data / self.latentDim
+		print(newCovar.shape)
+		print(self.batch_approx.shape)
 
 		updated = (1 - self.epsilon) *self.batch_approx.detach() + self.epsilon * newCovar
 
