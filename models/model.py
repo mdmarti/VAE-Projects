@@ -377,6 +377,10 @@ class EmbeddingSDE(nn.Module):
 		elif mode == 'batchCovar':
 			kl_loss = self.kl_dim_only(dz,mu,d)
 			batch_ld = torch.logdet(currCovar)/2
+
+			assert kl_loss != torch.nan, print('kl loss is nan')
+			assert batch_ld != torch.nan, print('logdet is nan')
+			assert lp != torch.nan,print('log prob is nan')
 			loss = lp +kl_loss - batch_ld
 
 		else:
