@@ -21,6 +21,18 @@ class EmbeddingSDE(nn.Module):
 		self.to(self.device)
 		print("using full entropy version")
 
+	def _init_batch_covar_approx(self,batch_size=512,epsilon = 0.2):
+
+		"""
+		create our first estimate of the batch covariance!
+		
+		initializes as the Bsz x Bsz identity, to begin with
+		"""
+
+		self.batch_size= batch_size
+		self.batch_approx = torch.eye(batch_size).to(self.device)
+		self.epsilon=epsilon
+
 	def _add_dist_figure(self,estimates:np.ndarray,name:str,dim:int,epoch_type:str='Train'):
 		plt.rcParams.update({'font.size': 22})
 		#estimates = estimates.detach().cpu().numpy()
@@ -78,6 +90,17 @@ class EmbeddingSDE(nn.Module):
 		masked = (covar * mask.to(self.device))**2 
 
 		return masked
+
+	def update_batch_covar(self,data):
+
+		newCovar = data.T @ data / self.latentDim
+
+		updated = (1 - self.epsilon) *self.batch_approx.detach() + self.epsilon * newCovar
+
+		assert updated.requires_grad == True
+
+		self.batch_approx = updated
+		return updated
 
 	def kl_dim_only(self,dz,mu,Linv):
 
@@ -325,6 +348,7 @@ class EmbeddingSDE(nn.Module):
 		zs = torch.vstack([z1,z2]) # bsz x latent dim
 		varLoss,covarLoss,muLoss = torch.zeros([0]),self.covar_loss(zs),torch.zeros([0])#0,0,0#self.var_loss(zs),self.covar_loss(zs),self.mu_reg(zs) #+ self.var_loss(z2)
 		entropy = torch.zeros([0])#0#,self.entropy_loss(zs)
+		currCovar = self.update_batch_covar(dz)
 		#entropy_dz = self.entropy_loss(dz,dt=dt[0])
 
 		
@@ -345,6 +369,11 @@ class EmbeddingSDE(nn.Module):
 			kl_loss = self.kl_dim_only(dz,mu,d)
 			entropy_dz = self.entropy_loss(dz)
 			loss = lp + kl_loss - entropy_dz
+		elif mode == 'batchCovar':
+			kl_loss = self.kl_dim_only(dz,mu,d)
+			batch_ld = torch.logdet(currCovar)/2
+			loss = lp +kl_loss - batch_ld
+
 		else:
 			raise Exception("Mode must be one of ['kl', 'lp', 'both']")
 		
