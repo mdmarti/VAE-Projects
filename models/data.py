@@ -309,6 +309,8 @@ class toyDataset(Dataset):
 		toyData: list of numpy arrays
 		"""
 
+		exampleInd = np.random.choice(len(data),1)[0]
+		self.exampleTraj = data[exampleInd]
 		lens = list(map(len,data))
 		lens2 = [0] + list(np.cumsum([l for l in lens][:-1]))
 		pairs = [np.vstack([np.arange(0,l-1),np.arange(1,l)]).T for l in lens]

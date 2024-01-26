@@ -1,7 +1,7 @@
 from latent_sde import *
 from encoding import *
 
-#EPS = 1e-6
+EPS = 1e-8
 class EmbeddingSDE(nn.Module):
 
 
@@ -120,15 +120,15 @@ class EmbeddingSDE(nn.Module):
 		empericalMeanDim = torch.nanmean(transformedNormal,axis=0).squeeze()
 		empericalCovDim = (diff.squeeze() - empericalMeanDim).T @ (diff.squeeze() - empericalMeanDim)/(n-1)
 
-		empericalMeanBatch = torch.nanmean(transformedNormal,axis=1).squeeze()
+		empericalMeanBatch = torch.nanmean(transformedNormal.squeeze(),axis=1,keepdim=True)
 		empericalCovBatch = (diff.squeeze() - empericalMeanBatch) @ (diff.squeeze() - empericalMeanBatch).T/(self.latentDim - 1)
-
+		assert empericalCovBatch.shape == (n,n),print(empericalCovBatch.shape)
 		const_dim = self.latentDim/2 * (np.log(2*np.pi) + 1)
 		det_dim = torch.logdet(empericalCovDim)/2
 		entropy_dim = const_dim + det_dim
 		
 		const_batch = n/2 * (np.log(2*np.pi) + 1)
-		det_batch = torch.logdet(empericalCovBatch)/2
+		det_batch = torch.logdet(empericalCovBatch + EPS)/2
 		entropy_batch = const_batch + det_batch
 		
 		# E[log p] = -k/2 log (2pi) - 1/2 log | \Sigma| - 1/2 (x-\mu)^T \Sigma^{-1}(x-\mu)
@@ -150,11 +150,11 @@ class EmbeddingSDE(nn.Module):
 
 		n = batch.shape[0]
 		mu = torch.mean(batch,axis=0,keepdim=True)
-		cov = (batch-mu) @ (batch-mu).T/(self.latentDim-1)
-		const = n/2 * (np.log(2*np.pi) + 1)
+		cov = (batch-mu).T @ (batch-mu)/(self.latentDim-1)
+		const = self.latentDim/2 * (np.log(2*np.pi) + 1)
 		det = torch.logdet(cov)/2
 
-		return (det + const) #n*(det + const)
+		return  n*(det + const) #(det + const)
 	
 	def entropy_loss_sumbatch(self,batch,dt=1):
 
@@ -331,7 +331,7 @@ class EmbeddingSDE(nn.Module):
 		#entropy_dz = self.entropy_loss_sumbatch(z2 - z1,dt=dt[0])
 		#varLoss = self.snr_loss(zs) 
 		if mode == 'kl':
-			kl_loss = self.kl_product_approx(dz,mu,d)
+			kl_loss = self.kl_dim_only(dz,mu,d)
 			loss = kl_loss #+ lp#lp - entropy_dz + self.mu*muLoss#+ self.mu * (varLoss + covarLoss) + muLoss #self.mu * varLoss
 		elif mode == 'lp':
 			loss = lp 
@@ -339,7 +339,7 @@ class EmbeddingSDE(nn.Module):
 			kl_loss = self.kl_dim_only(dz,mu,d)
 			loss = lp + self.mu * kl_loss
 		elif mode == 'residuals_constrained':
-			kl_loss = self.kl_product_approx(dz,mu,d)
+			kl_loss = self.kl_dim_only(dz,mu,d)
 			loss = kl_loss
 		elif mode == 'allspace_constrained':
 			kl_loss = self.kl_dim_only(dz,mu,d)
