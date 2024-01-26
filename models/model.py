@@ -382,6 +382,7 @@ class EmbeddingSDE(nn.Module):
 			assert batch_ld != torch.nan, print('logdet is nan')
 			assert lp != torch.nan,print('log prob is nan')
 			loss = lp +kl_loss - batch_ld
+			assert loss != torch.nan, print('loss is somehow nan')
 
 		else:
 			raise Exception("Mode must be one of ['kl', 'lp', 'both']")
