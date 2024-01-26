@@ -470,6 +470,8 @@ class EmbeddingSDE(nn.Module):
 		for ii,batch in enumerate(loader):
 			optimizer.zero_grad()
 			loss,z1,z2,mu,d,vl,lp,cv = self.forward(batch,encode_grad,sde_grad,stopgrad,mode=mode)
+			assert loss != torch.nan, print('loss is somehow nan')
+
 			loss.backward()
 			if grad_clipper != None:
 				grad_clipper(self.parameters())
@@ -489,7 +491,7 @@ class EmbeddingSDE(nn.Module):
 		epoch_mus = np.vstack(epoch_mus)
 		epoch_Ds = np.vstack(epoch_Ds)
 
-
+		assert epoch_loss != torch.nan, print('how?')
 		self.sde.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Train/KL',vL/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Train/log prob',lP/len(loader),self.sde.epoch)
