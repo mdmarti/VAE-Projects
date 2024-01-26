@@ -361,12 +361,12 @@ class EmbeddingSDE(nn.Module):
 		#varLoss = self.snr_loss(zs) 
 		if mode == 'kl':
 			kl_loss = self.entropy_loss(dz)
-			loss = kl_loss #+ lp#lp - entropy_dz + self.mu*muLoss#+ self.mu * (varLoss + covarLoss) + muLoss #self.mu * varLoss
+			loss = -kl_loss #+ lp#lp - entropy_dz + self.mu*muLoss#+ self.mu * (varLoss + covarLoss) + muLoss #self.mu * varLoss
 		elif mode == 'lp':
 			loss = lp 
 		elif mode == 'both':
 			kl_loss = self.entropy_loss(dz)
-			loss = lp + self.mu * kl_loss
+			loss = lp - self.mu * kl_loss
 		elif mode == 'residuals_constrained':
 			kl_loss = self.kl_dim_only(dz,mu,d)
 			loss = kl_loss
