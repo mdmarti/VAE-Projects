@@ -1,5 +1,6 @@
 from latent_sde import *
 from encoding import *
+from tqdm import tqdm
 
 EPS = 1e-8
 class EmbeddingSDE(nn.Module):
@@ -247,6 +248,53 @@ class EmbeddingSDE(nn.Module):
 
 		return self.encoder.forward(data.to(self.device)).detach().cpu().numpy()
 	
+	def init_sde(self, loader,sde_optimizer,grad_clipper=None,n_epochs=100):
+
+		self.train()
+		epoch_losses = [] 
+
+		vL = 0.
+		lP = 0.
+		cVL = 0.
+		batchInd = np.random.choice(len(loader),1)
+
+		rp = torch.randn((self.dataDim,self.latentDim)).to(self.device)
+		for jj in tqdm(range(n_epochs),desc='initializing sde'):
+			epoch_loss = 0.
+			for ii,batch in enumerate(loader):
+
+				sde_optimizer.zero_grad()
+
+				x1,x2,dt = batch 
+				x1,x2 = x1.to(self.device),x2.to(self.device)
+				
+				if len(x1.shape) > 2:
+					x1,x2 = x1.view(x1.shape,-1),x2.view(x2.shape,[-1])
+				
+				z1,z2 = x1 @ rp, x2 @ rp 
+
+				lp,mu,d = self.sde.loss(z1,z2,dt)
+				
+				lp.backward()
+				if grad_clipper != None:
+					grad_clipper(self.parameters())
+				epoch_loss += lp.item()
+				
+				lP += lp.item()
+				
+				sde_optimizer.step()
+
+			epoch_losses.append(epoch_loss/len(loader))
+			assert epoch_loss != torch.nan, print('how?')
+			self.sde.writer.add_scalar('Pre-train/lp',epoch_loss/len(loader),self.sde.epoch)
+
+		#self.sde.writer.add_scalar('Train/covar loss',cVL/len(loader),self.sde.epoch)
+
+			self.sde.epoch += 1
+
+		sde_optimizer.zero_grad()
+		return epoch_losses,sde_optimizer
+	
 	def generate_trajectory(self,init_conditions,T,dt):
 		self.eval()
 		init_conditions = init_conditions.to(self.device)
@@ -364,6 +412,7 @@ class EmbeddingSDE(nn.Module):
 			loss = -kl_loss #+ lp#lp - entropy_dz + self.mu*muLoss#+ self.mu * (varLoss + covarLoss) + muLoss #self.mu * varLoss
 		elif mode == 'lp':
 			loss = lp 
+			kl_loss = self.entropy_loss(dz)
 		elif mode == 'both':
 			kl_loss = self.entropy_loss(dz)
 			loss = lp - self.mu * kl_loss
