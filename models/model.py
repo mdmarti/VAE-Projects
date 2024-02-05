@@ -113,7 +113,7 @@ class EmbeddingSDE(nn.Module):
 		jac = vmap(jacrev(self.sde.MLP))(z1)
 		reg = torch.logdet(jac)
 
-		return reg.sum()
+		return reg.mean()
 
 	def mu_regularizer(self,mu):
 
