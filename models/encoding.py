@@ -84,6 +84,55 @@ class MLPEncoder(linearEncoder,nn.Module):
 		self.F = nn.Sequential(*F)
 
 		self.F.to(self.device)
+
+class ProbMLPEncoder(linearEncoder,nn.Module):
+
+	def __init__(
+			self,
+			data_dim: int,
+			latent_dim: int,
+			n_hidden=0,
+			hidden_size=10,
+			has_bias: bool=True,
+			device: str='cuda') -> None:
+		
+		
+		super(MLPEncoder,self).__init__(data_dim,latent_dim,has_bias,device)
+
+		self.chol_inds = torch.tril_indices(latent_dim,latent_dim)
+		self.n_entries = np.sum(list(range(1,self.latent_dim+1)))
+
+		F = []
+		for _ in range(n_hidden):
+			F = F + [nn.Linear(hidden_size,hidden_size),nn.Softplus()] 
+		F = [nn.Linear(self.data_dim,hidden_size),nn.Softplus()] + F 
+
+		self.F = nn.Sequential(*F)
+		self.mu = nn.Linear(self.hidden_size,self.latent_dim)
+		self.D = nn.Linear(self.hidden_size,self.n_entries)
+		self.F.to(self.device)
+
+	def forward(self, 
+				data: torch.FloatTensor, 
+				pass_gradient: bool = True
+				) -> torch.FloatTensor:
+		
+		if pass_gradient:
+			intmdt = self.F(data)
+			mu = self.mu(intmdt)
+			chol = torch.zeros(data.shape[0],self.latent_dim,self.latent_dim).to(self.device)
+			D = torch.exp(self.D(data))
+			chol[:,self.chol_inds[0],self.chol_inds[1]] = D
+			return mu, chol @ chol.transpose(-2,-1)
+		else:
+			intmdt = self.F(data.detach())
+			mu = self.mu(intmdt)
+			chol = torch.zeros(data.shape[0],self.latent_dim,self.latent_dim).to(self.device)
+			D = torch.exp(self.D(data))
+			chol[:,self.chol_inds[0],self.chol_inds[1]] = D
+			return mu, chol @ chol.transpose(-2,-1)
+
+
 		
 
 class ConvEncoder(linearEncoder):

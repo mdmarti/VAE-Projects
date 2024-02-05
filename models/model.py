@@ -1,6 +1,7 @@
 from latent_sde import *
 from encoding import *
 from tqdm import tqdm
+from torch.func import jacrev,vmap
 
 EPS = 1e-8
 class EmbeddingSDE(nn.Module):
@@ -20,6 +21,7 @@ class EmbeddingSDE(nn.Module):
 		self.gamma = self.latentDim
 		self.covarGamma = 0.5
 		self.to(self.device)
+		self.counter = 0.
 		print("using full entropy version")
 
 	def _init_batch_covar_approx(self,batch_size=512,epsilon = 0.2):
@@ -105,6 +107,17 @@ class EmbeddingSDE(nn.Module):
 
 		self.batch_approx = updated
 		return updated
+	
+	def gradMu_regularizer(self,z1):
+
+		jac = vmap(jacrev(self.sde.MLP))(z1)
+		reg = torch.logdet(jac)
+
+		return reg.sum()
+
+	def mu_regularizer(self,mu):
+
+		return torch.linalg.vector_norm(mu,dim=1).sum()
 
 	def kl_dim_only(self,dz,mu,Linv):
 
@@ -248,7 +261,7 @@ class EmbeddingSDE(nn.Module):
 
 		dz = z2 - z1
 		zs = torch.vstack([z1,z2]) # bsz x latent dim
-		varLoss,covarLoss,muLoss = torch.zeros([0]),self.covar_loss(zs),torch.zeros([0])#0,0,0#self.var_loss(zs),self.covar_loss(zs),self.mu_reg(zs) #+ self.var_loss(z2)
+		#varLoss,covarLoss,muLoss = torch.zeros([0]),self.covar_loss(zs),torch.zeros([0])#0,0,0#self.var_loss(zs),self.covar_loss(zs),self.mu_reg(zs) #+ self.var_loss(z2)
 		entropy = torch.zeros([0])#0#,self.entropy_loss(zs)
 		if self.training:
 			# only update batch covariance on training data
@@ -267,6 +280,20 @@ class EmbeddingSDE(nn.Module):
 		elif mode == 'both':
 			kl_loss = self.entropy_loss(dz)
 			loss = lp - self.mu * kl_loss
+
+		elif mode == 'kllp_gradmu':
+			kl_loss = self.entropy_loss(dz)
+			gradmu = self.gradMu_regularizer(z1)
+			if torch.any(gradmu == torch.nan):
+				print('we have nans in grad mu logdet')
+			self.sde.writer.add_scalar('Train/gradmu',gradmu,self.counter)
+			self.counter += 1
+			loss = lp - self.mu * kl_loss + gradmu
+		elif mode == 'kllp_mu':
+			kl_loss = self.entropy_loss(dz)
+			gradmu = self.mu_regularizer(mu)
+			loss = lp - self.mu * kl_loss + gradmu
+
 		elif mode == 'residuals_constrained':
 			kl_loss = self.kl_dim_only(dz,mu,d)
 			loss = kl_loss
@@ -287,7 +314,7 @@ class EmbeddingSDE(nn.Module):
 		else:
 			raise Exception("Mode must be one of ['kl', 'lp', 'both']")
 		
-		return loss,z1,z2,mu,d,kl_loss,lp,self.mu*covarLoss
+		return loss,z1,z2,mu,d,kl_loss,lp
 
 	def train_epoch(self,loader,optimizer,grad_clipper=None,encode_grad=True,sde_grad=True,stopgrad=False,mode='kl'):
 
@@ -297,12 +324,11 @@ class EmbeddingSDE(nn.Module):
 		epoch_Ds = []
 		vL = 0.
 		lP = 0.
-		cVL = 0.
 		batchInd = np.random.choice(len(loader),1)
 
 		for ii,batch in enumerate(loader):
 			optimizer.zero_grad()
-			loss,z1,z2,mu,d,vl,lp,cv = self.forward(batch,encode_grad,sde_grad,stopgrad,mode=mode)
+			loss,z1,z2,mu,d,vl,lp = self.forward(batch,encode_grad,sde_grad,stopgrad,mode=mode)
 			assert loss != torch.nan, print('loss is somehow nan')
 
 			loss.backward()
@@ -311,7 +337,7 @@ class EmbeddingSDE(nn.Module):
 			epoch_loss += loss.item()
 			vL += vl.item()
 			lP += lp.item()
-			cVL += cv.item()
+			
 			optimizer.step()
 			
 			epoch_mus.append(mu.detach().cpu().numpy())
@@ -349,17 +375,15 @@ class EmbeddingSDE(nn.Module):
 			epoch_loss = 0.
 			epoch_vl = 0.
 			epoch_lp = 0.
-			epoch_cVL = 0.
 			epoch_mus = []
 			epoch_Ds = []
 
 			for ii,batch in enumerate(loader):
-				loss,z1,z2,mu,d,vl,lp,cv = self.forward(batch)
+				loss,z1,z2,mu,d,vl,lp = self.forward(batch)
 				
 				epoch_loss += loss.item()
 				epoch_vl += vl.item()
 				epoch_lp += lp.item()
-				epoch_cVL += cv.item()
 				epoch_mus.append(mu.detach().cpu().numpy())
 				epoch_Ds.append(d.detach().cpu().numpy())
 
@@ -382,18 +406,16 @@ class EmbeddingSDE(nn.Module):
 			epoch_loss = 0.
 			epoch_vl = 0.
 			epoch_lp = 0.
-			epoch_cVL = 0.
 			epoch_mus = []
 			epoch_Ds = []
 
 			batchInd = np.random.choice(len(loader))
 			for ii,batch in enumerate(loader):
-				loss,z1,z2,mu,d,vl,lp,cv = self.forward(batch)
+				loss,z1,z2,mu,d,vl,lp = self.forward(batch)
 				
 				epoch_loss += loss.item()
 				epoch_vl += vl.item()
 				epoch_lp += lp.item()
-				epoch_cVL += cv.item()
 
 				epoch_mus.append(mu.detach().cpu().numpy())
 				epoch_Ds.append(d.detach().cpu().numpy())
