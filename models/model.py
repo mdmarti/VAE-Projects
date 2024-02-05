@@ -111,7 +111,7 @@ class EmbeddingSDE(nn.Module):
 	def gradMu_regularizer(self,z1):
 
 		jac = vmap(jacrev(self.sde.MLP))(z1)
-		reg = torch.logdet(jac)
+		reg = torch.linalg.vector_norm(jac.view(z1.shape[0],-1),dim=1) #torch.logdet(jac)
 
 		return reg.mean()
 
