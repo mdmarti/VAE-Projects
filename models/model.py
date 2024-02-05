@@ -288,7 +288,7 @@ class EmbeddingSDE(nn.Module):
 				print('we have nans in grad mu logdet')
 			self.sde.writer.add_scalar('Train/gradmu',gradmu,self.counter)
 			self.counter += 1
-			loss = lp - self.mu * kl_loss + gradmu
+			loss = lp - kl_loss + self.mu*gradmu
 		elif mode == 'kllp_mu':
 			kl_loss = self.entropy_loss(dz)
 			gradmu = self.mu_regularizer(mu)
