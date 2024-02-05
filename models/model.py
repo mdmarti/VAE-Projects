@@ -118,6 +118,30 @@ class EmbeddingSDE(nn.Module):
 	def mu_regularizer(self,mu):
 
 		return torch.linalg.vector_norm(mu,dim=1).sum()
+	
+	def kl_sde_encoder(self,mu_s,prec_s,mu_e,cov_e):
+
+		"""
+		inputs: 
+		mu_s: torch.tensor, means of sde distribution
+		prec_s: torch.tensor, precisions of sde distribution
+		mu_e: torch.tensor, means of encoder distribution
+		cov_e: covariance of encoder distribution
+
+		returns:
+			kl: sum of kls for each data point's distribution
+		code is for 
+		kl(encoder [e]||sde [s]) 
+		= 1/2 [log |cov_s|/|cov_e| - k - 
+		(mu_e - mu_s)^T(prec_s)(mu_e - mu_s) +
+		tr{prec_s cov_q}]
+		since det(A^-1) = 1/det(A)
+		= 1/2 [-log |prec_s| - log |cov_e| - k - 
+		(mu_e - mu_s)^T(prec_s)(mu_e - mu_s) +
+		tr{prec_s cov_q}]
+
+		"""
+
 
 	def kl_dim_only(self,dz,mu,Linv):
 
