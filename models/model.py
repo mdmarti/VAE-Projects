@@ -142,6 +142,15 @@ class EmbeddingSDE(nn.Module):
 
 		"""
 
+		mu_s,mu_e = mu_s.view(mu_s.shape[0],-1,1),mu_e.view(mu_s.shape[0],-1,1)	
+
+		t1 = -torch.logdet(prec_s) - torch.logdet(cov_e)
+		t2 = -self.latentDim
+		t3 = (mu_e - mu_s).transpose(-2,-1) @ prec_s @ (mu_e - mu_s)
+		t4 = torch.func.vmap(torch.trace)(prec_s @ cov_e)
+
+		return (t1 + t2 + t3 + t4).sum()
+
 
 	def kl_dim_only(self,dz,mu,Linv):
 
@@ -268,13 +277,23 @@ class EmbeddingSDE(nn.Module):
 		x1,x2,dt = batch
 		x1,x2,dt = x1.to(self.device),x2.to(self.device),dt.to(self.device)
 
+
 		if stopgrad:
-			z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2,pass_gradient=False)
+			if self.encoder.type == 'deterministic':
+				z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2,pass_gradient=False)
+			else:
+				(z1,cov1), (z2,cov2) = self.encoder.forward(x1,type='prob'),self.encoder.forward(x2,pass_gradient=False,type='prob')
 		elif encode_grad:
-			z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2)
+			if self.encoder.type == 'deterministic':
+				z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2)
+			else:
+				(z1,cov1), (z2,cov2) = self.encoder.forward(x1,type='prob'),self.encoder.forward(x2,type='prob')
 		else:
 			with torch.no_grad():
-				z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2)
+				if self.encoder.type == 'deterministic':
+					z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2)
+				else:
+					(z1,cov1), (z2,cov2) = self.encoder.forward(x1,type='prob'),self.encoder.forward(x2,type='prob')
 
 		if sde_grad:
 			lp,mu,d = self.sde.loss(z1,z2,dt)
@@ -298,6 +317,10 @@ class EmbeddingSDE(nn.Module):
 		if mode == 'kl':
 			kl_loss = self.entropy_loss(dz)
 			loss = -kl_loss #+ lp#lp - entropy_dz + self.mu*muLoss#+ self.mu * (varLoss + covarLoss) + muLoss #self.mu * varLoss
+		elif mode == 'probkl':
+			assert self.encoder.type == 'probabilistic', print("This loss needs a probabilistic encoder!!!")
+			kl_loss = self.kl_sde_encoder(z1 + mu,d @ d.transpose(-2,-1),z2,cov2)
+			loss = kl_loss
 		elif mode == 'lp':
 			loss = lp 
 			kl_loss = self.entropy_loss(dz)

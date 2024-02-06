@@ -50,6 +50,7 @@ class linearEncoder(encoder,nn.Module):
 		self.F = nn.Linear(data_dim,latent_dim,bias=has_bias)
 		self.device = device
 		self.to(self.device)
+		self.type = 'deterministic'
 
 	def forward(self, 
 				data: torch.FloatTensor, 
@@ -97,10 +98,11 @@ class ProbMLPEncoder(linearEncoder,nn.Module):
 			device: str='cuda') -> None:
 		
 		
-		super(MLPEncoder,self).__init__(data_dim,latent_dim,has_bias,device)
+		super(ProbMLPEncoder,self).__init__(data_dim,latent_dim,has_bias,device)
 
-		self.chol_inds = torch.tril_indices(latent_dim,latent_dim)
+		self.chol_inds = torch.tril_indices(self.latent_dim,self.latent_dim)
 		self.n_entries = np.sum(list(range(1,self.latent_dim+1)))
+		
 
 		F = []
 		for _ in range(n_hidden):
@@ -108,28 +110,36 @@ class ProbMLPEncoder(linearEncoder,nn.Module):
 		F = [nn.Linear(self.data_dim,hidden_size),nn.Softplus()] + F 
 
 		self.F = nn.Sequential(*F)
-		self.mu = nn.Linear(self.hidden_size,self.latent_dim)
-		self.D = nn.Linear(self.hidden_size,self.n_entries)
+		self.mu = nn.Linear(hidden_size,self.latent_dim)
+		self.D = nn.Linear(hidden_size,self.n_entries)
 		self.F.to(self.device)
+		self.mu.to(self.device)
+		self.D.to(self.device)
+		self.type = 'probabilistic'
 
 	def forward(self, 
 				data: torch.FloatTensor, 
-				pass_gradient: bool = True
+				pass_gradient: bool = True,
+				type='deterministic'
 				) -> torch.FloatTensor:
 		
 		if pass_gradient:
 			intmdt = self.F(data)
 			mu = self.mu(intmdt)
 			chol = torch.zeros(data.shape[0],self.latent_dim,self.latent_dim).to(self.device)
-			D = torch.exp(self.D(data))
+			D = torch.exp(self.D(intmdt))
 			chol[:,self.chol_inds[0],self.chol_inds[1]] = D
-			return mu, chol @ chol.transpose(-2,-1)
+			#return mu, chol @ chol.transpose(-2,-1)
 		else:
 			intmdt = self.F(data.detach())
 			mu = self.mu(intmdt)
 			chol = torch.zeros(data.shape[0],self.latent_dim,self.latent_dim).to(self.device)
-			D = torch.exp(self.D(data))
+			D = torch.exp(self.D(intmdt))
 			chol[:,self.chol_inds[0],self.chol_inds[1]] = D
+			
+		if type == 'deterministic':
+			return mu
+		else:
 			return mu, chol @ chol.transpose(-2,-1)
 
 
