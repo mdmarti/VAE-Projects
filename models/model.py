@@ -426,7 +426,7 @@ class EmbeddingSDE(nn.Module):
 			epoch_Ds = []
 
 			for ii,batch in enumerate(loader):
-				loss,z1,z2,mu,d,vl,lp = self.forward(batch)
+				loss,z1,z2,mu,d,vl,lp = self.forward(batch,mode='both')
 				
 				epoch_loss += loss.item()
 				epoch_vl += vl.item()
