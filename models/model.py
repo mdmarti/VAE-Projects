@@ -415,7 +415,7 @@ class EmbeddingSDE(nn.Module):
 		return epoch_loss,optimizer
 	
 
-	def val_epoch(self,loader):
+	def val_epoch(self,loader,mode='both'):
 
 		self.eval()
 		with torch.no_grad():
@@ -426,7 +426,7 @@ class EmbeddingSDE(nn.Module):
 			epoch_Ds = []
 
 			for ii,batch in enumerate(loader):
-				loss,z1,z2,mu,d,vl,lp = self.forward(batch,mode='both')
+				loss,z1,z2,mu,d,vl,lp = self.forward(batch,mode=mode)
 				
 				epoch_loss += loss.item()
 				epoch_vl += vl.item()
