@@ -306,9 +306,9 @@ class EmbeddingSDE(nn.Module):
 		zs = torch.vstack([z1,z2]) # bsz x latent dim
 		#varLoss,covarLoss,muLoss = torch.zeros([0]),self.covar_loss(zs),torch.zeros([0])#0,0,0#self.var_loss(zs),self.covar_loss(zs),self.mu_reg(zs) #+ self.var_loss(z2)
 		entropy = torch.zeros([0])#0#,self.entropy_loss(zs)
-		if self.training:
+		#if self.training:
 			# only update batch covariance on training data
-			currCovar = self.update_batch_covar(dz)
+		#	currCovar = self.update_batch_covar(dz)
 		#entropy_dz = self.entropy_loss(dz,dt=dt[0])
 
 		
