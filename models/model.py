@@ -212,7 +212,7 @@ class EmbeddingSDE(nn.Module):
 
 		n  = batch.shape[0]
 		mu = torch.mean(batch,axis=0,keepdim=True)
-		cov = (batch-mu).T @ (batch-mu)/(self.latentDim-1)
+		cov = (batch-mu).T @ (batch-mu)/(n-1)
 		const = self.latentDim/2 * (np.log(2*np.pi) + 1)
 
 		updated = self.update_batch_covar(cov)
