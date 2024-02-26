@@ -22,7 +22,7 @@ class EmbeddingSDE(nn.Module):
 		self.covarGamma = 0.5
 		self.to(self.device)
 		self.counter = 0.
-		print("using full entropy version")
+		print("bugs cooked o7")
 
 	def _init_batch_covar_approx(self,batch_size=512,epsilon = 0.2):
 
