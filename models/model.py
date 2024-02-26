@@ -94,7 +94,7 @@ class EmbeddingSDE(nn.Module):
 
 		return masked
 
-	def update_batch_covar(self,data):
+	def update_batch_covar_deprecated(self,data):
 		#print(data.shape)
 
 		newCovar = data @ data.T / self.latentDim
@@ -182,18 +182,44 @@ class EmbeddingSDE(nn.Module):
 	
 	def entropy_loss(self,batch): #,dt=1):
 		"""
-		converting to entropy of batch, as opposed to entropy of
-		latent distribution across dims
+		THIS IS SHOULD BE THE ENTROPY ACROSS THE DIMENSIONS!!!!!!!!!!!!!!!!
+		THIS WAS BUGGED!!! MIS-SCALED!!! TRY THIS AGAIN!!!!!!
 		"""
 
 		n = batch.shape[0]
 		mu = torch.mean(batch,axis=0,keepdim=True)
-		cov = (batch-mu).T @ (batch-mu)/(self.latentDim-1)
+		cov = (batch-mu).T @ (batch-mu)/(n-1)
 		const = self.latentDim/2 * (np.log(2*np.pi) + 1)
 		det = torch.logdet(cov)/2
 
 		return  n*(det + const) #(det + const)
 	
+	def update_batch_covar(self,covMat):
+
+		updated = (1 - self.epsilon) *self.batch_approx.detach() + self.epsilon * covMat
+
+		assert updated.requires_grad == True
+
+		self.batch_approx = updated
+		return updated
+
+	def entropy_loss_ma(self,batch):
+		"""
+		same as the previous function, but now we're using a
+		moving average to calculate the batch entropy -- amortizing
+		across all our batches
+		"""
+
+		n  = batch.shape[0]
+		mu = torch.mean(batch,axis=0,keepdim=True)
+		cov = (batch-mu).T @ (batch-mu)/(self.latentDim-1)
+		const = self.latentDim/2 * (np.log(2*np.pi) + 1)
+
+		updated = self.update_batch_covar(cov)
+
+		det = torch.logdet(updated)/2
+
+		return  n*(det + const)
 
 
 	def encode_trajectory(self,data):
@@ -326,6 +352,9 @@ class EmbeddingSDE(nn.Module):
 			kl_loss = self.entropy_loss(dz)
 		elif mode == 'both':
 			kl_loss = self.entropy_loss(dz)
+			loss = lp - self.mu * kl_loss
+		elif mode == 'both_ma':
+			kl_loss = self.entropy_loss_ma(dz)
 			loss = lp - self.mu * kl_loss
 
 		elif mode == 'kllp_gradmu':
