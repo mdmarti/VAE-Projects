@@ -401,11 +401,11 @@ class EmbeddingSDE(nn.Module):
 		if normPart == 'encoder':
 
 			for param in self.encoder.parameters():
-				param /= norm_const 
+				param.grad /= norm_const 
 
 		else:
 			for param in self.sde.parameters():
-				param /= norm_const
+				param.grad /= norm_const
 
 		return 
 
