@@ -395,6 +395,70 @@ class EmbeddingSDE(nn.Module):
 		
 		return loss,z1,z2,mu,d,kl_loss,lp
 
+
+	def _normalize_grads(self,norm_const,normPart = 'encoder'):
+
+		if normPart == 'encoder':
+
+			for param in self.encoder.parameters():
+				param /= norm_const 
+
+		else:
+			for param in self.sde.parameters():
+				param /= norm_const
+
+		return 
+
+	def train_epoch_accum_grad(self,loader,sdeopt,embedopt,grad_clipper=None,encode_grad=True,sde_grad=True,stopgrad=False,mode='both'):
+
+		self.train()
+		epoch_loss = 0.
+		epoch_mus = []
+		epoch_Ds = []
+		vL = 0.
+		lP = 0.
+		batchInd = np.random.choice(len(loader),1)
+		embedopt.zero_grad()
+		for ii,batch in enumerate(loader):
+			sdeopt.zero_grad()
+			loss,z1,z2,mu,d,vl,lp = self.forward(batch,encode_grad,sde_grad,stopgrad,mode=mode)
+			assert loss != torch.nan, print('loss is somehow nan')
+
+			loss.backward()
+			if grad_clipper != None:
+				grad_clipper(self.parameters())
+			epoch_loss += loss.item()
+			vL += vl.item()
+			lP += lp.item()
+			
+			sdeopt.step()
+			
+			epoch_mus.append(mu.detach().cpu().numpy())
+			epoch_Ds.append(d.detach().cpu().numpy())
+
+
+			if (ii == batchInd) & (self.sde.epoch % 100 ==0) & self.sde.plotDists:
+				
+				self._add_quiver(z1.detach().cpu().numpy(),mu.detach().cpu().numpy(),self.sde.p1name,'Train')
+
+		self._normalize_grads(len(loader),normPart='encoder')
+		embedopt.step()
+		epoch_mus = np.vstack(epoch_mus)
+		epoch_Ds = np.vstack(epoch_Ds)
+
+		assert epoch_loss != torch.nan, print('how?')
+		#if mode == 'both_ma':
+		#	self.__add_covar()
+			#self.sde.writer.add_image('approximate covar',self.batch_approx.view(1,*self.batch_approx.shape),self.sde.epoch)
+
+		self.sde.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/KL',vL/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/log prob',lP/len(loader),self.sde.epoch)
+		self.sde.epoch += 1
+		sdeopt.zero_grad()
+		embedopt.zero_grad()
+		return epoch_loss,sdeopt,embedopt
+
 	def train_epoch(self,loader,optimizer,grad_clipper=None,encode_grad=True,sde_grad=True,stopgrad=False,mode='kl'):
 
 		self.train()
