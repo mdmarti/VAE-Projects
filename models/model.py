@@ -2,6 +2,7 @@ from latent_sde import *
 from encoding import *
 from tqdm import tqdm
 from torch.func import jacrev,vmap
+import seaborn as sns
 
 EPS = 1e-8
 class EmbeddingSDE(nn.Module):
@@ -24,16 +25,16 @@ class EmbeddingSDE(nn.Module):
 		self.counter = 0.
 		print("bugs cooked o7")
 
-	def _init_batch_covar_approx(self,batch_size=512,epsilon = 0.2):
+	def _init_batch_covar_approx(self,latent_size=512,epsilon = 0.2):
 
 		"""
 		create our first estimate of the batch covariance!
 		
-		initializes as the Bsz x Bsz identity, to begin with
+		initializes as the z x z identity, to begin with
 		"""
 
-		self.batch_size= batch_size
-		self.batch_approx = torch.eye(batch_size).to(self.device)
+		self.batch_size= latent_size
+		self.batch_approx = torch.eye(latent_size).to(self.device)
 		self.epsilon=epsilon
 
 	def _add_dist_figure(self,estimates:np.ndarray,name:str,dim:int,epoch_type:str='Train'):
@@ -77,6 +78,15 @@ class EmbeddingSDE(nn.Module):
 		self.sde.writer.add_figure(f'{epoch_type}/{name} quiver',fig2,close=True,global_step=self.sde.epoch)
 
 		return
+
+	def __add_covar(self):
+
+		fig1 = plt.figure(figsize=(10,10))
+		ax = plt.gca()
+		sns.heatmap(self.batch_approx.detach().cpu().numpy(),annot=True,fmt=".2f")
+		self.sde.writer.add_figure(f'train/batch_approx', fig1,close=True,global_step=self.sde.epoch)
+
+		return
 	
 	def _reg_sd(self,data,mu,epsilon):
 
@@ -101,11 +111,13 @@ class EmbeddingSDE(nn.Module):
 		#print(newCovar.shape)
 		#print(self.batch_approx.shape)
 
-		updated = (1 - self.epsilon) *self.batch_approx.detach() + self.epsilon * newCovar
+		updated = (1 - self.epsilon) *self.batch_approx + self.epsilon * newCovar
 
 		assert updated.requires_grad == True
 
-		self.batch_approx = updated
+		self.batch_approx = updated.detach()
+		assert updated.requires_grad == True
+
 		return updated
 	
 	def gradMu_regularizer(self,z1):
@@ -377,15 +389,6 @@ class EmbeddingSDE(nn.Module):
 			kl_loss = self.kl_dim_only(dz,mu,d)
 			entropy_dz = self.entropy_loss(dz)
 			loss = lp + kl_loss - entropy_dz
-		elif mode == 'batchCovar':
-			kl_loss = self.kl_dim_only(dz,mu,d)
-			batch_ld = torch.logdet(currCovar)/2
-
-			assert kl_loss != torch.nan, print('kl loss is nan')
-			assert batch_ld != torch.nan, print('logdet is nan')
-			assert lp != torch.nan,print('log prob is nan')
-			loss = lp +kl_loss - batch_ld
-			assert loss != torch.nan, print('loss is somehow nan')
 
 		else:
 			raise Exception("Mode must be one of ['kl', 'lp', 'both']")
@@ -427,6 +430,10 @@ class EmbeddingSDE(nn.Module):
 		epoch_Ds = np.vstack(epoch_Ds)
 
 		assert epoch_loss != torch.nan, print('how?')
+		#if mode == 'both_ma':
+		#	self.__add_covar()
+			#self.sde.writer.add_image('approximate covar',self.batch_approx.view(1,*self.batch_approx.shape),self.sde.epoch)
+
 		self.sde.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Train/KL',vL/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Train/log prob',lP/len(loader),self.sde.epoch)
