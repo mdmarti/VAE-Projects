@@ -215,10 +215,10 @@ class ConvEncoder(linearEncoder):
 		return self.linear(intmdt)
 
 
-def _softmax(x:np.array):
+def _softmax(x:np.array,temp=1):
 
 	m = np.amax (x,axis=1,keepdims=True)
-	e_x = np.exp(x - m)
+	e_x = np.exp((x - m)/temp)
 	return e_x/np.sum(e_x,axis=1,keepdims=True) 
 
 def _combine_dims(x:np.array):
@@ -228,6 +228,10 @@ def _combine_dims(x:np.array):
 		xOut[:,ii] = x[:,ii]*x[:,ii+1]
 
 	return xOut
+
+def _sigmoid(x:np.array):
+
+	
 class projection:
 
 	"""
@@ -235,11 +239,12 @@ class projection:
 	we just need one class for this
 	"""
 
-	def __init__(self,origDim,newDim, projType='linear') -> None:
+	def __init__(self,origDim,newDim, projType='linear',temp=1) -> None:
 		self.d1 = origDim
 		self.d2 = newDim
 		self.projType=projType 
 		self.W = np.random.randn(origDim,newDim)
+		self.temp=temp
 		if projType == 'linear':
 			
 
@@ -247,7 +252,8 @@ class projection:
 		
 		elif projType == 'softmax':
 
-			self.projection = lambda x: _softmax(x @ self.W)
+			assert self.temp >0, print('Temperature should be a positive number')
+			self.projection = lambda x: _softmax(x @ self.W,self.temp)
 
 		elif projType == 'combine':
 
