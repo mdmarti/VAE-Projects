@@ -231,6 +231,10 @@ def _combine_dims(x:np.array):
 
 def _sigmoid(x:np.array):
 
+	xout = 1/(1 + np.exp(-x))
+
+	return xout
+
 	
 class projection:
 
@@ -258,6 +262,11 @@ class projection:
 		elif projType == 'combine':
 
 			self.projection = lambda x: _combine_dims(x @ self.W)
+
+		elif projType == 'sigmoid':
+
+			self.projection = lambda x: _sigmoid(x @ self.W)
+			
 		else:
 			print('Method must be softmax or linear')
 			raise NotImplementedError
