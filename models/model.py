@@ -365,6 +365,12 @@ class EmbeddingSDE(nn.Module):
 		elif mode == 'both':
 			kl_loss = self.entropy_loss(dz)
 			loss = lp - self.mu * kl_loss
+		elif mode == 'linearityTest':
+			kl_loss = self.entropy_loss(dz)
+			mu2 = self.sde.MLP(z2)
+			linLoss = self._linearity_penalty(mu,mu2)
+			loss = lp - kl_loss + self.mu*linLoss
+
 		elif mode == 'both_ma':
 			kl_loss = self.entropy_loss_ma(dz)
 			loss = lp - self.mu * kl_loss
@@ -401,6 +407,7 @@ class EmbeddingSDE(nn.Module):
 		if normPart == 'encoder':
 
 			for param in self.encoder.parameters():
+				
 				param.grad /= norm_const 
 
 		else:
@@ -408,6 +415,16 @@ class EmbeddingSDE(nn.Module):
 				param.grad /= norm_const
 
 		return 
+	
+	def _linearity_penalty(self,f1,f2):
+		"""
+		returns negative cosine similarity between successive drift terms
+		(encouraging them to be locally aligned/linear). This assumes we are
+		minimizing a function, rather than maximizing it
+		"""
+
+		dotProd = (f1 * f2).sum(dim=-1)
+		return  (dotProd/ (torch.norm(f1,dim=-1) * torch.norm(f2,dim=-1))).sum()
 	
 	def e_step(self,loader,embedopt,grad_clipper=None):
 		self.train()
