@@ -352,6 +352,8 @@ class EmbeddingSDE(nn.Module):
 		
 		#entropy_dz = self.entropy_loss_sumbatch(z2 - z1,dt=dt[0])
 		#varLoss = self.snr_loss(zs) 
+		mu2 = self.sde.MLP(z2)
+		linLoss = self._linearity_penalty(mu,mu2)
 		if mode == 'kl':
 			kl_loss = self.entropy_loss(dz)
 			loss = -kl_loss #+ lp#lp - entropy_dz + self.mu*muLoss#+ self.mu * (varLoss + covarLoss) + muLoss #self.mu * varLoss
@@ -367,8 +369,7 @@ class EmbeddingSDE(nn.Module):
 			loss = lp - self.mu * kl_loss
 		elif mode == 'linearityTest':
 			kl_loss = self.entropy_loss(dz)
-			mu2 = self.sde.MLP(z2)
-			linLoss = self._linearity_penalty(mu,mu2)
+			
 			loss = lp - kl_loss + self.mu*linLoss
 
 		elif mode == 'both_ma':
@@ -399,7 +400,7 @@ class EmbeddingSDE(nn.Module):
 		else:
 			raise Exception("Mode must be one of ['kl', 'lp', 'both']")
 		
-		return loss,z1,z2,mu,d,kl_loss,lp
+		return loss,z1,z2,linLoss,d,kl_loss,lp
 
 
 	def _normalize_grads(self,norm_const,normPart = 'encoder'):
@@ -513,11 +514,12 @@ class EmbeddingSDE(nn.Module):
 		epoch_Ds = []
 		vL = 0.
 		lP = 0.
+		ll = 0.
 		batchInd = np.random.choice(len(loader),1)
 		embedopt.zero_grad()
 		for ii,batch in enumerate(loader):
 			sdeopt.zero_grad()
-			loss,z1,z2,mu,d,vl,lp = self.forward(batch,encode_grad,sde_grad,stopgrad,mode=mode)
+			loss,z1,z2,linloss,d,vl,lp = self.forward(batch,encode_grad,sde_grad,stopgrad,mode=mode)
 			assert loss != torch.nan, print('loss is somehow nan')
 
 			loss.backward()
@@ -526,27 +528,28 @@ class EmbeddingSDE(nn.Module):
 			epoch_loss += loss.item()
 			vL += vl.item()
 			lP += lp.item()
+			ll += linloss.item()
 			
 			sdeopt.step()
 			
-			epoch_mus.append(mu.detach().cpu().numpy())
-			epoch_Ds.append(d.detach().cpu().numpy())
+			#epoch_mus.append(mu.detach().cpu().numpy())
+			#epoch_Ds.append(d.detach().cpu().numpy())
 
 
-			if (ii == batchInd) & (self.sde.epoch % 100 ==0) & self.sde.plotDists:
+			#if (ii == batchInd) & (self.sde.epoch % 100 ==0) & self.sde.plotDists:
 				
-				self._add_quiver(z1.detach().cpu().numpy(),mu.detach().cpu().numpy(),self.sde.p1name,'Train')
+			#	self._add_quiver(z1.detach().cpu().numpy(),mu.detach().cpu().numpy(),self.sde.p1name,'Train')
 
 		self._normalize_grads(len(loader),normPart='encoder')
 		embedopt.step()
-		epoch_mus = np.vstack(epoch_mus)
-		epoch_Ds = np.vstack(epoch_Ds)
+		#epoch_mus = np.vstack(epoch_mus)
+		#epoch_Ds = np.vstack(epoch_Ds)
 
 		assert epoch_loss != torch.nan, print('how?')
 		#if mode == 'both_ma':
 		#	self.__add_covar()
 			#self.sde.writer.add_image('approximate covar',self.batch_approx.view(1,*self.batch_approx.shape),self.sde.epoch)
-
+		self.sde.writer.add_scalar('Train/linearity loss',ll/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Train/KL',vL/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Train/log prob',lP/len(loader),self.sde.epoch)
@@ -618,23 +621,25 @@ class EmbeddingSDE(nn.Module):
 			epoch_loss = 0.
 			epoch_vl = 0.
 			epoch_lp = 0.
+			epoch_ll = 0
 			epoch_mus = []
 			epoch_Ds = []
 
 			for ii,batch in enumerate(loader):
-				loss,z1,z2,mu,d,vl,lp = self.forward(batch,mode=mode)
+				loss,z1,z2,linloss,d,vl,lp = self.forward(batch,mode=mode)
 				
 				epoch_loss += loss.item()
 				epoch_vl += vl.item()
 				epoch_lp += lp.item()
-				epoch_mus.append(mu.detach().cpu().numpy())
-				epoch_Ds.append(d.detach().cpu().numpy())
+				epoch_ll += linloss.item()
+				#epoch_mus.append(mu.detach().cpu().numpy())
+				#epoch_Ds.append(d.detach().cpu().numpy())
 
 				
-		epoch_mus = np.vstack(epoch_mus)
-		epoch_Ds = np.vstack(epoch_Ds)
+		#epoch_mus = np.vstack(epoch_mus)
+		#epoch_Ds = np.vstack(epoch_Ds)
 
-
+		self.sde.writer.add_scalar('Train/linearity loss',epoch_ll/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Test/loss',epoch_loss/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Test/KL',epoch_vl/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Test/log prob',epoch_lp/len(loader),self.sde.epoch)
@@ -649,26 +654,29 @@ class EmbeddingSDE(nn.Module):
 			epoch_loss = 0.
 			epoch_vl = 0.
 			epoch_lp = 0.
+			epoch_ll = 0.
 			epoch_mus = []
 			epoch_Ds = []
 
 			batchInd = np.random.choice(len(loader))
 			for ii,batch in enumerate(loader):
-				loss,z1,z2,mu,d,vl,lp = self.forward(batch)
+				loss,z1,z2,linloss,d,vl,lp = self.forward(batch)
 				
 				epoch_loss += loss.item()
 				epoch_vl += vl.item()
 				epoch_lp += lp.item()
+				epoch_ll += linloss.item()
 
-				epoch_mus.append(mu.detach().cpu().numpy())
-				epoch_Ds.append(d.detach().cpu().numpy())
+				#epoch_mus.append(mu.detach().cpu().numpy())
+				#epoch_Ds.append(d.detach().cpu().numpy())
 
-				if (ii == batchInd) & self.sde.plotDists:
-					self._add_quiver(z1.detach().cpu().numpy(),mu.detach().cpu().numpy(),self.sde.p1name,'Test')
+				#if (ii == batchInd) & self.sde.plotDists:
+				#	self._add_quiver(z1.detach().cpu().numpy(),mu.detach().cpu().numpy(),self.sde.p1name,'Test')
 
-		epoch_mus = np.vstack(epoch_mus)
-		epoch_Ds = np.vstack(epoch_Ds)
+		#epoch_mus = np.vstack(epoch_mus)
+		#epoch_Ds = np.vstack(epoch_Ds)
 
+		self.sde.writer.add_scalar('Train/linearity loss',epoch_ll/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Test/loss',epoch_loss/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Test/KL',epoch_vl/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Test/log prob',epoch_lp/len(loader),self.sde.epoch)
