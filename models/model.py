@@ -639,7 +639,7 @@ class EmbeddingSDE(nn.Module):
 		#epoch_mus = np.vstack(epoch_mus)
 		#epoch_Ds = np.vstack(epoch_Ds)
 
-		self.sde.writer.add_scalar('Train/linearity loss',epoch_ll/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Test/linearity loss',epoch_ll/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Test/loss',epoch_loss/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Test/KL',epoch_vl/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Test/log prob',epoch_lp/len(loader),self.sde.epoch)
@@ -676,7 +676,7 @@ class EmbeddingSDE(nn.Module):
 		#epoch_mus = np.vstack(epoch_mus)
 		#epoch_Ds = np.vstack(epoch_Ds)
 
-		self.sde.writer.add_scalar('Train/linearity loss',epoch_ll/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Test/linearity loss',epoch_ll/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Test/loss',epoch_loss/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Test/KL',epoch_vl/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Test/log prob',epoch_lp/len(loader),self.sde.epoch)
