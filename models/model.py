@@ -370,7 +370,7 @@ class EmbeddingSDE(nn.Module):
 		elif mode == 'linearityTest':
 			kl_loss = self.entropy_loss(dz)
 			
-			loss = lp - kl_loss + linLoss
+			loss = lp - kl_loss - linLoss
 
 		elif mode == 'both_ma':
 			kl_loss = self.entropy_loss_ma(dz)
