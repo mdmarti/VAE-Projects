@@ -353,7 +353,7 @@ class EmbeddingSDE(nn.Module):
 		#entropy_dz = self.entropy_loss_sumbatch(z2 - z1,dt=dt[0])
 		#varLoss = self.snr_loss(zs) 
 		mu2 = self.sde.MLP(z2)
-		linLoss = self._linearity_penalty(mu,mu2)
+		linLoss = self.mu *self._linearity_penalty(mu,mu2)
 		if mode == 'kl':
 			kl_loss = self.entropy_loss(dz)
 			loss = -kl_loss #+ lp#lp - entropy_dz + self.mu*muLoss#+ self.mu * (varLoss + covarLoss) + muLoss #self.mu * varLoss
@@ -370,7 +370,7 @@ class EmbeddingSDE(nn.Module):
 		elif mode == 'linearityTest':
 			kl_loss = self.entropy_loss(dz)
 			
-			loss = lp - kl_loss + self.mu*linLoss
+			loss = lp - kl_loss + linLoss
 
 		elif mode == 'both_ma':
 			kl_loss = self.entropy_loss_ma(dz)
@@ -425,7 +425,7 @@ class EmbeddingSDE(nn.Module):
 		"""
 
 		dotProd = (f1 * f2).sum(dim=-1)
-		return  (dotProd/ (torch.norm(f1,dim=-1) * torch.norm(f2,dim=-1))).sum()
+		return  (dotProd/ (torch.norm(f1,dim=-1) * torch.norm(f2,dim=-1))).mean()
 	
 	def e_step(self,loader,embedopt,grad_clipper=None):
 		self.train()
