@@ -332,7 +332,7 @@ class EmbeddingSDE(nn.Module):
 		lp,mu,d = self.sde.loss(z1,z2,dt)
 
 		if len(batch) == 4:
-			lp2 = self.sde.loss()
+			lp2,_,_ = self.sde.loss(z2,z3,dt)
 			lp += lp2
 			dz2 = z3 - z2
 
