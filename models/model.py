@@ -333,7 +333,14 @@ class EmbeddingSDE(nn.Module):
 
 		if len(batch) == 4:
 			lp2,_,_ = self.sde.loss(z2,z3,dt)
-			lp += lp2
+			
+			print(lp)
+			if torch.isnan(lp2):# == torch.tensor([torch.nan],device=self.device):
+				print(z2,z3,lp,z1)
+				assert False
+			#lp += lp2
+			#print(lp)
+			
 			dz2 = z3 - z2
 
 		dz = z2 - z1
