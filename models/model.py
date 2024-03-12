@@ -436,7 +436,7 @@ class EmbeddingSDE(nn.Module):
 		embedopt.zero_grad()
 		for ii,batch in enumerate(loader):
 			
-			loss,z1,z2,mu,d,vl,lp = self.forward(batch,encode_grad=True,sde_grad=True,stopgrad=False,mode='both')
+			loss,z1,z2,mu,d,vl,lp = self.forward(batch,mode='both')
 			assert loss != torch.nan, print('loss is somehow nan')
 
 			loss.backward()
@@ -475,7 +475,7 @@ class EmbeddingSDE(nn.Module):
 		lP = 0.
 		for ii,batch in enumerate(loader):
 			sdeopt.zero_grad()
-			loss,z1,z2,mu,d,vl,lp = self.forward(batch,encode_grad=True,sde_grad=True,stopgrad=False,mode='both')
+			loss,z1,z2,mu,d,vl,lp = self.forward(batch,mode='both')
 			assert loss != torch.nan, print('loss is somehow nan')
 
 			loss.backward()
@@ -518,7 +518,7 @@ class EmbeddingSDE(nn.Module):
 		embedopt.zero_grad()
 		for ii,batch in enumerate(loader):
 			sdeopt.zero_grad()
-			loss,z1,z2,linloss,d,vl,lp = self.forward(batch,encode_grad,sde_grad,stopgrad,mode=mode)
+			loss,z1,z2,linloss,d,vl,lp = self.forward(batch,mode=mode)
 			assert loss != torch.nan, print('loss is somehow nan')
 
 			loss.backward()
@@ -569,7 +569,7 @@ class EmbeddingSDE(nn.Module):
 
 		for ii,batch in enumerate(loader):
 			optimizer.zero_grad()
-			loss,z1,z2,mu,d,vl,lp = self.forward(batch,encode_grad,sde_grad,stopgrad,mode=mode)
+			loss,z1,z2,mu,d,vl,lp = self.forward(batch,mode=mode)
 			assert loss != torch.nan, print('loss is somehow nan')
 
 			loss.backward()
