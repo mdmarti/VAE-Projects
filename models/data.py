@@ -351,7 +351,54 @@ class toyDataset(Dataset):
 	def transform(self,data):
 		return torch.from_numpy(data).type(torch.FloatTensor)
 
+class toyDatasetLinearity(Dataset):
 
+	def __init__(self,data,dt) -> None:
+		"""
+		toyData: list of numpy arrays
+		"""
+
+		exampleInd = np.random.choice(len(data),1)[0]
+		self.exampleTraj = data[exampleInd]
+		lens = list(map(len,data))
+		lens2 = [0] + list(np.cumsum([l for l in lens][:-1]))
+		triplets = [np.vstack([np.arange(0,l-2),np.arange(1,l-1),np.arange(2,l)]).T for l in lens]
+		sumTriplets = [p+l for p,l in zip(triplets,lens2)]
+		validInds = np.vstack(sumTriplets)
+		self.data= np.vstack(data)
+		self.data_inds = validInds
+		self.dt = dt
+		self.length = len(validInds)
+		print('we no longer sampling now')
+		## needed: slice data by dt? need true dt, ds dt for that
+		## should be fine to add though
+
+	def __len__(self):
+
+		return self.length 
+	
+	def __getitem__(self, index):
+		
+		single_index = False
+		result = []
+		try:
+			iterator = iter(index)
+		except TypeError:
+			index = [index]
+			single_index = True
+
+		for ii in index:
+			inds = self.data_inds[ii]
+						
+			s1,s2,s3 = self.transform(self.data[inds[0]]),self.transform(self.data[inds[1]]),self.transform(self.data[inds[2]])
+			result.append((s1,s2,s3,self.dt))
+
+		if single_index:
+			return result[0]
+		return result
+	
+	def transform(self,data):
+		return torch.from_numpy(data).type(torch.FloatTensor)
 		
 class FixedWindowDataset(Dataset):
 
