@@ -534,13 +534,21 @@ class FixedWindowDataset(Dataset):
 	def transform(self,data):
 		return torch.from_numpy(data).type(torch.FloatTensor)
 	
-def makeToyDataloaders(ds1,ds2,dt,batch_size=512):
+def makeToyDataloaders(ds1,ds2,dt,batch_size=512,t='regular'):
 
 	#assert ds1.shape[1] == 3
 	#ds1 = ds1).type(torch.FloatTensor)
 	#ds2 = torch.from_numpy(ds2).type(torch.FloatTensor)
-	dataset1 = toyDataset(ds1,dt)
-	dataset2 = toyDataset(ds2,dt)
+	if t== 'regular':
+		dataset1 = toyDataset(ds1,dt)
+		dataset2 = toyDataset(ds2,dt)
+	elif t =='linearity':
+		dataset1 = toyDatasetLinearity(ds1,dt)
+		dataset2 = toyDatasetLinearity(ds2,dt)
+	else:
+		print("What are you doing")
+		return NotImplementedError
+
 
 	trainDataLoader = DataLoader(dataset1,batch_size=batch_size,shuffle=True,
 			      num_workers=4)
