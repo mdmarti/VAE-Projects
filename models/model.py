@@ -310,35 +310,31 @@ class EmbeddingSDE(nn.Module):
 
 		return traj
 	
-	def forward(self,batch,encode_grad=True,sde_grad=True,stopgrad=True,mode='kl'):
+	def forward(self,batch,mode='kl'):
 		
-		x1,x2,dt = batch
-		x1,x2,dt = x1.to(self.device),x2.to(self.device),dt.to(self.device)
+		
 
-
-		if stopgrad:
-			if self.encoder.type == 'deterministic':
-				z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2,pass_gradient=False)
-			else:
-				(z1,cov1), (z2,cov2) = self.encoder.forward(x1,type='prob'),self.encoder.forward(x2,pass_gradient=False,type='prob')
-		elif encode_grad:
-			if self.encoder.type == 'deterministic':
-				z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2)
-			else:
-				(z1,cov1), (z2,cov2) = self.encoder.forward(x1,type='prob'),self.encoder.forward(x2,type='prob')
+		if len(batch) == 3:
+			x1,x2,dt = batch
+			x1,x2,dt = x1.to(self.device),x2.to(self.device),dt.to(self.device)
+		elif len(batch) == 4:
+			x1,x2,x3,dt = batch
+			x1,x2,x3,dt = x1.to(self.device),x2.to(self.device),x3.to(self.device),dt.to(self.device)
+		if self.encoder.type == 'deterministic':
+			z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2)
+			if len(batch) == 4:
+				z3 = self.encoder.forward(x3)
 		else:
-			with torch.no_grad():
-				if self.encoder.type == 'deterministic':
-					z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2)
-				else:
-					(z1,cov1), (z2,cov2) = self.encoder.forward(x1,type='prob'),self.encoder.forward(x2,type='prob')
+			(z1,cov1), (z2,cov2) = self.encoder.forward(x1,type='prob'),self.encoder.forward(x2,pass_gradient=False,type='prob')
+			if len(batch) == 4:
+				(z3,cov3) = self.encoder.forward(x3,type='prob')
 
-		if sde_grad:
-			lp,mu,d = self.sde.loss(z1,z2,dt)
-		else:
-			with torch.no_grad():
+		lp,mu,d = self.sde.loss(z1,z2,dt)
 
-				lp,mu,d = self.sde.loss(z1,z2,dt)
+		if len(batch) == 4:
+			lp2 = self.sde.loss()
+			lp += lp2
+			dz2 = z3 - z2
 
 		dz = z2 - z1
 		zs = torch.vstack([z1,z2]) # bsz x latent dim
@@ -353,7 +349,10 @@ class EmbeddingSDE(nn.Module):
 		#entropy_dz = self.entropy_loss_sumbatch(z2 - z1,dt=dt[0])
 		#varLoss = self.snr_loss(zs) 
 		mu2 = self.sde.MLP(z2)
-		linLoss = self._linearity_penalty(mu,mu2)
+		if len(batch) == 3:
+			linLoss = self._linearity_penalty(mu,mu2)
+		else:
+			linLoss = self._linearity_penalty(dz,dz2)
 		if mode == 'kl':
 			kl_loss = self.entropy_loss(dz)
 			loss = -kl_loss #+ lp#lp - entropy_dz + self.mu*muLoss#+ self.mu * (varLoss + covarLoss) + muLoss #self.mu * varLoss
