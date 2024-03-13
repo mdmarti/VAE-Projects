@@ -310,40 +310,57 @@ class EmbeddingSDE(nn.Module):
 
 		return traj
 	
-	def forward(self,batch,mode='kl'):
+	def forward(self,batch,encode_grad=True,sde_grad=True,stopgrad=True,mode='kl'):
 		
-		
-
 		if len(batch) == 3:
 			x1,x2,dt = batch
 			x1,x2,dt = x1.to(self.device),x2.to(self.device),dt.to(self.device)
-		elif len(batch) == 4:
+		else:
 			x1,x2,x3,dt = batch
 			x1,x2,x3,dt = x1.to(self.device),x2.to(self.device),x3.to(self.device),dt.to(self.device)
-		if self.encoder.type == 'deterministic':
-			z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2)
-			if len(batch) == 4:
-				z3 = self.encoder.forward(x3)
+
+		if stopgrad:
+			if self.encoder.type == 'deterministic':
+				z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2,pass_gradient=False)
+			else:
+				(z1,cov1), (z2,cov2) = self.encoder.forward(x1,type='prob'),self.encoder.forward(x2,pass_gradient=False,type='prob')
+		elif encode_grad:
+			if self.encoder.type == 'deterministic':
+				z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2)
+				if len(batch) == 4:
+					z3 = self.encoder.forward(x3)
+			else:
+				(z1,cov1), (z2,cov2) = self.encoder.forward(x1,type='prob'),self.encoder.forward(x2,type='prob')
 		else:
-			(z1,cov1), (z2,cov2) = self.encoder.forward(x1,type='prob'),self.encoder.forward(x2,pass_gradient=False,type='prob')
-			if len(batch) == 4:
-				(z3,cov3) = self.encoder.forward(x3,type='prob')
+			with torch.no_grad():
+				if self.encoder.type == 'deterministic':
+					z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2)
+				else:
+					(z1,cov1), (z2,cov2) = self.encoder.forward(x1,type='prob'),self.encoder.forward(x2,type='prob')
 
-		lp,mu,d = self.sde.loss(z1,z2,dt)
+		if sde_grad:
+			lp,mu,d = self.sde.loss(z1,z2,dt)
+		else:
+			with torch.no_grad():
 
-		if len(batch) == 4:
-			lp2,_,_ = self.sde.loss(z2,z3,dt)
-			
-			print(lp)
-			if torch.isnan(lp2):# == torch.tensor([torch.nan],device=self.device):
-				print(z2,z3,lp,z1)
-				assert False
-			#lp += lp2
-			#print(lp)
-			
-			dz2 = z3 - z2
+				lp,mu,d = self.sde.loss(z1,z2,dt)
+		mu2 = self.sde.MLP(z2)			
 
 		dz = z2 - z1
+		if len(batch) == 4:
+			l2,_,_ = self.sde.loss(z2,z3,dt)
+			lp += l2
+
+			dz2 = z3 - z2
+			#linLoss = self.mu * self._linearity_penalty(dz,dz2)
+			#dz = torch.vstack([dz,dz2])
+			kl_loss = self.entropy_loss(torch.vstack([dz,dz2]))
+			linLoss = self.mu *self._linearity_penalty(mu,mu2)
+		else:
+			linLoss = self.mu *self._linearity_penalty(mu,mu2)
+			kl_loss = self.entropy_loss(dz)
+		assert not torch.isnan(lp)
+		
 		zs = torch.vstack([z1,z2]) # bsz x latent dim
 		#varLoss,covarLoss,muLoss = torch.zeros([0]),self.covar_loss(zs),torch.zeros([0])#0,0,0#self.var_loss(zs),self.covar_loss(zs),self.mu_reg(zs) #+ self.var_loss(z2)
 		entropy = torch.zeros([0])#0#,self.entropy_loss(zs)
@@ -355,13 +372,9 @@ class EmbeddingSDE(nn.Module):
 		
 		#entropy_dz = self.entropy_loss_sumbatch(z2 - z1,dt=dt[0])
 		#varLoss = self.snr_loss(zs) 
-		mu2 = self.sde.MLP(z2)
-		if len(batch) == 3:
-			linLoss = self._linearity_penalty(mu,mu2)
-		else:
-			linLoss = self._linearity_penalty(dz,dz2)
+			
 		if mode == 'kl':
-			kl_loss = self.entropy_loss(dz)
+			#kl_loss = self.entropy_loss(dz)
 			loss = -kl_loss #+ lp#lp - entropy_dz + self.mu*muLoss#+ self.mu * (varLoss + covarLoss) + muLoss #self.mu * varLoss
 		elif mode == 'probkl':
 			assert self.encoder.type == 'probabilistic', print("This loss needs a probabilistic encoder!!!")
@@ -369,21 +382,21 @@ class EmbeddingSDE(nn.Module):
 			loss = kl_loss
 		elif mode == 'lp':
 			loss = lp 
-			kl_loss = self.entropy_loss(dz)
+			#kl_loss = self.entropy_loss(dz)
 		elif mode == 'both':
-			kl_loss = self.entropy_loss(dz)
+			#kl_loss = self.entropy_loss(dz)
 			loss = lp - self.mu * kl_loss
 		elif mode == 'linearityTest':
-			kl_loss = self.entropy_loss(dz)
+			#kl_loss = self.entropy_loss(dz)
 			
-			loss = lp - kl_loss + self.mu*linLoss
+			loss = lp - kl_loss - linLoss
 
 		elif mode == 'both_ma':
 			kl_loss = self.entropy_loss_ma(dz)
 			loss = lp - self.mu * kl_loss
 
 		elif mode == 'kllp_gradmu':
-			kl_loss = self.entropy_loss(dz)
+			#kl_loss = self.entropy_loss(dz)
 			gradmu = self.gradMu_regularizer(z1)
 			if torch.any(gradmu == torch.nan):
 				print('we have nans in grad mu logdet')
@@ -391,7 +404,7 @@ class EmbeddingSDE(nn.Module):
 			self.counter += 1
 			loss = lp - kl_loss + self.mu*gradmu
 		elif mode == 'kllp_mu':
-			kl_loss = self.entropy_loss(dz)
+			#kl_loss = self.entropy_loss(dz)
 			gradmu = self.mu_regularizer(mu)
 			loss = lp - self.mu * kl_loss + gradmu
 
@@ -431,7 +444,7 @@ class EmbeddingSDE(nn.Module):
 		"""
 
 		dotProd = (f1 * f2).sum(dim=-1)
-		return  (dotProd/ (torch.norm(f1,dim=-1) * torch.norm(f2,dim=-1))).sum()
+		return  (dotProd/ (torch.norm(f1,dim=-1) * torch.norm(f2,dim=-1) + EPS)).mean()
 	
 	def e_step(self,loader,embedopt,grad_clipper=None):
 		self.train()
@@ -443,7 +456,7 @@ class EmbeddingSDE(nn.Module):
 		embedopt.zero_grad()
 		for ii,batch in enumerate(loader):
 			
-			loss,z1,z2,mu,d,vl,lp = self.forward(batch,mode='both')
+			loss,z1,z2,mu,d,vl,lp = self.forward(batch,encode_grad=True,sde_grad=True,stopgrad=False,mode='both')
 			assert loss != torch.nan, print('loss is somehow nan')
 
 			loss.backward()
@@ -482,7 +495,7 @@ class EmbeddingSDE(nn.Module):
 		lP = 0.
 		for ii,batch in enumerate(loader):
 			sdeopt.zero_grad()
-			loss,z1,z2,mu,d,vl,lp = self.forward(batch,mode='both')
+			loss,z1,z2,mu,d,vl,lp = self.forward(batch,encode_grad=True,sde_grad=True,stopgrad=False,mode='both')
 			assert loss != torch.nan, print('loss is somehow nan')
 
 			loss.backward()
@@ -525,8 +538,8 @@ class EmbeddingSDE(nn.Module):
 		embedopt.zero_grad()
 		for ii,batch in enumerate(loader):
 			sdeopt.zero_grad()
-			loss,z1,z2,linloss,d,vl,lp = self.forward(batch,mode=mode)
-			assert loss != torch.nan, print('loss is somehow nan')
+			loss,z1,z2,linloss,d,vl,lp = self.forward(batch,encode_grad,sde_grad,stopgrad,mode=mode)
+			assert not torch.isnan(loss), print('loss is somehow nan')
 
 			loss.backward()
 			if grad_clipper != None:
@@ -576,7 +589,7 @@ class EmbeddingSDE(nn.Module):
 
 		for ii,batch in enumerate(loader):
 			optimizer.zero_grad()
-			loss,z1,z2,mu,d,vl,lp = self.forward(batch,mode=mode)
+			loss,z1,z2,mu,d,vl,lp = self.forward(batch,encode_grad,sde_grad,stopgrad,mode=mode)
 			assert loss != torch.nan, print('loss is somehow nan')
 
 			loss.backward()
