@@ -355,7 +355,7 @@ class EmbeddingSDE(nn.Module):
 			#linLoss = self.mu * self._linearity_penalty(dz,dz2)
 			#dz = torch.vstack([dz,dz2])
 			kl_loss = self.entropy_loss(torch.vstack([dz,dz2]))
-			linLoss = self.mu *self._linearity_penalty(mu,mu2)
+			linLoss = self.mu *self._linearity_penalty(dz,dz2)
 		else:
 			linLoss = self.mu *self._linearity_penalty(mu,mu2)
 			kl_loss = self.entropy_loss(dz)
