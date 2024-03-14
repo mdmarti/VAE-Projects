@@ -310,7 +310,7 @@ class EmbeddingSDE(nn.Module):
 
 		return traj
 	
-	def forward(self,batch,encode_grad=True,sde_grad=True,stopgrad=True,mode='kl'):
+	def forward(self,batch,mode='kl'):
 		
 		if len(batch) == 3:
 			x1,x2,dt = batch
@@ -424,8 +424,7 @@ class EmbeddingSDE(nn.Module):
 		else:
 			raise Exception("Mode must be one of the many which I have defined. pls see code due to lazy author not writing them all here")
 		
-		return loss,z1,z2,linLoss,d,kl_loss,lp
-
+		return loss,lp,kl_loss,linLoss
 
 	def _normalize_grads(self,norm_const,normPart = 'encoder'):
 
@@ -454,39 +453,35 @@ class EmbeddingSDE(nn.Module):
 	def e_step(self,loader,embedopt,grad_clipper=None):
 		self.train()
 		epoch_loss = 0.
-		epoch_mus = []
-		epoch_Ds = []
-		vL = 0.
-		lP = 0.
+		epoch_kl = 0.
+		epoch_lp = 0.
+		epoch_ll = 0.
 		embedopt.zero_grad()
 		for ii,batch in enumerate(loader):
 			
-			loss,z1,z2,mu,d,vl,lp = self.forward(batch,encode_grad=True,sde_grad=True,stopgrad=False,mode='both')
+			loss,lp,kl,ll = self.forward(batch,encode_grad=True,sde_grad=True,stopgrad=False,mode='both')
 			assert loss != torch.nan, print('loss is somehow nan')
 
 			loss.backward()
 			if grad_clipper != None:
 				grad_clipper(self.parameters())
 			epoch_loss += loss.item()
-			vL += vl.item()
-			lP += lp.item()
-						
-			epoch_mus.append(mu.detach().cpu().numpy())
-			epoch_Ds.append(d.detach().cpu().numpy())
+			epoch_kl += kl.item()
+			epoch_lp += lp.item()
+			epoch_ll += ll.item()
 
 		self._normalize_grads(len(loader),normPart='encoder')
 		embedopt.step()
-		epoch_mus = np.vstack(epoch_mus)
-		epoch_Ds = np.vstack(epoch_Ds)
-
+		
 		assert epoch_loss != torch.nan, print('how?')
 		#if mode == 'both_ma':
 		#	self.__add_covar()
 			#self.sde.writer.add_image('approximate covar',self.batch_approx.view(1,*self.batch_approx.shape),self.sde.epoch)
 
 		self.sde.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/KL',vL/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/log prob',lP/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/KL',epoch_kl/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/log prob',epoch_lp/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/linearity penalty',epoch_ll/len(loader),self.sde.epoch)
 		self.sde.epoch += 1
 		embedopt.zero_grad()
 		return epoch_loss,embedopt
@@ -494,38 +489,33 @@ class EmbeddingSDE(nn.Module):
 	def m_step(self,loader,sdeopt,grad_clipper=None):
 		self.train()
 		epoch_loss = 0.
-		epoch_mus = []
-		epoch_Ds = []
-		vL = 0.
-		lP = 0.
+		epoch_kl = 0.
+		epoch_lp = 0.
+		epoch_ll = 0.
 		for ii,batch in enumerate(loader):
 			sdeopt.zero_grad()
-			loss,z1,z2,mu,d,vl,lp = self.forward(batch,encode_grad=True,sde_grad=True,stopgrad=False,mode='both')
+			loss,lp,kl,ll = self.forward(batch,mode='both')
 			assert loss != torch.nan, print('loss is somehow nan')
 
 			loss.backward()
 			if grad_clipper != None:
 				grad_clipper(self.parameters())
 			epoch_loss += loss.item()
-			vL += vl.item()
-			lP += lp.item()
+			epoch_kl += kl.item()
+			epoch_lp += lp.item()
+			epoch_ll += ll.item()
 			
 			sdeopt.step()
 			
-			epoch_mus.append(mu.detach().cpu().numpy())
-			epoch_Ds.append(d.detach().cpu().numpy())
-
-		epoch_mus = np.vstack(epoch_mus)
-		epoch_Ds = np.vstack(epoch_Ds)
-
 		assert epoch_loss != torch.nan, print('how?')
 		#if mode == 'both_ma':
 		#	self.__add_covar()
 			#self.sde.writer.add_image('approximate covar',self.batch_approx.view(1,*self.batch_approx.shape),self.sde.epoch)
 
 		self.sde.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/KL',vL/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/log prob',lP/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/KL',epoch_kl/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/log prob',epoch_lp/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/linearity penalty',epoch_ll/len(loader),self.sde.epoch)
 		self.sde.epoch += 1
 		sdeopt.zero_grad()
 		return epoch_loss,sdeopt
@@ -534,49 +524,36 @@ class EmbeddingSDE(nn.Module):
 
 		self.train()
 		epoch_loss = 0.
-		epoch_mus = []
-		epoch_Ds = []
-		vL = 0.
-		lP = 0.
-		ll = 0.
-		batchInd = np.random.choice(len(loader),1)
+		epoch_kl = 0.
+		epoch_lp = 0.
+		epoch_ll = 0.
 		embedopt.zero_grad()
 		for ii,batch in enumerate(loader):
 			sdeopt.zero_grad()
-			loss,z1,z2,linloss,d,vl,lp = self.forward(batch,encode_grad,sde_grad,stopgrad,mode=mode)
+			loss,lp,kl,ll = self.forward(batch,mode=mode)
 			assert not torch.isnan(loss), print('loss is somehow nan')
 
 			loss.backward()
 			if grad_clipper != None:
 				grad_clipper(self.parameters())
 			epoch_loss += loss.item()
-			vL += vl.item()
-			lP += lp.item()
-			ll += linloss.item()
+			epoch_kl += kl.item()
+			epoch_lp += lp.item()
+			epoch_ll += ll.item()
 			
 			sdeopt.step()
 			
-			#epoch_mus.append(mu.detach().cpu().numpy())
-			#epoch_Ds.append(d.detach().cpu().numpy())
-
-
-			#if (ii == batchInd) & (self.sde.epoch % 100 ==0) & self.sde.plotDists:
-				
-			#	self._add_quiver(z1.detach().cpu().numpy(),mu.detach().cpu().numpy(),self.sde.p1name,'Train')
-
 		self._normalize_grads(len(loader),normPart='encoder')
 		embedopt.step()
-		#epoch_mus = np.vstack(epoch_mus)
-		#epoch_Ds = np.vstack(epoch_Ds)
 
 		assert epoch_loss != torch.nan, print('how?')
 		#if mode == 'both_ma':
 		#	self.__add_covar()
 			#self.sde.writer.add_image('approximate covar',self.batch_approx.view(1,*self.batch_approx.shape),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/linearity loss',ll/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/KL',vL/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/log prob',lP/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/KL',epoch_kl/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/log prob',epoch_lp/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/linearity penalty',epoch_ll/len(loader),self.sde.epoch)
 		self.sde.epoch += 1
 		sdeopt.zero_grad()
 		embedopt.zero_grad()
@@ -586,53 +563,32 @@ class EmbeddingSDE(nn.Module):
 
 		self.train()
 		epoch_loss = 0.
-		epoch_mus = []
-		epoch_Ds = []
-		vL = 0.
-		lP = 0.
-		batchInd = np.random.choice(len(loader),1)
+		epoch_kl = 0.
+		epoch_lp = 0.
+		epoch_ll = 0.
 
 		for ii,batch in enumerate(loader):
 			optimizer.zero_grad()
-			loss,z1,z2,mu,d,vl,lp = self.forward(batch,encode_grad,sde_grad,stopgrad,mode=mode)
+			loss,lp,kl,ll = self.forward(batch,mode=mode)
 			assert loss != torch.nan, print('loss is somehow nan')
 
 			loss.backward()
 			if grad_clipper != None:
 				grad_clipper(self.parameters())
 			epoch_loss += loss.item()
-			vL += vl.item()
-			lP += lp.item()
+			epoch_kl += kl.item()
+			epoch_lp += lp.item()
+			epoch_ll += ll.item()
 			
 			optimizer.step()
 			
-			epoch_mus.append(mu.detach().cpu().numpy())
-			epoch_Ds.append(d.detach().cpu().numpy())
-
-
-			if (ii == batchInd) & (self.sde.epoch % 100 ==0) & self.sde.plotDists:
-				
-				self._add_quiver(z1.detach().cpu().numpy(),mu.detach().cpu().numpy(),self.sde.p1name,'Train')
-		epoch_mus = np.vstack(epoch_mus)
-		epoch_Ds = np.vstack(epoch_Ds)
-
 		assert epoch_loss != torch.nan, print('how?')
-		#if mode == 'both_ma':
-		#	self.__add_covar()
-			#self.sde.writer.add_image('approximate covar',self.batch_approx.view(1,*self.batch_approx.shape),self.sde.epoch)
 
 		self.sde.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/KL',vL/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/log prob',lP/len(loader),self.sde.epoch)
-		#self.sde.writer.add_scalar('Train/covar loss',cVL/len(loader),self.sde.epoch)
-		if self.sde.plotDists & (self.sde.epoch % 100 == 0):
-			
-			for d in range(self.sde.dim):
-				
-				self._add_dist_figure(epoch_mus[:,d],self.sde.p1name,d+1,'Train')
-				#self.sde.writer.add_scalars(f'Train/{self.sde.p2name} dim {d+1}',{'estimated':epoch_sigs[d],'true':self.sde.true2[d]},self.sde.epoch)
-			for d in range(self.sde.n_entries):
-				self._add_dist_figure(epoch_Ds[:,d],self.sde.p2name,d+1,'Train')
+		self.sde.writer.add_scalar('Train/KL',epoch_kl/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/log prob',epoch_lp/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/linearity penalty',epoch_ll/len(loader),self.sde.epoch)
+
 		self.sde.epoch += 1
 		optimizer.zero_grad()
 		return epoch_loss,optimizer
@@ -643,31 +599,24 @@ class EmbeddingSDE(nn.Module):
 		self.eval()
 		with torch.no_grad():
 			epoch_loss = 0.
-			epoch_vl = 0.
+			epoch_kl = 0.
 			epoch_lp = 0.
-			epoch_ll = 0
-			epoch_mus = []
-			epoch_Ds = []
+			epoch_ll = 0.
 
 			for ii,batch in enumerate(loader):
-				loss,z1,z2,linloss,d,vl,lp = self.forward(batch,mode=mode)
+				loss,lp,kl,ll = self.forward(batch,mode=mode)
 				
 				epoch_loss += loss.item()
-				epoch_vl += vl.item()
+				epoch_kl += kl.item()
 				epoch_lp += lp.item()
-				epoch_ll += linloss.item()
-				#epoch_mus.append(mu.detach().cpu().numpy())
-				#epoch_Ds.append(d.detach().cpu().numpy())
-
-				
+				epoch_ll += ll.item()				
 		#epoch_mus = np.vstack(epoch_mus)
 		#epoch_Ds = np.vstack(epoch_Ds)
 
-		self.sde.writer.add_scalar('Test/linearity loss',epoch_ll/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Test/loss',epoch_loss/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Test/KL',epoch_vl/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Test/log prob',epoch_lp/len(loader),self.sde.epoch)
-		#self.sde.writer.add_scalar('Test/covar loss',epoch_cVL/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/KL',epoch_kl/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/log prob',epoch_lp/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/linearity penalty',epoch_ll/len(loader),self.sde.epoch)
 
 		return epoch_loss
 
@@ -676,50 +625,23 @@ class EmbeddingSDE(nn.Module):
 		self.eval()
 		with torch.no_grad():
 			epoch_loss = 0.
-			epoch_vl = 0.
+			epoch_kl = 0.
 			epoch_lp = 0.
 			epoch_ll = 0.
-			epoch_mus = []
-			epoch_Ds = []
 
-			batchInd = np.random.choice(len(loader))
 			for ii,batch in enumerate(loader):
-				loss,z1,z2,linloss,d,vl,lp = self.forward(batch)
+				loss,lp,kl,ll = self.forward(batch,mode='both')
 				
 				epoch_loss += loss.item()
-				epoch_vl += vl.item()
+				epoch_kl += kl.item()
 				epoch_lp += lp.item()
-				epoch_ll += linloss.item()
+				epoch_ll += ll.item()				
 
-				#epoch_mus.append(mu.detach().cpu().numpy())
-				#epoch_Ds.append(d.detach().cpu().numpy())
+		self.sde.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/KL',epoch_kl/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/log prob',epoch_lp/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/linearity penalty',epoch_ll/len(loader),self.sde.epoch)
 
-				#if (ii == batchInd) & self.sde.plotDists:
-				#	self._add_quiver(z1.detach().cpu().numpy(),mu.detach().cpu().numpy(),self.sde.p1name,'Test')
-
-		#epoch_mus = np.vstack(epoch_mus)
-		#epoch_Ds = np.vstack(epoch_Ds)
-
-		self.sde.writer.add_scalar('Test/linearity loss',epoch_ll/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Test/loss',epoch_loss/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Test/KL',epoch_vl/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Test/log prob',epoch_lp/len(loader),self.sde.epoch)
-		#self.sde.writer.add_scalar('Test/covar loss',epoch_cVL/len(loader),self.sde.epoch)
-		if self.sde.plotDists:
-			for d in range(self.sde.dim):
-				self._add_dist_figure(epoch_mus[:,d],self.sde.p1name,d+1,'Test')
-				#self.sde.writer.add_scalars(f'Train/{self.sde.p2name} dim {d+1}',{'estimated':epoch_sigs[d],'true':self.sde.true2[d]},self.sde.epoch)
-			for d in range(self.sde.n_entries):
-				self._add_dist_figure(epoch_Ds[:,d],self.sde.p2name,d+1,'Test')
-		"""
-		for d in range(self.sde.dim):
-			if self.sde.plotDists:
-				self.sde.writer.add_scalars(f'Test/{self.sde.p1name} dim {d+1}',{'estimated':epoch_mus[d],'true':self.sde.true1[d]},self.sde.epoch)
-				self.sde.writer.add_scalars(f'Test/{self.sde.p2name} dim {d+1}',{'estimated':epoch_sigs[d],'true':self.sde.true2[d]},self.sde.epoch)
-			else:
-				self.sde.writer.add_scalar(f'Test/{self.sde.p1name} dim {d+1}',epoch_mus[d],self.sde.epoch)
-				self.sde.writer.add_scalar(f'Test/{self.sde.p2name} dim {d+1}',epoch_sigs[d],self.sde.epoch)
-		"""
 		return epoch_loss
 	
 	def save(self):
