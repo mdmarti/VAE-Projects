@@ -459,7 +459,7 @@ class EmbeddingSDE(nn.Module):
 		embedopt.zero_grad()
 		for ii,batch in enumerate(loader):
 			
-			loss,lp,kl,ll = self.forward(batch,encode_grad=True,sde_grad=True,stopgrad=False,mode='both')
+			loss,lp,kl,ll = self.forward(batch,mode='both')
 			assert loss != torch.nan, print('loss is somehow nan')
 
 			loss.backward()
@@ -520,7 +520,7 @@ class EmbeddingSDE(nn.Module):
 		sdeopt.zero_grad()
 		return epoch_loss,sdeopt
 
-	def train_epoch_accum_grad(self,loader,sdeopt,embedopt,grad_clipper=None,encode_grad=True,sde_grad=True,stopgrad=False,mode='both'):
+	def train_epoch_accum_grad(self,loader,sdeopt,embedopt,grad_clipper=None,mode='both'):
 
 		self.train()
 		epoch_loss = 0.
@@ -559,7 +559,7 @@ class EmbeddingSDE(nn.Module):
 		embedopt.zero_grad()
 		return epoch_loss,sdeopt,embedopt
 
-	def train_epoch(self,loader,optimizer,grad_clipper=None,encode_grad=True,sde_grad=True,stopgrad=False,mode='kl'):
+	def train_epoch(self,loader,optimizer,grad_clipper=None,mode='kl'):
 
 		self.train()
 		epoch_loss = 0.
@@ -613,10 +613,10 @@ class EmbeddingSDE(nn.Module):
 		#epoch_mus = np.vstack(epoch_mus)
 		#epoch_Ds = np.vstack(epoch_Ds)
 
-		self.sde.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/KL',epoch_kl/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/log prob',epoch_lp/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/linearity penalty',epoch_ll/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Test/loss',epoch_loss/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Test/KL',epoch_kl/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Test/log prob',epoch_lp/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Test/linearity penalty',epoch_ll/len(loader),self.sde.epoch)
 
 		return epoch_loss
 
@@ -637,10 +637,10 @@ class EmbeddingSDE(nn.Module):
 				epoch_lp += lp.item()
 				epoch_ll += ll.item()				
 
-		self.sde.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/KL',epoch_kl/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/log prob',epoch_lp/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/linearity penalty',epoch_ll/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Test/loss',epoch_loss/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Test/KL',epoch_kl/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Test/log prob',epoch_lp/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Test/linearity penalty',epoch_ll/len(loader),self.sde.epoch)
 
 		return epoch_loss
 	
