@@ -422,7 +422,7 @@ class EmbeddingSDE(nn.Module):
 			loss = lp + kl_loss - entropy_dz
 
 		else:
-			raise Exception("Mode must be one of ['kl', 'lp', 'both']")
+			raise Exception("Mode must be one of the many which I have defined. pls see code due to lazy author not writing them all here")
 		
 		return loss,z1,z2,linLoss,d,kl_loss,lp
 
