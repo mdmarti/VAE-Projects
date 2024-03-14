@@ -319,6 +319,11 @@ class EmbeddingSDE(nn.Module):
 			x1,x2,x3,dt = batch
 			x1,x2,x3,dt = x1.to(self.device),x2.to(self.device),x3.to(self.device),dt.to(self.device)
 
+
+		z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2)
+		if len(batch) == 4:
+			z3 = self.encoder.forward(x3)
+		"""
 		if stopgrad:
 			if self.encoder.type == 'deterministic':
 				z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2,pass_gradient=False)
@@ -337,13 +342,8 @@ class EmbeddingSDE(nn.Module):
 					z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2)
 				else:
 					(z1,cov1), (z2,cov2) = self.encoder.forward(x1,type='prob'),self.encoder.forward(x2,type='prob')
-
-		if sde_grad:
-			lp,mu,d = self.sde.loss(z1,z2,dt)
-		else:
-			with torch.no_grad():
-
-				lp,mu,d = self.sde.loss(z1,z2,dt)
+		"""
+		lp,mu,d = self.sde.loss(z1,z2,dt)
 		mu2 = self.sde.MLP(z2)			
 
 		dz = z2 - z1
@@ -377,15 +377,16 @@ class EmbeddingSDE(nn.Module):
 			#kl_loss = self.entropy_loss(dz)
 			loss = -kl_loss #+ lp#lp - entropy_dz + self.mu*muLoss#+ self.mu * (varLoss + covarLoss) + muLoss #self.mu * varLoss
 		elif mode == 'probkl':
-			assert self.encoder.type == 'probabilistic', print("This loss needs a probabilistic encoder!!!")
-			kl_loss = self.kl_sde_encoder(z1 + mu,d @ d.transpose(-2,-1),z2,cov2)
+			print("Don't use this")
+			#assert self.encoder.type == 'probabilistic', print("This loss needs a probabilistic encoder!!!")
+			#kl_loss = self.kl_sde_encoder(z1 + mu,d @ d.transpose(-2,-1),z2,cov2)
 			loss = kl_loss
 		elif mode == 'lp':
 			loss = lp 
 			#kl_loss = self.entropy_loss(dz)
 		elif mode == 'both':
 			#kl_loss = self.entropy_loss(dz)
-			loss = lp - self.mu * kl_loss
+			loss = lp - kl_loss
 		elif mode == 'linearityTest':
 			#kl_loss = self.entropy_loss(dz)
 			
@@ -393,7 +394,7 @@ class EmbeddingSDE(nn.Module):
 
 		elif mode == 'both_ma':
 			kl_loss = self.entropy_loss_ma(dz)
-			loss = lp - self.mu * kl_loss
+			loss = lp - kl_loss
 
 		elif mode == 'kllp_gradmu':
 			#kl_loss = self.entropy_loss(dz)
@@ -402,11 +403,11 @@ class EmbeddingSDE(nn.Module):
 				print('we have nans in grad mu logdet')
 			self.sde.writer.add_scalar('Train/gradmu',gradmu,self.counter)
 			self.counter += 1
-			loss = lp - kl_loss + self.mu*gradmu
+			loss = lp - kl_loss + gradmu
 		elif mode == 'kllp_mu':
 			#kl_loss = self.entropy_loss(dz)
 			gradmu = self.mu_regularizer(mu)
-			loss = lp - self.mu * kl_loss + gradmu
+			loss = lp - kl_loss + gradmu
 
 		elif mode == 'residuals_constrained':
 			kl_loss = self.kl_dim_only(dz,mu,d)
