@@ -327,6 +327,8 @@ class EmbeddingSDE(nn.Module):
 		if stopgrad:
 			if self.encoder.type == 'deterministic':
 				z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2,pass_gradient=False)
+				if len(batch) == 4:
+					z3 = self.encoder.forward(x3)
 			else:
 				(z1,cov1), (z2,cov2) = self.encoder.forward(x1,type='prob'),self.encoder.forward(x2,pass_gradient=False,type='prob')
 		elif encode_grad:
@@ -340,6 +342,8 @@ class EmbeddingSDE(nn.Module):
 			with torch.no_grad():
 				if self.encoder.type == 'deterministic':
 					z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2)
+					if len(batch) == 4:
+						z3 = self.encoder.forward(x3)
 				else:
 					(z1,cov1), (z2,cov2) = self.encoder.forward(x1,type='prob'),self.encoder.forward(x2,type='prob')
 		"""
