@@ -315,13 +315,15 @@ class EmbeddingSDE(nn.Module):
 		xs,dts = batch[:-1], batch[-1]
 		xs = [x.to(self.device) for x in xs]
 		dts = dts.to(self.device)
+		"""
 		if len(batch) == 3:
 			x1,x2,dt = batch
 			x1,x2,dt = x1.to(self.device),x2.to(self.device),dt.to(self.device)
 		else:
 			x1,x2,x3,dt = batch
 			x1,x2,x3,dt = x1.to(self.device),x2.to(self.device),x3.to(self.device),dt.to(self.device)
-
+		"""
+		
 		zs = [self.encoder.forward(x) for x in xs]
 		dzs = [zs[ii] - zs[ii-1] for ii in range(1,len(zs))]
 		#z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2)
@@ -330,7 +332,7 @@ class EmbeddingSDE(nn.Module):
 
 		lp = 0.
 		for z1,z2 in zip(zs[:-1],zs[1:]):
-			currLP,mu,d = self.sde.loss(z1,z2,dt)
+			currLP,mu,d = self.sde.loss(z1,z2,dts)
 			lp += currLP
 			mu2 = self.sde.MLP(z2)
 		#lp,mu,d = self.sde.loss(z1,z2,dt)

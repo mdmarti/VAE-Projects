@@ -9,6 +9,9 @@ from scipy.io.wavfile import WavFileWarning
 import sys
 sys.path.append('/hdd/miles/AMCParser')
 import amc_parser as amc
+import matplotlib.pyplot as plt
+from matplotlib import animation
+
 EPSILON = 1e-12
 
 def z_score(data):
@@ -25,41 +28,116 @@ def scale(data):
 	mag = np.amax(np.abs(x_stacked))
 	return [d/mag for d in data],mag
 
+def plot_mocap_gif(joint,motion,latents=[]):
+
+	fig = plt.figure(figsize=(15,5))
+	
+	if len(latents) == 0:
+	
+		jointAx = fig.add_subplot(111,projection='3d')
+		jointAx.set_xlim3d(-50, 10)
+		jointAx.set_ylim3d(-20, 40)
+		jointAx.set_zlim3d(-20, 40)
+		joint['root'].set_motion(motion[0])
+		pts = joint['root'].to_dict()
+		xs,ys,zs = [],[],[]
+		ls = []
+		for j in pts.values():
+			xs.append(j.coordinate[0,0])
+			ys.append(j.coordinate[1,0])
+			zs.append(j.coordinate[2,0])
+		l = jointAx.plot(zs,xs,ys,'b.')
+		print(l)
+		ls.append(l[0])
+		for iter,j in enumerate(pts.values()):
+			child = j
+			if child.parent is not None:
+				parent = child.parent
+				xs = [child.coordinate[0, 0], parent.coordinate[0, 0]]
+				ys = [child.coordinate[1, 0], parent.coordinate[1, 0]]
+				zs = [child.coordinate[2, 0], parent.coordinate[2, 0]]
+				l = jointAx.plot(zs,xs,ys,'-r')
+				ls.append(l[0])
+		
+		def animate(i,scatterAndLines,motion,joint,jointAx):
+
+			#print(scatterAndLines)
+			if i < 2*len(motion):
+				joint['root'].set_motion(motion[i//3])
+			pts = joint['root'].to_dict()
+			xs,ys,zs = [],[],[]
+			for j in pts.values():
+				xs.append(j.coordinate[0,0])
+				ys.append(j.coordinate[1,0])
+				zs.append(j.coordinate[2,0])
+				scatterAndLines[0].set_data(zs,xs)#
+				scatterAndLines[0].set_3d_properties(ys)
+			
+			#jointAx.plot(zs,xs,ys,'b.')
+			counter = 1
+			for j in pts.values():
+				child = j
+				if child.parent is not None:
+					parent = child.parent
+					xs = [child.coordinate[0, 0], parent.coordinate[0, 0]]
+					ys = [child.coordinate[1, 0], parent.coordinate[1, 0]]
+					zs = [child.coordinate[2, 0], parent.coordinate[2, 0]]
+					scatterAndLines[counter].set_data(zs,xs)
+					scatterAndLines[counter].set_3d_properties(ys)
+					counter += 1
+			jointAx.view_init(azim=i*0.25,elev=10)
+			return scatterAndLines
+	
+		anim = lambda i: animate(i,ls,motion,joint,jointAx)
+		ani = animation.FuncAnimation(fig,anim,frames=len(motion)*3,interval=50,blit=True)
+		Writer=animation.writers['ffmpeg']
+		writer = Writer(fps=30,bitrate=500)
+		ani.save('/home/miles/Downloads/testani.mp4',writer=writer,dpi=400)
+
+	else:
+		jointAx = fig.add_subplot(121,projection='3d')
+		latAx = fig.add_subplot(122)
+
+	
+
+	
+
+	
 
 def getRotation(joints,motion,excluded = ['toes','hand','fingers','thumb','hipjoint']):
-    
-    rotations = []
-    globalrots = []
-    #print(len(joints))
-    for j in joints.keys():
-        joint = joints[j]
-        drop = False
-        for kk in excluded:
-            if kk in joint.name:
-                drop = True
-                #print(f'dropping {joint.name}')
-                continue
-        if not drop:
-            if joint.name == 'root':
-                #print(motion['root'])
-                #print(len(motion['root']))
-                globalRot = np.deg2rad(motion['root'][3:])
-                #print(len(rotation))
-                globalrots.append(globalRot)
-            else:
-                idx = 0
-                rotation = []
-                for axis, lm in enumerate(joint.limits):
-                    if not np.array_equal(lm, np.zeros(2)):
-                        rotation.append(motion[joint.name][idx])
-                        idx += 1
-                #print(joint.name)
-                rotation = np.hstack(rotation)
-                rotation = np.deg2rad(rotation)
+	
+	rotations = []
+	globalrots = []
+	#print(len(joints))
+	for j in joints.keys():
+		joint = joints[j]
+		drop = False
+		for kk in excluded:
+			if kk in joint.name:
+				drop = True
+				#print(f'dropping {joint.name}')
+				continue
+		if not drop:
+			if joint.name == 'root':
+				#print(motion['root'])
+				#print(len(motion['root']))
+				globalRot = np.deg2rad(motion['root'][3:])
+				#print(len(rotation))
+				globalrots.append(globalRot)
+			else:
+				idx = 0
+				rotation = []
+				for axis, lm in enumerate(joint.limits):
+					if not np.array_equal(lm, np.zeros(2)):
+						rotation.append(motion[joint.name][idx])
+						idx += 1
+				#print(joint.name)
+				rotation = np.hstack(rotation)
+				rotation = np.deg2rad(rotation)
 
-                rotations.append(rotation)
-    #rotations.append(globalRot)
-    return np.hstack(rotations),np.array(globalrots)
+				rotations.append(rotation)
+	#rotations.append(globalRot)
+	return np.hstack(rotations),np.array(globalrots)
 
 def preprocess_mocap(jointList,motionsList):
 
@@ -322,7 +400,7 @@ class toyDataset(Dataset):
 		self.data_inds = validInds
 		self.dt = dt
 		self.length = len(validInds)
-		print('added in more forward predictions')
+		#print('added in more forward predictions')
 		## needed: slice data by dt? need true dt, ds dt for that
 		## should be fine to add though
 
@@ -570,9 +648,9 @@ def makeToyDataloaders(ds1,ds2,dt,batch_size=512,t='regular',nForward=1):
 
 
 	trainDataLoader = DataLoader(dataset1,batch_size=adjustedBatch,shuffle=True,
-			      num_workers=4)
+				  num_workers=4)
 	testDataLoader = DataLoader(dataset2,batch_size=adjustedBatch,shuffle=False,
-			      num_workers=4)
+				  num_workers=4)
 	
 	return {'train':trainDataLoader,'test':testDataLoader}
 
