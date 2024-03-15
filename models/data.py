@@ -93,7 +93,7 @@ def plot_mocap_gif(joint,motion,latents=[]):
 		
 	else:
 		jointAx = fig.add_subplot(121,projection='3d')
-		latAx = fig.add_subplot(122)
+		latAx = fig.add_subplot(122,projection='3d')
 
 		def animate(i,scatterAndLines,motion,joint,latents,latentAxis):
 
