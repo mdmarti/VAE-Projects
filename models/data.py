@@ -99,8 +99,8 @@ def plot_mocap_gif(joint,motion,latents=[]):
 
 			#print(scatterAndLines)
 			if i < 2*len(motion):
-				joint['root'].set_motion(motion[i//3])
-				d = latents[i,:]
+				joint['root'].set_motion(motion[i//2])
+				d = latents[i//2,:]
 			pts = joint['root'].to_dict()
 			xs,ys,zs = [],[],[]
 			for j in pts.values():
@@ -154,6 +154,9 @@ def plot_mocap_gif(joint,motion,latents=[]):
 				zs = [child.coordinate[2, 0], parent.coordinate[2, 0]]
 				l = jointAx.plot(zs,xs,ys,'-r')
 				ls.append(l[0])
+		latAx.set_xlim3d(np.amin(latents[:,0] - 1), np.amax(latents[:,0]+1))
+		latAx.set_ylim3d(np.amin(latents[:,1] - 1), np.amax(latents[:,1]+1))
+		latAx.set_zlim3d(np.amin(latents[:,2] - 1), np.amax(latents[:,2]+1))
 		l = latAx.scatter(latents[0,0],latents[0,1],latents[0,2])
 		ls.append(l)
 
