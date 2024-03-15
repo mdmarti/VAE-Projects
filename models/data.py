@@ -101,6 +101,8 @@ def plot_mocap_gif(joint,motion,latents=[]):
 			if i < 2*len(motion):
 				joint['root'].set_motion(motion[i//2])
 				d = latents[i//2,:]
+			else:
+				d = latents[-1,:]
 			pts = joint['root'].to_dict()
 			xs,ys,zs = [],[],[]
 			for j in pts.values():
