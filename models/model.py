@@ -312,6 +312,9 @@ class EmbeddingSDE(nn.Module):
 	
 	def forward(self,batch,mode='kl'):
 		
+		xs,dts = batch[:-1], batch[-1]
+		xs = [x.to(self.device) for x in xs]
+		dts = dts.to(self.device)
 		if len(batch) == 3:
 			x1,x2,dt = batch
 			x1,x2,dt = x1.to(self.device),x2.to(self.device),dt.to(self.device)
@@ -319,15 +322,30 @@ class EmbeddingSDE(nn.Module):
 			x1,x2,x3,dt = batch
 			x1,x2,x3,dt = x1.to(self.device),x2.to(self.device),x3.to(self.device),dt.to(self.device)
 
+		zs = [self.encoder.forward(x) for x in xs]
+		dzs = [zs[ii] - zs[ii-1] for ii in range(1,len(zs))]
+		#z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2)
+		#if len(batch) == 4:
+		#	z3 = self.encoder.forward(x3)
 
-		z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2)
-		if len(batch) == 4:
-			z3 = self.encoder.forward(x3)
+		lp = 0.
+		for z1,z2 in zip(zs[:-1],zs[1:]):
+			currLP,mu,d = self.sde.loss(z1,z2,dt)
+			lp += currLP
+			mu2 = self.sde.MLP(z2)
+		#lp,mu,d = self.sde.loss(z1,z2,dt)
+					
 
-		lp,mu,d = self.sde.loss(z1,z2,dt)
-		mu2 = self.sde.MLP(z2)			
-
-		dz = z2 - z1
+		#dz = z2 - z1
+		kl_loss = self.entropy_loss(torch.vstack(dzs))
+		if len(batch) == 3:
+			linLoss = self.mu *self._linearity_penalty(mu,mu2)
+		else:
+			linLoss = 0.
+			for dz1,dz2 in zip(dzs[:-1],dzs[1:]):
+				tmpLin = self.mu * self._linearity_penalty(dz1,dz2)
+				linLoss += tmpLin
+		"""
 		if len(batch) == 4:
 			l2,_,_ = self.sde.loss(z2,z3,dt)
 			lp += l2
@@ -341,8 +359,8 @@ class EmbeddingSDE(nn.Module):
 			linLoss = self.mu *self._linearity_penalty(mu,mu2)
 			kl_loss = self.entropy_loss(dz)
 		assert not torch.isnan(lp)
-		
-		zs = torch.vstack([z1,z2]) # bsz x latent dim
+		"""
+		#zs = torch.vstack([z1,z2]) # bsz x latent dim
 		#varLoss,covarLoss,muLoss = torch.zeros([0]),self.covar_loss(zs),torch.zeros([0])#0,0,0#self.var_loss(zs),self.covar_loss(zs),self.mu_reg(zs) #+ self.var_loss(z2)
 		entropy = torch.zeros([0])#0#,self.entropy_loss(zs)
 		#if self.training:
@@ -374,7 +392,7 @@ class EmbeddingSDE(nn.Module):
 			loss = lp - kl_loss - linLoss
 
 		elif mode == 'both_ma':
-			kl_loss = self.entropy_loss_ma(dz)
+			kl_loss = self.entropy_loss_ma(torch.vstack(dzs))
 			loss = lp - kl_loss
 
 		elif mode == 'kllp_gradmu':
@@ -391,11 +409,11 @@ class EmbeddingSDE(nn.Module):
 			loss = lp - kl_loss + gradmu
 
 		elif mode == 'residuals_constrained':
-			kl_loss = self.kl_dim_only(dz,mu,d)
+			kl_loss = self.kl_dim_only(torch.vstack(dzs),mu,d)
 			loss = kl_loss
 		elif mode == 'allspace_constrained':
-			kl_loss = self.kl_dim_only(dz,mu,d)
-			entropy_dz = self.entropy_loss(dz)
+			kl_loss = self.kl_dim_only(torch.vstack(dzs),mu,d)
+			entropy_dz = self.entropy_loss(torch.vstack(dzs))
 			loss = lp + kl_loss - entropy_dz
 
 		else:
