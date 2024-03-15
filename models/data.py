@@ -35,31 +35,8 @@ def plot_mocap_gif(joint,motion,latents=[]):
 	if len(latents) == 0:
 	
 		jointAx = fig.add_subplot(111,projection='3d')
-		jointAx.set_xlim3d(-50, 10)
-		jointAx.set_ylim3d(-20, 40)
-		jointAx.set_zlim3d(-20, 40)
-		joint['root'].set_motion(motion[0])
-		pts = joint['root'].to_dict()
-		xs,ys,zs = [],[],[]
-		ls = []
-		for j in pts.values():
-			xs.append(j.coordinate[0,0])
-			ys.append(j.coordinate[1,0])
-			zs.append(j.coordinate[2,0])
-		l = jointAx.plot(zs,xs,ys,'b.')
-		print(l)
-		ls.append(l[0])
-		for iter,j in enumerate(pts.values()):
-			child = j
-			if child.parent is not None:
-				parent = child.parent
-				xs = [child.coordinate[0, 0], parent.coordinate[0, 0]]
-				ys = [child.coordinate[1, 0], parent.coordinate[1, 0]]
-				zs = [child.coordinate[2, 0], parent.coordinate[2, 0]]
-				l = jointAx.plot(zs,xs,ys,'-r')
-				ls.append(l[0])
 		
-		def animate(i,scatterAndLines,motion,joint,jointAx):
+		def animate(i,scatterAndLines,motion,joint):
 
 			#print(scatterAndLines)
 			if i < 2*len(motion):
@@ -85,18 +62,109 @@ def plot_mocap_gif(joint,motion,latents=[]):
 					scatterAndLines[counter].set_data(zs,xs)
 					scatterAndLines[counter].set_3d_properties(ys)
 					counter += 1
-			jointAx.view_init(azim=i*0.25,elev=10)
+			
 			return scatterAndLines
 	
-		anim = lambda i: animate(i,ls,motion,joint,jointAx)
-		ani = animation.FuncAnimation(fig,anim,frames=len(motion)*3,interval=50,blit=True)
-		Writer=animation.writers['ffmpeg']
-		writer = Writer(fps=30,bitrate=500)
-		ani.save('/home/miles/Downloads/testani.mp4',writer=writer,dpi=400)
-
+		jointAx.set_xlim3d(-45, 20)
+		jointAx.set_ylim3d(-20, 40)
+		jointAx.set_zlim3d(-20, 40)
+		joint['root'].set_motion(motion[0])
+		pts = joint['root'].to_dict()
+		xs,ys,zs = [],[],[]
+		ls = []
+		for j in pts.values():
+			xs.append(j.coordinate[0,0])
+			ys.append(j.coordinate[1,0])
+			zs.append(j.coordinate[2,0])
+		l = jointAx.plot(zs,xs,ys,'b.')
+		print(l)
+		ls.append(l[0])
+		jointAx.view_init(azim=90,elev=10)
+		for iter,j in enumerate(pts.values()):
+			child = j
+			if child.parent is not None:
+				parent = child.parent
+				xs = [child.coordinate[0, 0], parent.coordinate[0, 0]]
+				ys = [child.coordinate[1, 0], parent.coordinate[1, 0]]
+				zs = [child.coordinate[2, 0], parent.coordinate[2, 0]]
+				l = jointAx.plot(zs,xs,ys,'-r')
+				ls.append(l[0])
+		anim = lambda i: animate(i,ls,motion,joint)
+		
 	else:
 		jointAx = fig.add_subplot(121,projection='3d')
 		latAx = fig.add_subplot(122)
+
+		def animate(i,scatterAndLines,motion,joint,latents,latentAxis):
+
+			#print(scatterAndLines)
+			if i < 2*len(motion):
+				joint['root'].set_motion(motion[i//3])
+				d = latents[i,:]
+			pts = joint['root'].to_dict()
+			xs,ys,zs = [],[],[]
+			for j in pts.values():
+				xs.append(j.coordinate[0,0])
+				ys.append(j.coordinate[1,0])
+				zs.append(j.coordinate[2,0])
+				scatterAndLines[0].set_data(zs,xs)#
+				scatterAndLines[0].set_3d_properties(ys)
+			
+			#jointAx.plot(zs,xs,ys,'b.')
+			counter = 1
+			for j in pts.values():
+				child = j
+				if child.parent is not None:
+					parent = child.parent
+					xs = [child.coordinate[0, 0], parent.coordinate[0, 0]]
+					ys = [child.coordinate[1, 0], parent.coordinate[1, 0]]
+					zs = [child.coordinate[2, 0], parent.coordinate[2, 0]]
+					scatterAndLines[counter].set_data(zs,xs)
+					scatterAndLines[counter].set_3d_properties(ys)
+					counter += 1
+			
+			(xs,ys,zs) = scatterAndLines[-1]._offsets3d
+			xs,ys,zs = np.hstack([xs,[d[0]]]),np.hstack([ys,[d[1]]]),np.hstack([zs,[d[2]]])
+			scatterAndLines[-1]._offsets3d = (xs,ys,zs)
+			latentAxis.view_init(azim=i*0.25,elev=10)
+
+			return scatterAndLines
+	
+		jointAx.set_xlim3d(-45, 20)
+		jointAx.set_ylim3d(-20, 40)
+		jointAx.set_zlim3d(-20, 40)
+		joint['root'].set_motion(motion[0])
+		pts = joint['root'].to_dict()
+		xs,ys,zs = [],[],[]
+		ls = []
+		for j in pts.values():
+			xs.append(j.coordinate[0,0])
+			ys.append(j.coordinate[1,0])
+			zs.append(j.coordinate[2,0])
+		l = jointAx.plot(zs,xs,ys,'b.')
+		print(l)
+		ls.append(l[0])
+		jointAx.view_init(azim=90,elev=10)
+		for iter,j in enumerate(pts.values()):
+			child = j
+			if child.parent is not None:
+				parent = child.parent
+				xs = [child.coordinate[0, 0], parent.coordinate[0, 0]]
+				ys = [child.coordinate[1, 0], parent.coordinate[1, 0]]
+				zs = [child.coordinate[2, 0], parent.coordinate[2, 0]]
+				l = jointAx.plot(zs,xs,ys,'-r')
+				ls.append(l[0])
+		l = latAx.scatter(latents[0,0],latents[0,1],latents[0,2])
+		ls.append(l)
+
+		anim = lambda i: animate(i,ls,motion,joint,latents,latAx)
+
+
+
+	ani = animation.FuncAnimation(fig,anim,frames=len(motion)*3,interval=50,blit=True)
+	Writer=animation.writers['ffmpeg']
+	writer = Writer(fps=30,bitrate=500)
+	ani.save('/home/miles/Downloads/testani.mp4',writer=writer,dpi=400)
 
 	
 
