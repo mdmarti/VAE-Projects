@@ -65,7 +65,7 @@ def plot_mocap_gif(joint,motion,latents=[]):
 			
 			return scatterAndLines
 	
-		jointAx.set_xlim3d(-45, 20)
+		jointAx.set_xlim3d(-35, 55)
 		jointAx.set_ylim3d(-20, 40)
 		jointAx.set_zlim3d(-20, 40)
 		joint['root'].set_motion(motion[0])
@@ -132,7 +132,7 @@ def plot_mocap_gif(joint,motion,latents=[]):
 
 			return scatterAndLines
 	
-		jointAx.set_xlim3d(-45, 20)
+		jointAx.set_xlim3d(-35, 55)
 		jointAx.set_ylim3d(-20, 40)
 		jointAx.set_zlim3d(-20, 40)
 		joint['root'].set_motion(motion[0])
