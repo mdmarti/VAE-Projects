@@ -304,23 +304,25 @@ def downsample(data:list,origdt:float,newdt:float,noise:bool=True) -> np.ndarray
 
 class toyDataset(Dataset):
 
-	def __init__(self,data,dt) -> None:
+	def __init__(self,data,dt,nForward=1) -> None:
 		"""
 		toyData: list of numpy arrays
 		"""
 
+		self.maxForward = nForward
 		exampleInd = np.random.choice(len(data),1)[0]
 		self.exampleTraj = data[exampleInd]
 		lens = list(map(len,data))
 		lens2 = [0] + list(np.cumsum([l for l in lens][:-1]))
-		pairs = [np.vstack([np.arange(0,l-1),np.arange(1,l)]).T for l in lens]
-		sumPairs = [p+l for p,l in zip(pairs,lens2)]
-		validInds = np.vstack(sumPairs)
+		sets = [np.vstack([np.arange(ii, l+ ii - self.maxForward) for ii in range(self.maxForward + 1)]).T for l in lens]
+		#pairs = [np.vstack([np.arange(0,l-1),np.arange(1,l)]).T for l in lens]
+		sumSets = [p+l for p,l in zip(sets,lens2)]
+		validInds = np.vstack(sumSets)
 		self.data= np.vstack(data)
 		self.data_inds = validInds
 		self.dt = dt
 		self.length = len(validInds)
-		print('we no longer sampling now')
+		print('added in more forward predictions')
 		## needed: slice data by dt? need true dt, ds dt for that
 		## should be fine to add though
 
@@ -340,9 +342,11 @@ class toyDataset(Dataset):
 
 		for ii in index:
 			inds = self.data_inds[ii]
-						
-			s1,s2 = self.transform(self.data[inds[0]]),self.transform(self.data[inds[1]])
-			result.append((s1,s2,self.dt))
+
+			samples = [self.transform(self.data[ind]) for ind in inds]
+			samples.append(self.dt)			
+			#s1,s2 = self.transform(self.data[inds[0]]),self.transform(self.data[inds[1]])
+			result.append(samples)
 
 		if single_index:
 			return result[0]
@@ -357,6 +361,7 @@ class toyDatasetLinearity(Dataset):
 		"""
 		toyData: list of numpy arrays
 		"""
+		print("Don't use this, the normal dataset now does everything this one does")
 
 		exampleInd = np.random.choice(len(data),1)[0]
 		self.exampleTraj = data[exampleInd]
@@ -403,7 +408,7 @@ class toyDatasetLinearity(Dataset):
 class FixedWindowDataset(Dataset):
 
 	def __init__(self, audio_filenames, roi_filenames, p,
-		dataset_length=2048, min_spec_val=None,dt=0.05,win_length=0.05,overlap=0.5):
+		dataset_length=2048, min_spec_val=None,dt=0.05,win_length=0.05,overlap=0.5,nForward=1):
 		"""
 		Create a torch.utils.data.Dataset for chunks of animal vocalization.
 
@@ -424,6 +429,7 @@ class FixedWindowDataset(Dataset):
 		dt : float, optional
 			timestep between successive 
 		"""
+		self.maxForward = nForward
 		self.filenames = np.array(sorted(audio_filenames))
 		with warnings.catch_warnings():
 			warnings.filterwarnings("ignore", category=WavFileWarning)
@@ -470,6 +476,7 @@ class FixedWindowDataset(Dataset):
 		offsets :
 		"""
 		specs, specs2,dts,file_indices, onsets, offsets = [],[], [],[], [], []
+		result = []
 		single_index = False
 		try:
 			iterator = iter(index)
@@ -480,6 +487,8 @@ class FixedWindowDataset(Dataset):
 		for i in index:
 			while True:
 				# First find the file, then the ROI.
+
+				data=[]
 				file_index = np.random.choice(np.arange(len(self.filenames)), \
 					p=self.file_weights)
 				load_filename = self.filenames[file_index]
@@ -492,12 +501,13 @@ class FixedWindowDataset(Dataset):
 					* np.random.rand()
 				offset = onset + self.win_length
 
-				onset2 = onset + self.dt 
-				offset2 = onset2 + self.win_length
+				nextOnsets = [onset+ ii*self.dt for ii in range(1,self.maxForward+1)]
+				nextOffsets = [o +self.win_length for o in nextOnsets]
+				#onset2 = onset + self.dt 
+				#offset2 = onset2 + self.win_length
 				target_times = np.linspace(onset, offset, \
 						self.p['num_time_bins'])
-				target_times2 = np.linspace(onset2, offset2, \
-						self.p['num_time_bins'])
+				
 				# Then make a spectrogram.
 				spec, flag = get_spec(max(0.0, onset-shoulder), \
 						offset+shoulder, self.audio[file_index], self.p, \
@@ -508,41 +518,50 @@ class FixedWindowDataset(Dataset):
 				if self.min_spec_val is not None and \
 						np.max(spec) < self.min_spec_val:
 					continue
-
-				spec2, flag2 = get_spec(max(0.0, onset2-shoulder), \
-						offset2+shoulder, self.audio[file_index], self.p, \
-						fs=self.fs, target_times=target_times2)
+				data.append(self.transform(spec).view(1,spec.shape[0],spec.shape[1]))
+				for onset2,offset2 in zip(nextOnsets,nextOffsets):
+					target_times2 = np.linspace(onset2, offset2, \
+							self.p['num_time_bins'])
+					spec2, flag2 = get_spec(max(0.0, onset2-shoulder), \
+							offset2+shoulder, self.audio[file_index], self.p, \
+							fs=self.fs, target_times=target_times2)
+					data.append(self.transform(spec2).view(1,spec2.shape[0],spec2.shape[1]))
 				
-				spec = self.transform(spec).view(1,spec.shape[0],spec.shape[1])
-				spec2 = self.transform(spec2).view(1,spec2.shape[0],spec2.shape[1])
-				specs.append(spec)
-				specs2.append(spec2)
+				#spec = self.transform(spec).view(1,spec.shape[0],spec.shape[1])
+				#spec2 = self.transform(spec2).view(1,spec2.shape[0],spec2.shape[1])
+				#specs.append(spec)
+				#specs2.append(spec2)
 				file_indices.append(file_index)
 				onsets.append(onset)
 				offsets.append(offset)
+				data.append(self.dt)
 				dts.append(self.dt)
+				result.append(data)
 				break
 		np.random.seed(None)
 		if return_seg_info:
 			if single_index:
-				return specs[0], specs2[0],dts[0], file_indices[0], onsets[0], offsets[0]
-			return specs, specs2,dts,file_indices, onsets, offsets
+				return result[0], file_indices[0], onsets[0], offsets[0]
+			return result[0],file_indices, onsets, offsets
 		if single_index:
-			return specs[0],specs2[0],dts[0]
-		return specs,specs2,dts
+			return result[0]
+		return result
 
 	def transform(self,data):
 		return torch.from_numpy(data).type(torch.FloatTensor)
 	
-def makeToyDataloaders(ds1,ds2,dt,batch_size=512,t='regular'):
+def makeToyDataloaders(ds1,ds2,dt,batch_size=512,t='regular',nForward=1):
 
 	#assert ds1.shape[1] == 3
 	#ds1 = ds1).type(torch.FloatTensor)
 	#ds2 = torch.from_numpy(ds2).type(torch.FloatTensor)
+	adjustedBatch = batch_size // nForward
+	print(f"this DL will return {adjustedBatch} trajectories per batch")
 	if t== 'regular':
-		dataset1 = toyDataset(ds1,dt)
-		dataset2 = toyDataset(ds2,dt)
+		dataset1 = toyDataset(ds1,dt,nForward=nForward)
+		dataset2 = toyDataset(ds2,dt,nForward=nForward)
 	elif t =='linearity':
+		print('just use the regular version dingus')
 		dataset1 = toyDatasetLinearity(ds1,dt)
 		dataset2 = toyDatasetLinearity(ds2,dt)
 	else:
@@ -550,9 +569,9 @@ def makeToyDataloaders(ds1,ds2,dt,batch_size=512,t='regular'):
 		return NotImplementedError
 
 
-	trainDataLoader = DataLoader(dataset1,batch_size=batch_size,shuffle=True,
+	trainDataLoader = DataLoader(dataset1,batch_size=adjustedBatch,shuffle=True,
 			      num_workers=4)
-	testDataLoader = DataLoader(dataset2,batch_size=batch_size,shuffle=False,
+	testDataLoader = DataLoader(dataset2,batch_size=adjustedBatch,shuffle=False,
 			      num_workers=4)
 	
 	return {'train':trainDataLoader,'test':testDataLoader}
