@@ -128,7 +128,8 @@ def plot_mocap_gif(joint,motion,latents=[]):
 			(xs,ys,zs) = scatterAndLines[-1]._offsets3d
 			xs,ys,zs = np.hstack([xs,[d[0]]]),np.hstack([ys,[d[1]]]),np.hstack([zs,[d[2]]])
 			scatterAndLines[-1]._offsets3d = (xs,ys,zs)
-			latentAxis.view_init(azim=i*0.25,elev=10)
+			if i > 2*len(motion):
+				latentAxis.view_init(azim=(i - 2*len(motion))*0.25,elev=10)
 
 			return scatterAndLines
 	
@@ -165,7 +166,7 @@ def plot_mocap_gif(joint,motion,latents=[]):
 		anim = lambda i: animate(i,ls,motion,joint,latents,latAx)
 
 
-
+	fig.tight_layout()
 	ani = animation.FuncAnimation(fig,anim,frames=len(motion)*3,interval=50,blit=True)
 	Writer=animation.writers['ffmpeg']
 	writer = Writer(fps=30,bitrate=500)
