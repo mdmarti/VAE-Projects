@@ -30,11 +30,11 @@ def scale(data):
 
 def plot_mocap_gif(joint,motion,latents=[]):
 
-	fig = plt.figure(figsize=(15,5))
+	#fig = plt.figure(figsize=(15,5))
 	
 	if len(latents) == 0:
-	
-		jointAx = fig.add_subplot(111,projection='3d')
+		fig,jointAx = plt.subplots(nrows=1,ncols=1,subplot_kw=dict(projection="3d"),layout='compressed')
+		#jointAx = fig.add_subplot(111,projection='3d')
 		
 		def animate(i,scatterAndLines,motion,joint):
 
@@ -92,8 +92,9 @@ def plot_mocap_gif(joint,motion,latents=[]):
 		anim = lambda i: animate(i,ls,motion,joint)
 		
 	else:
-		jointAx = fig.add_subplot(121,projection='3d')
-		latAx = fig.add_subplot(122,projection='3d')
+		fig,(jointAx,latAx) = plt.subplots(nrows=1,ncols=2,subplot_kw=dict(projection="3d"),layout='compressed')
+		#jointAx = fig.add_subplot(121,projection='3d')
+		#latAx = fig.add_subplot(122,projection='3d')
 
 		def animate(i,scatterAndLines,motion,joint,latents,latentAxis):
 
@@ -161,12 +162,13 @@ def plot_mocap_gif(joint,motion,latents=[]):
 		latAx.set_ylim3d(np.amin(latents[:,1] - 1), np.amax(latents[:,1]+1))
 		latAx.set_zlim3d(np.amin(latents[:,2] - 1), np.amax(latents[:,2]+1))
 		l = latAx.scatter(latents[0,0],latents[0,1],latents[0,2])
+		latAx.view_init(azim=0,elev=10)
 		ls.append(l)
 
 		anim = lambda i: animate(i,ls,motion,joint,latents,latAx)
 
 
-	fig.tight_layout()
+	#fig.tight_layout()
 	ani = animation.FuncAnimation(fig,anim,frames=len(motion)*3,interval=50,blit=True)
 	Writer=animation.writers['ffmpeg']
 	writer = Writer(fps=30,bitrate=500)
