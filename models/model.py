@@ -310,6 +310,14 @@ class EmbeddingSDE(nn.Module):
 
 		return traj
 	
+	def variational_loss(self,mu,d,z):
+		"""
+		computes kl between sde distribution, prior under ornstein-uhlenbeck prior
+		"""
+
+		meanDiff = mu - z 
+		
+
 	def forward(self,batch,mode='kl'):
 		
 		xs,dts = batch[:-1], batch[-1]

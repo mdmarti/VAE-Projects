@@ -28,7 +28,7 @@ def scale(data):
 	mag = np.amax(np.abs(x_stacked))
 	return [d/mag for d in data],mag
 
-def plot_mocap_gif(joint,motion,latents=[]):
+def plot_mocap_gif(joint,motion,latents=[],fn='testani.mp4'):
 
 	#fig = plt.figure(figsize=(15,5))
 	
@@ -172,7 +172,9 @@ def plot_mocap_gif(joint,motion,latents=[]):
 	ani = animation.FuncAnimation(fig,anim,frames=len(motion)*3,interval=50,blit=True)
 	Writer=animation.writers['ffmpeg']
 	writer = Writer(fps=30,bitrate=500)
-	ani.save('/home/miles/Downloads/testani.mp4',writer=writer,dpi=400)
+	ani.save(fn,writer=writer,dpi=400)
+	plt.close(fig)
+	return
 
 	
 
@@ -266,6 +268,57 @@ def generate_ndim_benes(n=100,d = 20,T=100,dt=1):
 		allPaths.append(xx)
 
 	return allPaths
+
+def generate_spiral_spikes(n=100,T=1,dt=0.001,binsize=0.001,dim=150,fr='low'):
+
+	allLatentPaths=[]
+	allTrialPaths = []
+	t = np.arange(0,T,dt)
+
+	rng = np.random.default_rng(1) # why do people always choose such strange seeds? Im number 1
+	if fr == 'low':
+		C = (rng.standard_normal((dim,3)) + 0.2) * np.sign(rng.standard_normal((dim,3))) #low fr
+	else:
+		C = (rng.standard_normal((dim,3)) + 0.8) * np.sign(rng.standard_normal((dim,3))) #low fr
+
+	def f(z,t):
+		A = np.array([[-0.1,-2.0,0],[2,-0.1,0],[0,0,-0.3]])
+
+		return A @ (z ** 3 + z)
+	
+	def g(z,t):
+		return 0.01 * np.cos(z)
+	
+	def dW(dt):
+		return rng.normal(loc=0.,scale=np.sqrt(dt))
+	
+	def getSpikes(z):
+		return rng.poisson(np.exp(C @ z)*binsize) > 0
+
+	for ii in range(n):
+
+		z0 = np.hstack([rng.uniform(-0.4,0.4),rng.uniform(-0.4,0.4),rng.uniform(-0.4,0.4)])
+		#xnot = x0 + 0.03**2 * rng.standard_normal((3,))
+		zz = [z0]
+		xx = [getSpikes(z0)]
+		#print(xx[0].shape)
+		for jj in range(1,len(t)+1):
+
+			z = zz[jj-1]
+			tt = t[jj-1]
+			zz.append(z + f(z,tt)*dt + g(z,tt)*dW(dt))
+			xx.append(getSpikes(zz[jj]))
+
+		#print(xx[-1].shape)
+		zz = np.vstack(zz)
+		xx = np.vstack(xx)
+		assert zz.shape[0] == (len(t) + 1), print(zz.shape)
+		assert xx.shape[0] == (len(t) + 1), print(xx.shape)
+		
+		allLatentPaths.append(zz)
+		allTrialPaths.append(xx)
+
+	return allTrialPaths,allLatentPaths
 
 def generate_geometric_brownian(n=100,T=100,dt=1,mu=1,sigma=0.5,x0=0.1):
 
