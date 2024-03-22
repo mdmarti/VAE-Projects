@@ -436,12 +436,14 @@ class EmbeddingSDE(nn.Module):
 			loss = lp - kl_loss - linLoss
 		elif mode == 'klPrior':
 			#kl_loss = self.variational_loss(mu)
-			kl_loss = var_loss
-			loss = lp + kl_loss
+			#kl_loss = var_loss
+			linLoss = var_loss
+			loss = lp + var_loss - kl_loss
 
 		elif mode == 'resReg':
-			kl_loss = res_loss
-			loss = lp - kl_loss
+			#kl_loss = res_loss
+			linLoss = res_loss
+			loss = lp - kl_loss - res_loss
 
 		elif mode == 'both_ma':
 			kl_loss = self.entropy_loss_ma(torch.vstack(dzs))
