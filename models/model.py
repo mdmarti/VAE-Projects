@@ -310,13 +310,41 @@ class EmbeddingSDE(nn.Module):
 
 		return traj
 	
-	def variational_loss(self,mu,d,z):
+	def variational_loss(self,mu,d,z,dt):
 		"""
 		computes kl between sde distribution, prior under ornstein-uhlenbeck prior
 		"""
 
-		meanDiff = mu - z 
+		eyes = torch.eye(self.latentDim).view(1,self.latentDim,self.latentDim).repeat(z.shape[0],1,1).to(self.device)
+		invChol = torch.linalg.solve_triangular(d,eyes,upper=False)
+		cov = invChol.transpose(-1,-2) @ invChol 
+		prec = d @ d.transpose(-1,2)
+		meanDiff = mu - z*dt
+		meanTerm = (meanDiff **2).sum(axis=-1)/dt 
+		ldTerm =  torch.logdet(prec) + self.latentDim * torch.log(dt)
+		traceTerm = torch.vmap(torch.trace)(cov/dt)
+
+		kl = 1/2 * (meanTerm + ldTerm + traceTerm - self.latentDim)
+		assert len(kl.shape) == 1,print(kl.shape)
+		assert len(kl) == z.shape[0],print(kl.shape)
+
+		return kl.sum()
+	
+	def probZ_loss(self,dz,d,mu):
+
+		#print(dz.shape)
+		#print(mu.shape)
+		#print(d.shape)
+		#print((dz - mu).shape)
+		res = d @ ((dz -mu).view(dz.shape[0],dz.shape[1],1))
+		m = torch.distributions.MultivariateNormal(loc=torch.zeros([self.latentDim,],device=self.device),\
+											 covariance_matrix=torch.eye(self.latentDim,device=self.device))
+		lp = m.log_prob(res.squeeze())
+
+		assert len(lp.shape) == 1,print(lp.shape)
+		assert len(lp) == dz.shape[0],print(lp.shape)
 		
+		return lp.sum()
 
 	def forward(self,batch,mode='kl'):
 		
@@ -339,8 +367,14 @@ class EmbeddingSDE(nn.Module):
 		#	z3 = self.encoder.forward(x3)
 
 		lp = 0.
-		for z1,z2 in zip(zs[:-1],zs[1:]):
+		var_loss = 0.
+		res_loss = 0.
+		for z1,z2,dz in zip(zs[:-1],zs[1:],dzs):
 			currLP,mu,d = self.sde.loss(z1,z2,dts)
+			vL = self.variational_loss(mu,d,z1,dts[0])
+			rL = self.probZ_loss(dz,d,mu)
+			res_loss += rL
+			var_loss += vL
 			lp += currLP
 			mu2 = self.sde.MLP(z2)
 		#lp,mu,d = self.sde.loss(z1,z2,dt)
@@ -400,6 +434,14 @@ class EmbeddingSDE(nn.Module):
 			#kl_loss = self.entropy_loss(dz)
 			
 			loss = lp - kl_loss - linLoss
+		elif mode == 'klPrior':
+			#kl_loss = self.variational_loss(mu)
+			kl_loss = var_loss
+			loss = lp + kl_loss
+
+		elif mode == 'resReg':
+			kl_loss = res_loss
+			loss = lp - kl_loss
 
 		elif mode == 'both_ma':
 			kl_loss = self.entropy_loss_ma(torch.vstack(dzs))
