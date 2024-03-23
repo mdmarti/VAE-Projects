@@ -250,21 +250,26 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 	new change: parameterize mu (no change) and log square root factor of PRECISION
 	"""
 	def __init__(self,dim:int,save_dir:str ='',true1:"function"=None,true2:"function"=None,
-	      p1name:str='mu',p2name:str='sigma',plotDists:bool=True,diag:bool=True,n_hidden=0,hidden_size=100):
+	      p1name:str='mu',p2name:str='sigma',plotDists:bool=True,diag:bool=True,n_hidden=0,hidden_size=100,
+		  noise_initialization='standard'):
 		
 		super(nonlinearLatentSDE,self).__init__(dim,save_dir=save_dir,diag=diag)
 		print("I'mve been updated")
 		MLPhidden = []
 		DHidden = []
 		for _ in range(n_hidden):
-			MLPhidden = MLPhidden + [nn.Linear(hidden_size,hidden_size),nn.Softplus()] 
-			DHidden = DHidden + [nn.Linear(hidden_size,hidden_size),nn.Softplus()] 
-		mlp_layers = [nn.Linear(self.dim,hidden_size),nn.Softplus()] + \
+			MLPhidden = MLPhidden + [nn.Linear(hidden_size,hidden_size),nn.SELU()] 
+			DHidden = DHidden + [nn.Linear(hidden_size,hidden_size),nn.SELU()] 
+		mlp_layers = [nn.Linear(self.dim,hidden_size),nn.SELU()] + \
 						MLPhidden + \
 						[nn.Linear(hidden_size,self.dim)]
-		D_layers = [nn.Linear(self.dim,hidden_size),nn.Softplus()] + \
+		D_layers = [nn.Linear(self.dim,hidden_size),nn.SELU()] + \
 						DHidden + \
 						[nn.Linear(hidden_size,self.n_entries)]
+		if noise_initialization == 'none':
+			for layer in D_layers:
+				nn.init_zeros_(layer.weight)
+				nn.init_zeros_(layer.bias)
 		self.MLP = nn.Sequential(*mlp_layers)
 		self.D = nn.Sequential(*D_layers)
 		
