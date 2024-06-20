@@ -562,6 +562,68 @@ class toyDataset(Dataset):
 	def transform(self,data):
 		return torch.from_numpy(data).type(torch.FloatTensor)
 
+class toyDatasetTraj(Dataset):
+
+
+	def __init__(self,data,dt,batchsize,ds_length=2048) -> None:
+		"""
+		toyData: list of numpy arrays
+		"""
+
+		self.bsz = batchsize
+		exampleInd = np.random.choice(len(data),1)[0]
+		self.exampleTraj = data[exampleInd]
+		self.lens = list(map(lambda x: len(x) - 1,data))
+		maxBsz = np.amin(self.lens)
+		if self.bsz > maxBsz:
+			print(f"lowering batch size from {self.bsz} to {maxBsz}")
+			self.bsz = maxBsz
+		self.data= data
+		self.dt = dt
+		self.nTraj = len(data)
+		self.length = ds_length
+		#print('added in more forward predictions')
+		## needed: slice data by dt? need true dt, ds dt for that
+		## should be fine to add though
+
+	def __len__(self):
+
+		return self.length 
+	
+	def __getitem__(self, index):
+		
+		single_index = False
+		result = []
+		try:
+			iterator = iter(index)
+		except TypeError:
+			index = [index]
+			single_index = True
+
+		for ii in index:
+
+			inds = self.data_inds[ii]
+
+			tc = np.random.choice(self.nTraj,1)[0]
+
+			traj = self.data[tc]
+			length = self.lens[tc]
+
+			samples = np.random.choice(length,self.bsz,replace=False)
+			x1s,x2s = self.transform(traj[samples,:]),self.transform(traj[samples+1,:])
+			#samples.append(self.dt)			
+			#s1,s2 = self.transform(self.data[inds[0]]),self.transform(self.data[inds[1]])
+			result.append((x1s,x2s,self.dt))
+
+		if single_index:
+			return result[0]
+		return result
+	
+	def transform(self,data):
+		return torch.from_numpy(data).type(torch.FloatTensor)
+
+
+
 class toyDatasetLinearity(Dataset):
 
 	def __init__(self,data,dt) -> None:
@@ -771,6 +833,14 @@ def makeToyDataloaders(ds1,ds2,dt,batch_size=512,t='regular',nForward=1):
 		print('just use the regular version dingus')
 		dataset1 = toyDatasetLinearity(ds1,dt)
 		dataset2 = toyDatasetLinearity(ds2,dt)
+	elif t == 'trajectory':
+		dataset1 = toyDatasetTraj(ds1,dt,batchsize=batch_size,ds_length=2048)
+		dataset2 = toyDatasetTraj(ds2,dt,batchsize=batch_size,ds_length=2048)
+		trainDataLoader = DataLoader(dataset1,batch_size=1,shuffle=True,
+				  num_workers=4)
+		testDataLoader = DataLoader(dataset2,batch_size=1,shuffle=False,
+				  num_workers=4)
+		return {'train':trainDataLoader,'test':testDataLoader}
 	else:
 		print("What are you doing")
 		return NotImplementedError

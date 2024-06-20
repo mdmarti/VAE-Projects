@@ -254,7 +254,7 @@ class nonlinearLatentSDE(latentSDE,nn.Module):
 		  noise_initialization='standard'):
 		
 		super(nonlinearLatentSDE,self).__init__(dim,save_dir=save_dir,diag=diag)
-		print("I'mve been updated")
+		print("changing loss")
 		MLPhidden = []
 		DHidden = []
 		for _ in range(n_hidden):
