@@ -310,41 +310,101 @@ class EmbeddingSDE(nn.Module):
 
 		return traj
 	
+	def variational_loss(self,mu,d,z,dt):
+		"""
+		computes kl between sde distribution, prior under ornstein-uhlenbeck prior
+		"""
+
+		eyes = torch.eye(self.latentDim).view(1,self.latentDim,self.latentDim).repeat(z.shape[0],1,1).to(self.device)
+		invChol = torch.linalg.solve_triangular(d,eyes,upper=False)
+		cov = invChol.transpose(-1,-2) @ invChol 
+		prec = d @ d.transpose(-1,2)
+		meanDiff = mu - z*dt
+		meanTerm = (meanDiff **2).sum(axis=-1)/dt 
+		ldTerm =  torch.logdet(prec) + self.latentDim * torch.log(dt)
+		traceTerm = torch.vmap(torch.trace)(cov/dt)
+
+		kl = 1/2 * (meanTerm + ldTerm + traceTerm - self.latentDim)
+		assert len(kl.shape) == 1,print(kl.shape)
+		assert len(kl) == z.shape[0],print(kl.shape)
+
+		return kl.sum()
+	
+	def probZ_loss(self,dz,d,mu):
+
+		#print(dz.shape)
+		#print(mu.shape)
+		#print(d.shape)
+		#print((dz - mu).shape)
+		res = d @ ((dz -mu).view(dz.shape[0],dz.shape[1],1))
+		m = torch.distributions.MultivariateNormal(loc=torch.zeros([self.latentDim,],device=self.device),\
+											 covariance_matrix=torch.eye(self.latentDim,device=self.device))
+		lp = m.log_prob(res.squeeze())
+
+		assert len(lp.shape) == 1,print(lp.shape)
+		assert len(lp) == dz.shape[0],print(lp.shape)
+		
+		return lp.sum()
+
 	def forward(self,batch,mode='kl'):
 		
-		
-
+		xs,dts = batch[:-1], batch[-1]
+		xs = [x.to(self.device) for x in xs]
+		dts = dts.to(self.device)
+		"""
 		if len(batch) == 3:
 			x1,x2,dt = batch
 			x1,x2,dt = x1.to(self.device),x2.to(self.device),dt.to(self.device)
-		elif len(batch) == 4:
+		else:
 			x1,x2,x3,dt = batch
 			x1,x2,x3,dt = x1.to(self.device),x2.to(self.device),x3.to(self.device),dt.to(self.device)
-		if self.encoder.type == 'deterministic':
-			z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2)
-			if len(batch) == 4:
-				z3 = self.encoder.forward(x3)
+		"""
+		
+		zs = [self.encoder.forward(x) for x in xs]
+		dzs = [zs[ii] - zs[ii-1] for ii in range(1,len(zs))]
+		#z1,z2 = self.encoder.forward(x1),self.encoder.forward(x2)
+		#if len(batch) == 4:
+		#	z3 = self.encoder.forward(x3)
+
+		lp = 0.
+		var_loss = 0.
+		res_loss = 0.
+		for z1,z2,dz in zip(zs[:-1],zs[1:],dzs):
+			currLP,mu,d = self.sde.loss(z1,z2,dts)
+			vL = self.variational_loss(mu,d,z1,dts[0])
+			rL = self.probZ_loss(dz,d,mu)
+			res_loss += rL
+			var_loss += vL
+			lp += currLP
+			mu2 = self.sde.MLP(z2)
+		#lp,mu,d = self.sde.loss(z1,z2,dt)
+					
+
+		#dz = z2 - z1
+		kl_loss = self.entropy_loss(torch.vstack(dzs))
+		if len(batch) == 3:
+			linLoss = self.mu *self._linearity_penalty(mu,mu2)
 		else:
-			(z1,cov1), (z2,cov2) = self.encoder.forward(x1,type='prob'),self.encoder.forward(x2,pass_gradient=False,type='prob')
-			if len(batch) == 4:
-				(z3,cov3) = self.encoder.forward(x3,type='prob')
-
-		lp,mu,d = self.sde.loss(z1,z2,dt)
-
+			linLoss = 0.
+			for dz1,dz2 in zip(dzs[:-1],dzs[1:]):
+				tmpLin = self.mu * self._linearity_penalty(dz1,dz2)
+				linLoss += tmpLin
+		"""
 		if len(batch) == 4:
-			lp2,_,_ = self.sde.loss(z2,z3,dt)
-			
-			print(lp)
-			if torch.isnan(lp2):# == torch.tensor([torch.nan],device=self.device):
-				print(z2,z3,lp,z1)
-				assert False
-			#lp += lp2
-			#print(lp)
-			
-			dz2 = z3 - z2
+			l2,_,_ = self.sde.loss(z2,z3,dt)
+			lp += l2
 
-		dz = z2 - z1
-		zs = torch.vstack([z1,z2]) # bsz x latent dim
+			dz2 = z3 - z2
+			#linLoss = self.mu * self._linearity_penalty(dz,dz2)
+			#dz = torch.vstack([dz,dz2])
+			kl_loss = self.entropy_loss(torch.vstack([dz,dz2]))
+			linLoss = self.mu *self._linearity_penalty(dz,dz2)
+		else:
+			linLoss = self.mu *self._linearity_penalty(mu,mu2)
+			kl_loss = self.entropy_loss(dz)
+		assert not torch.isnan(lp)
+		"""
+		#zs = torch.vstack([z1,z2]) # bsz x latent dim
 		#varLoss,covarLoss,muLoss = torch.zeros([0]),self.covar_loss(zs),torch.zeros([0])#0,0,0#self.var_loss(zs),self.covar_loss(zs),self.mu_reg(zs) #+ self.var_loss(z2)
 		entropy = torch.zeros([0])#0#,self.entropy_loss(zs)
 		#if self.training:
@@ -355,6 +415,7 @@ class EmbeddingSDE(nn.Module):
 		
 		#entropy_dz = self.entropy_loss_sumbatch(z2 - z1,dt=dt[0])
 		#varLoss = self.snr_loss(zs) 
+<<<<<<< HEAD
 		mu2 = self.sde.MLP(z2)
 <<<<<<< HEAD
 		linLoss = self.mu *self._linearity_penalty(mu,mu2)
@@ -364,54 +425,70 @@ class EmbeddingSDE(nn.Module):
 		else:
 			linLoss = self._linearity_penalty(dz,dz2)
 >>>>>>> f6764bbc93559e77616e4ad7d10f60693ea8dd05
+=======
+			
+>>>>>>> f1cebda1fdc3c6df978dbdeae5797fd620a84b45
 		if mode == 'kl':
-			kl_loss = self.entropy_loss(dz)
+			#kl_loss = self.entropy_loss(dz)
 			loss = -kl_loss #+ lp#lp - entropy_dz + self.mu*muLoss#+ self.mu * (varLoss + covarLoss) + muLoss #self.mu * varLoss
 		elif mode == 'probkl':
-			assert self.encoder.type == 'probabilistic', print("This loss needs a probabilistic encoder!!!")
-			kl_loss = self.kl_sde_encoder(z1 + mu,d @ d.transpose(-2,-1),z2,cov2)
+			print("Don't use this")
+			#assert self.encoder.type == 'probabilistic', print("This loss needs a probabilistic encoder!!!")
+			#kl_loss = self.kl_sde_encoder(z1 + mu,d @ d.transpose(-2,-1),z2,cov2)
 			loss = kl_loss
 		elif mode == 'lp':
 			loss = lp 
-			kl_loss = self.entropy_loss(dz)
+			#kl_loss = self.entropy_loss(dz)
 		elif mode == 'both':
-			kl_loss = self.entropy_loss(dz)
-			loss = lp - self.mu * kl_loss
+			#kl_loss = self.entropy_loss(dz)
+			loss = lp - kl_loss
 		elif mode == 'linearityTest':
-			kl_loss = self.entropy_loss(dz)
+			#kl_loss = self.entropy_loss(dz)
 			
 			loss = lp - kl_loss - linLoss
+<<<<<<< HEAD
+=======
+		elif mode == 'klPrior':
+			#kl_loss = self.variational_loss(mu)
+			#kl_loss = var_loss
+			linLoss = var_loss
+			loss = lp + var_loss - kl_loss
+
+		elif mode == 'resReg':
+			#kl_loss = res_loss
+			linLoss = res_loss
+			loss = lp - kl_loss - res_loss
+>>>>>>> f1cebda1fdc3c6df978dbdeae5797fd620a84b45
 
 		elif mode == 'both_ma':
-			kl_loss = self.entropy_loss_ma(dz)
-			loss = lp - self.mu * kl_loss
+			kl_loss = self.entropy_loss_ma(torch.vstack(dzs))
+			loss = lp - kl_loss
 
 		elif mode == 'kllp_gradmu':
-			kl_loss = self.entropy_loss(dz)
+			#kl_loss = self.entropy_loss(dz)
 			gradmu = self.gradMu_regularizer(z1)
 			if torch.any(gradmu == torch.nan):
 				print('we have nans in grad mu logdet')
 			self.sde.writer.add_scalar('Train/gradmu',gradmu,self.counter)
 			self.counter += 1
-			loss = lp - kl_loss + self.mu*gradmu
+			loss = lp - kl_loss + gradmu
 		elif mode == 'kllp_mu':
-			kl_loss = self.entropy_loss(dz)
+			#kl_loss = self.entropy_loss(dz)
 			gradmu = self.mu_regularizer(mu)
-			loss = lp - self.mu * kl_loss + gradmu
+			loss = lp - kl_loss + gradmu
 
 		elif mode == 'residuals_constrained':
-			kl_loss = self.kl_dim_only(dz,mu,d)
+			kl_loss = self.kl_dim_only(torch.vstack(dzs),mu,d)
 			loss = kl_loss
 		elif mode == 'allspace_constrained':
-			kl_loss = self.kl_dim_only(dz,mu,d)
-			entropy_dz = self.entropy_loss(dz)
+			kl_loss = self.kl_dim_only(torch.vstack(dzs),mu,d)
+			entropy_dz = self.entropy_loss(torch.vstack(dzs))
 			loss = lp + kl_loss - entropy_dz
 
 		else:
-			raise Exception("Mode must be one of ['kl', 'lp', 'both']")
+			raise Exception("Mode must be one of the many which I have defined. pls see code due to lazy author not writing them all here")
 		
-		return loss,z1,z2,linLoss,d,kl_loss,lp
-
+		return loss,lp,kl_loss,linLoss
 
 	def _normalize_grads(self,norm_const,normPart = 'encoder'):
 
@@ -435,44 +512,44 @@ class EmbeddingSDE(nn.Module):
 		"""
 
 		dotProd = (f1 * f2).sum(dim=-1)
+<<<<<<< HEAD
 		return  (dotProd/ (torch.norm(f1,dim=-1) * torch.norm(f2,dim=-1))).mean()
+=======
+		return  (dotProd/ (torch.norm(f1,dim=-1) * torch.norm(f2,dim=-1) + EPS)).mean()
+>>>>>>> f1cebda1fdc3c6df978dbdeae5797fd620a84b45
 	
 	def e_step(self,loader,embedopt,grad_clipper=None):
 		self.train()
 		epoch_loss = 0.
-		epoch_mus = []
-		epoch_Ds = []
-		vL = 0.
-		lP = 0.
+		epoch_kl = 0.
+		epoch_lp = 0.
+		epoch_ll = 0.
 		embedopt.zero_grad()
 		for ii,batch in enumerate(loader):
 			
-			loss,z1,z2,mu,d,vl,lp = self.forward(batch,mode='both')
+			loss,lp,kl,ll = self.forward(batch,mode='both')
 			assert loss != torch.nan, print('loss is somehow nan')
 
 			loss.backward()
 			if grad_clipper != None:
 				grad_clipper(self.parameters())
 			epoch_loss += loss.item()
-			vL += vl.item()
-			lP += lp.item()
-						
-			epoch_mus.append(mu.detach().cpu().numpy())
-			epoch_Ds.append(d.detach().cpu().numpy())
+			epoch_kl += kl.item()
+			epoch_lp += lp.item()
+			epoch_ll += ll.item()
 
 		self._normalize_grads(len(loader),normPart='encoder')
 		embedopt.step()
-		epoch_mus = np.vstack(epoch_mus)
-		epoch_Ds = np.vstack(epoch_Ds)
-
+		
 		assert epoch_loss != torch.nan, print('how?')
 		#if mode == 'both_ma':
 		#	self.__add_covar()
 			#self.sde.writer.add_image('approximate covar',self.batch_approx.view(1,*self.batch_approx.shape),self.sde.epoch)
 
 		self.sde.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/KL',vL/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/log prob',lP/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/KL',epoch_kl/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/log prob',epoch_lp/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/linearity penalty',epoch_ll/len(loader),self.sde.epoch)
 		self.sde.epoch += 1
 		embedopt.zero_grad()
 		return epoch_loss,embedopt
@@ -480,145 +557,106 @@ class EmbeddingSDE(nn.Module):
 	def m_step(self,loader,sdeopt,grad_clipper=None):
 		self.train()
 		epoch_loss = 0.
-		epoch_mus = []
-		epoch_Ds = []
-		vL = 0.
-		lP = 0.
+		epoch_kl = 0.
+		epoch_lp = 0.
+		epoch_ll = 0.
 		for ii,batch in enumerate(loader):
 			sdeopt.zero_grad()
-			loss,z1,z2,mu,d,vl,lp = self.forward(batch,mode='both')
+			loss,lp,kl,ll = self.forward(batch,mode='both')
 			assert loss != torch.nan, print('loss is somehow nan')
 
 			loss.backward()
 			if grad_clipper != None:
 				grad_clipper(self.parameters())
 			epoch_loss += loss.item()
-			vL += vl.item()
-			lP += lp.item()
+			epoch_kl += kl.item()
+			epoch_lp += lp.item()
+			epoch_ll += ll.item()
 			
 			sdeopt.step()
 			
-			epoch_mus.append(mu.detach().cpu().numpy())
-			epoch_Ds.append(d.detach().cpu().numpy())
-
-		epoch_mus = np.vstack(epoch_mus)
-		epoch_Ds = np.vstack(epoch_Ds)
-
 		assert epoch_loss != torch.nan, print('how?')
 		#if mode == 'both_ma':
 		#	self.__add_covar()
 			#self.sde.writer.add_image('approximate covar',self.batch_approx.view(1,*self.batch_approx.shape),self.sde.epoch)
 
 		self.sde.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/KL',vL/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/log prob',lP/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/KL',epoch_kl/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/log prob',epoch_lp/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/linearity penalty',epoch_ll/len(loader),self.sde.epoch)
 		self.sde.epoch += 1
 		sdeopt.zero_grad()
 		return epoch_loss,sdeopt
 
-	def train_epoch_accum_grad(self,loader,sdeopt,embedopt,grad_clipper=None,encode_grad=True,sde_grad=True,stopgrad=False,mode='both'):
+	def train_epoch_accum_grad(self,loader,sdeopt,embedopt,grad_clipper=None,mode='both'):
 
 		self.train()
 		epoch_loss = 0.
-		epoch_mus = []
-		epoch_Ds = []
-		vL = 0.
-		lP = 0.
-		ll = 0.
-		batchInd = np.random.choice(len(loader),1)
+		epoch_kl = 0.
+		epoch_lp = 0.
+		epoch_ll = 0.
 		embedopt.zero_grad()
 		for ii,batch in enumerate(loader):
 			sdeopt.zero_grad()
-			loss,z1,z2,linloss,d,vl,lp = self.forward(batch,mode=mode)
-			assert loss != torch.nan, print('loss is somehow nan')
+			loss,lp,kl,ll = self.forward(batch,mode=mode)
+			assert not torch.isnan(loss), print('loss is somehow nan')
 
 			loss.backward()
 			if grad_clipper != None:
 				grad_clipper(self.parameters())
 			epoch_loss += loss.item()
-			vL += vl.item()
-			lP += lp.item()
-			ll += linloss.item()
+			epoch_kl += kl.item()
+			epoch_lp += lp.item()
+			epoch_ll += ll.item()
 			
 			sdeopt.step()
 			
-			#epoch_mus.append(mu.detach().cpu().numpy())
-			#epoch_Ds.append(d.detach().cpu().numpy())
-
-
-			#if (ii == batchInd) & (self.sde.epoch % 100 ==0) & self.sde.plotDists:
-				
-			#	self._add_quiver(z1.detach().cpu().numpy(),mu.detach().cpu().numpy(),self.sde.p1name,'Train')
-
 		self._normalize_grads(len(loader),normPart='encoder')
 		embedopt.step()
-		#epoch_mus = np.vstack(epoch_mus)
-		#epoch_Ds = np.vstack(epoch_Ds)
 
 		assert epoch_loss != torch.nan, print('how?')
 		#if mode == 'both_ma':
 		#	self.__add_covar()
 			#self.sde.writer.add_image('approximate covar',self.batch_approx.view(1,*self.batch_approx.shape),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/linearity loss',ll/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/KL',vL/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/log prob',lP/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/KL',epoch_kl/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/log prob',epoch_lp/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/linearity penalty',epoch_ll/len(loader),self.sde.epoch)
 		self.sde.epoch += 1
 		sdeopt.zero_grad()
 		embedopt.zero_grad()
 		return epoch_loss,sdeopt,embedopt
 
-	def train_epoch(self,loader,optimizer,grad_clipper=None,encode_grad=True,sde_grad=True,stopgrad=False,mode='kl'):
+	def train_epoch(self,loader,optimizer,grad_clipper=None,mode='kl'):
 
 		self.train()
 		epoch_loss = 0.
-		epoch_mus = []
-		epoch_Ds = []
-		vL = 0.
-		lP = 0.
-		batchInd = np.random.choice(len(loader),1)
+		epoch_kl = 0.
+		epoch_lp = 0.
+		epoch_ll = 0.
 
 		for ii,batch in enumerate(loader):
 			optimizer.zero_grad()
-			loss,z1,z2,mu,d,vl,lp = self.forward(batch,mode=mode)
+			loss,lp,kl,ll = self.forward(batch,mode=mode)
 			assert loss != torch.nan, print('loss is somehow nan')
 
 			loss.backward()
 			if grad_clipper != None:
 				grad_clipper(self.parameters())
 			epoch_loss += loss.item()
-			vL += vl.item()
-			lP += lp.item()
+			epoch_kl += kl.item()
+			epoch_lp += lp.item()
+			epoch_ll += ll.item()
 			
 			optimizer.step()
 			
-			epoch_mus.append(mu.detach().cpu().numpy())
-			epoch_Ds.append(d.detach().cpu().numpy())
-
-
-			if (ii == batchInd) & (self.sde.epoch % 100 ==0) & self.sde.plotDists:
-				
-				self._add_quiver(z1.detach().cpu().numpy(),mu.detach().cpu().numpy(),self.sde.p1name,'Train')
-		epoch_mus = np.vstack(epoch_mus)
-		epoch_Ds = np.vstack(epoch_Ds)
-
 		assert epoch_loss != torch.nan, print('how?')
-		#if mode == 'both_ma':
-		#	self.__add_covar()
-			#self.sde.writer.add_image('approximate covar',self.batch_approx.view(1,*self.batch_approx.shape),self.sde.epoch)
 
 		self.sde.writer.add_scalar('Train/loss',epoch_loss/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/KL',vL/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Train/log prob',lP/len(loader),self.sde.epoch)
-		#self.sde.writer.add_scalar('Train/covar loss',cVL/len(loader),self.sde.epoch)
-		if self.sde.plotDists & (self.sde.epoch % 100 == 0):
-			
-			for d in range(self.sde.dim):
-				
-				self._add_dist_figure(epoch_mus[:,d],self.sde.p1name,d+1,'Train')
-				#self.sde.writer.add_scalars(f'Train/{self.sde.p2name} dim {d+1}',{'estimated':epoch_sigs[d],'true':self.sde.true2[d]},self.sde.epoch)
-			for d in range(self.sde.n_entries):
-				self._add_dist_figure(epoch_Ds[:,d],self.sde.p2name,d+1,'Train')
+		self.sde.writer.add_scalar('Train/KL',epoch_kl/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/log prob',epoch_lp/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Train/linearity penalty',epoch_ll/len(loader),self.sde.epoch)
+
 		self.sde.epoch += 1
 		optimizer.zero_grad()
 		return epoch_loss,optimizer
@@ -629,31 +667,24 @@ class EmbeddingSDE(nn.Module):
 		self.eval()
 		with torch.no_grad():
 			epoch_loss = 0.
-			epoch_vl = 0.
+			epoch_kl = 0.
 			epoch_lp = 0.
-			epoch_ll = 0
-			epoch_mus = []
-			epoch_Ds = []
+			epoch_ll = 0.
 
 			for ii,batch in enumerate(loader):
-				loss,z1,z2,linloss,d,vl,lp = self.forward(batch,mode=mode)
+				loss,lp,kl,ll = self.forward(batch,mode=mode)
 				
 				epoch_loss += loss.item()
-				epoch_vl += vl.item()
+				epoch_kl += kl.item()
 				epoch_lp += lp.item()
-				epoch_ll += linloss.item()
-				#epoch_mus.append(mu.detach().cpu().numpy())
-				#epoch_Ds.append(d.detach().cpu().numpy())
-
-				
+				epoch_ll += ll.item()				
 		#epoch_mus = np.vstack(epoch_mus)
 		#epoch_Ds = np.vstack(epoch_Ds)
 
-		self.sde.writer.add_scalar('Test/linearity loss',epoch_ll/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Test/loss',epoch_loss/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Test/KL',epoch_vl/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Test/KL',epoch_kl/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Test/log prob',epoch_lp/len(loader),self.sde.epoch)
-		#self.sde.writer.add_scalar('Test/covar loss',epoch_cVL/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Test/linearity penalty',epoch_ll/len(loader),self.sde.epoch)
 
 		return epoch_loss
 
@@ -662,50 +693,23 @@ class EmbeddingSDE(nn.Module):
 		self.eval()
 		with torch.no_grad():
 			epoch_loss = 0.
-			epoch_vl = 0.
+			epoch_kl = 0.
 			epoch_lp = 0.
 			epoch_ll = 0.
-			epoch_mus = []
-			epoch_Ds = []
 
-			batchInd = np.random.choice(len(loader))
 			for ii,batch in enumerate(loader):
-				loss,z1,z2,linloss,d,vl,lp = self.forward(batch)
+				loss,lp,kl,ll = self.forward(batch,mode='both')
 				
 				epoch_loss += loss.item()
-				epoch_vl += vl.item()
+				epoch_kl += kl.item()
 				epoch_lp += lp.item()
-				epoch_ll += linloss.item()
+				epoch_ll += ll.item()				
 
-				#epoch_mus.append(mu.detach().cpu().numpy())
-				#epoch_Ds.append(d.detach().cpu().numpy())
-
-				#if (ii == batchInd) & self.sde.plotDists:
-				#	self._add_quiver(z1.detach().cpu().numpy(),mu.detach().cpu().numpy(),self.sde.p1name,'Test')
-
-		#epoch_mus = np.vstack(epoch_mus)
-		#epoch_Ds = np.vstack(epoch_Ds)
-
-		self.sde.writer.add_scalar('Test/linearity loss',epoch_ll/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Test/loss',epoch_loss/len(loader),self.sde.epoch)
-		self.sde.writer.add_scalar('Test/KL',epoch_vl/len(loader),self.sde.epoch)
+		self.sde.writer.add_scalar('Test/KL',epoch_kl/len(loader),self.sde.epoch)
 		self.sde.writer.add_scalar('Test/log prob',epoch_lp/len(loader),self.sde.epoch)
-		#self.sde.writer.add_scalar('Test/covar loss',epoch_cVL/len(loader),self.sde.epoch)
-		if self.sde.plotDists:
-			for d in range(self.sde.dim):
-				self._add_dist_figure(epoch_mus[:,d],self.sde.p1name,d+1,'Test')
-				#self.sde.writer.add_scalars(f'Train/{self.sde.p2name} dim {d+1}',{'estimated':epoch_sigs[d],'true':self.sde.true2[d]},self.sde.epoch)
-			for d in range(self.sde.n_entries):
-				self._add_dist_figure(epoch_Ds[:,d],self.sde.p2name,d+1,'Test')
-		"""
-		for d in range(self.sde.dim):
-			if self.sde.plotDists:
-				self.sde.writer.add_scalars(f'Test/{self.sde.p1name} dim {d+1}',{'estimated':epoch_mus[d],'true':self.sde.true1[d]},self.sde.epoch)
-				self.sde.writer.add_scalars(f'Test/{self.sde.p2name} dim {d+1}',{'estimated':epoch_sigs[d],'true':self.sde.true2[d]},self.sde.epoch)
-			else:
-				self.sde.writer.add_scalar(f'Test/{self.sde.p1name} dim {d+1}',epoch_mus[d],self.sde.epoch)
-				self.sde.writer.add_scalar(f'Test/{self.sde.p2name} dim {d+1}',epoch_sigs[d],self.sde.epoch)
-		"""
+		self.sde.writer.add_scalar('Test/linearity penalty',epoch_ll/len(loader),self.sde.epoch)
+
 		return epoch_loss
 	
 	def save(self):

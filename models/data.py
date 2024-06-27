@@ -9,6 +9,9 @@ from scipy.io.wavfile import WavFileWarning
 import sys
 sys.path.append('/hdd/miles/AMCParser')
 import amc_parser as amc
+import matplotlib.pyplot as plt
+from matplotlib import animation
+
 EPSILON = 1e-12
 
 def z_score(data):
@@ -25,41 +28,194 @@ def scale(data):
 	mag = np.amax(np.abs(x_stacked))
 	return [d/mag for d in data],mag
 
+def plot_mocap_gif(joint,motion,latents=[],fn='testani.mp4'):
+
+	#fig = plt.figure(figsize=(15,5))
+	
+	if len(latents) == 0:
+		fig,jointAx = plt.subplots(nrows=1,ncols=1,subplot_kw=dict(projection="3d"),layout='compressed')
+		#jointAx = fig.add_subplot(111,projection='3d')
+		
+		def animate(i,scatterAndLines,motion,joint):
+
+			#print(scatterAndLines)
+			if i < 2*len(motion):
+				joint['root'].set_motion(motion[i//3])
+			pts = joint['root'].to_dict()
+			xs,ys,zs = [],[],[]
+			for j in pts.values():
+				xs.append(j.coordinate[0,0])
+				ys.append(j.coordinate[1,0])
+				zs.append(j.coordinate[2,0])
+				scatterAndLines[0].set_data(zs,xs)#
+				scatterAndLines[0].set_3d_properties(ys)
+			
+			#jointAx.plot(zs,xs,ys,'b.')
+			counter = 1
+			for j in pts.values():
+				child = j
+				if child.parent is not None:
+					parent = child.parent
+					xs = [child.coordinate[0, 0], parent.coordinate[0, 0]]
+					ys = [child.coordinate[1, 0], parent.coordinate[1, 0]]
+					zs = [child.coordinate[2, 0], parent.coordinate[2, 0]]
+					scatterAndLines[counter].set_data(zs,xs)
+					scatterAndLines[counter].set_3d_properties(ys)
+					counter += 1
+			
+			return scatterAndLines
+	
+		jointAx.set_xlim3d(-35, 55)
+		jointAx.set_ylim3d(-20, 40)
+		jointAx.set_zlim3d(-20, 40)
+		joint['root'].set_motion(motion[0])
+		pts = joint['root'].to_dict()
+		xs,ys,zs = [],[],[]
+		ls = []
+		for j in pts.values():
+			xs.append(j.coordinate[0,0])
+			ys.append(j.coordinate[1,0])
+			zs.append(j.coordinate[2,0])
+		l = jointAx.plot(zs,xs,ys,'b.')
+		print(l)
+		ls.append(l[0])
+		jointAx.view_init(azim=90,elev=10)
+		for iter,j in enumerate(pts.values()):
+			child = j
+			if child.parent is not None:
+				parent = child.parent
+				xs = [child.coordinate[0, 0], parent.coordinate[0, 0]]
+				ys = [child.coordinate[1, 0], parent.coordinate[1, 0]]
+				zs = [child.coordinate[2, 0], parent.coordinate[2, 0]]
+				l = jointAx.plot(zs,xs,ys,'-r')
+				ls.append(l[0])
+		anim = lambda i: animate(i,ls,motion,joint)
+		
+	else:
+		fig,(jointAx,latAx) = plt.subplots(nrows=1,ncols=2,subplot_kw=dict(projection="3d"),layout='compressed')
+		#jointAx = fig.add_subplot(121,projection='3d')
+		#latAx = fig.add_subplot(122,projection='3d')
+
+		def animate(i,scatterAndLines,motion,joint,latents,latentAxis):
+
+			#print(scatterAndLines)
+			if i < 2*len(motion):
+				joint['root'].set_motion(motion[i//2])
+				d = latents[i//2,:]
+			else:
+				d = latents[-1,:]
+			pts = joint['root'].to_dict()
+			xs,ys,zs = [],[],[]
+			for j in pts.values():
+				xs.append(j.coordinate[0,0])
+				ys.append(j.coordinate[1,0])
+				zs.append(j.coordinate[2,0])
+				scatterAndLines[0].set_data(zs,xs)#
+				scatterAndLines[0].set_3d_properties(ys)
+			
+			#jointAx.plot(zs,xs,ys,'b.')
+			counter = 1
+			for j in pts.values():
+				child = j
+				if child.parent is not None:
+					parent = child.parent
+					xs = [child.coordinate[0, 0], parent.coordinate[0, 0]]
+					ys = [child.coordinate[1, 0], parent.coordinate[1, 0]]
+					zs = [child.coordinate[2, 0], parent.coordinate[2, 0]]
+					scatterAndLines[counter].set_data(zs,xs)
+					scatterAndLines[counter].set_3d_properties(ys)
+					counter += 1
+			
+			(xs,ys,zs) = scatterAndLines[-1]._offsets3d
+			xs,ys,zs = np.hstack([xs,[d[0]]]),np.hstack([ys,[d[1]]]),np.hstack([zs,[d[2]]])
+			scatterAndLines[-1]._offsets3d = (xs,ys,zs)
+			if i > 2*len(motion):
+				latentAxis.view_init(azim=(i - 2*len(motion))*0.25,elev=10)
+
+			return scatterAndLines
+	
+		jointAx.set_xlim3d(-35, 55)
+		jointAx.set_ylim3d(-20, 40)
+		jointAx.set_zlim3d(-20, 40)
+		joint['root'].set_motion(motion[0])
+		pts = joint['root'].to_dict()
+		xs,ys,zs = [],[],[]
+		ls = []
+		for j in pts.values():
+			xs.append(j.coordinate[0,0])
+			ys.append(j.coordinate[1,0])
+			zs.append(j.coordinate[2,0])
+		l = jointAx.plot(zs,xs,ys,'b.')
+		print(l)
+		ls.append(l[0])
+		jointAx.view_init(azim=90,elev=10)
+		for iter,j in enumerate(pts.values()):
+			child = j
+			if child.parent is not None:
+				parent = child.parent
+				xs = [child.coordinate[0, 0], parent.coordinate[0, 0]]
+				ys = [child.coordinate[1, 0], parent.coordinate[1, 0]]
+				zs = [child.coordinate[2, 0], parent.coordinate[2, 0]]
+				l = jointAx.plot(zs,xs,ys,'-r')
+				ls.append(l[0])
+		latAx.set_xlim3d(np.amin(latents[:,0] - 1), np.amax(latents[:,0]+1))
+		latAx.set_ylim3d(np.amin(latents[:,1] - 1), np.amax(latents[:,1]+1))
+		latAx.set_zlim3d(np.amin(latents[:,2] - 1), np.amax(latents[:,2]+1))
+		l = latAx.scatter(latents[0,0],latents[0,1],latents[0,2])
+		latAx.view_init(azim=0,elev=10)
+		ls.append(l)
+
+		anim = lambda i: animate(i,ls,motion,joint,latents,latAx)
+
+
+	#fig.tight_layout()
+	ani = animation.FuncAnimation(fig,anim,frames=len(motion)*3,interval=50,blit=True)
+	Writer=animation.writers['ffmpeg']
+	writer = Writer(fps=30,bitrate=500)
+	ani.save(fn,writer=writer,dpi=400)
+	plt.close(fig)
+	return
+
+	
+
+	
+
+	
 
 def getRotation(joints,motion,excluded = ['toes','hand','fingers','thumb','hipjoint']):
-    
-    rotations = []
-    globalrots = []
-    #print(len(joints))
-    for j in joints.keys():
-        joint = joints[j]
-        drop = False
-        for kk in excluded:
-            if kk in joint.name:
-                drop = True
-                #print(f'dropping {joint.name}')
-                continue
-        if not drop:
-            if joint.name == 'root':
-                #print(motion['root'])
-                #print(len(motion['root']))
-                globalRot = np.deg2rad(motion['root'][3:])
-                #print(len(rotation))
-                globalrots.append(globalRot)
-            else:
-                idx = 0
-                rotation = []
-                for axis, lm in enumerate(joint.limits):
-                    if not np.array_equal(lm, np.zeros(2)):
-                        rotation.append(motion[joint.name][idx])
-                        idx += 1
-                #print(joint.name)
-                rotation = np.hstack(rotation)
-                rotation = np.deg2rad(rotation)
+	
+	rotations = []
+	globalrots = []
+	#print(len(joints))
+	for j in joints.keys():
+		joint = joints[j]
+		drop = False
+		for kk in excluded:
+			if kk in joint.name:
+				drop = True
+				#print(f'dropping {joint.name}')
+				continue
+		if not drop:
+			if joint.name == 'root':
+				#print(motion['root'])
+				#print(len(motion['root']))
+				globalRot = np.deg2rad(motion['root'][3:])
+				#print(len(rotation))
+				globalrots.append(globalRot)
+			else:
+				idx = 0
+				rotation = []
+				for axis, lm in enumerate(joint.limits):
+					if not np.array_equal(lm, np.zeros(2)):
+						rotation.append(motion[joint.name][idx])
+						idx += 1
+				#print(joint.name)
+				rotation = np.hstack(rotation)
+				rotation = np.deg2rad(rotation)
 
-                rotations.append(rotation)
-    #rotations.append(globalRot)
-    return np.hstack(rotations),np.array(globalrots)
+				rotations.append(rotation)
+	#rotations.append(globalRot)
+	return np.hstack(rotations),np.array(globalrots)
 
 def preprocess_mocap(jointList,motionsList):
 
@@ -112,6 +268,57 @@ def generate_ndim_benes(n=100,d = 20,T=100,dt=1):
 		allPaths.append(xx)
 
 	return allPaths
+
+def generate_spiral_spikes(n=100,T=1,dt=0.001,binsize=0.001,dim=150,fr='low'):
+
+	allLatentPaths=[]
+	allTrialPaths = []
+	t = np.arange(0,T,dt)
+
+	rng = np.random.default_rng(1) # why do people always choose such strange seeds? Im number 1
+	if fr == 'low':
+		C = (rng.standard_normal((dim,3)) + 0.2) * np.sign(rng.standard_normal((dim,3))) #low fr
+	else:
+		C = (rng.standard_normal((dim,3)) + 0.8) * np.sign(rng.standard_normal((dim,3))) #low fr
+
+	def f(z,t):
+		A = np.array([[-0.1,-2.0,0],[2,-0.1,0],[0,0,-0.3]])
+
+		return A @ (z ** 3 + z)
+	
+	def g(z,t):
+		return 0.01 * np.cos(z)
+	
+	def dW(dt):
+		return rng.normal(loc=0.,scale=np.sqrt(dt))
+	
+	def getSpikes(z):
+		return rng.poisson(np.exp(C @ z)*binsize) > 0
+
+	for ii in range(n):
+
+		z0 = np.hstack([rng.uniform(-0.4,0.4),rng.uniform(-0.4,0.4),rng.uniform(-0.4,0.4)])
+		#xnot = x0 + 0.03**2 * rng.standard_normal((3,))
+		zz = [z0]
+		xx = [getSpikes(z0)]
+		#print(xx[0].shape)
+		for jj in range(1,len(t)+1):
+
+			z = zz[jj-1]
+			tt = t[jj-1]
+			zz.append(z + f(z,tt)*dt + g(z,tt)*dW(dt))
+			xx.append(getSpikes(zz[jj]))
+
+		#print(xx[-1].shape)
+		zz = np.vstack(zz)
+		xx = np.vstack(xx)
+		assert zz.shape[0] == (len(t) + 1), print(zz.shape)
+		assert xx.shape[0] == (len(t) + 1), print(xx.shape)
+		
+		allLatentPaths.append(zz)
+		allTrialPaths.append(xx)
+
+	return allTrialPaths,allLatentPaths
 
 def generate_geometric_brownian(n=100,T=100,dt=1,mu=1,sigma=0.5,x0=0.1):
 
@@ -304,23 +511,25 @@ def downsample(data:list,origdt:float,newdt:float,noise:bool=True) -> np.ndarray
 
 class toyDataset(Dataset):
 
-	def __init__(self,data,dt) -> None:
+	def __init__(self,data,dt,nForward=1) -> None:
 		"""
 		toyData: list of numpy arrays
 		"""
 
+		self.maxForward = nForward
 		exampleInd = np.random.choice(len(data),1)[0]
 		self.exampleTraj = data[exampleInd]
 		lens = list(map(len,data))
 		lens2 = [0] + list(np.cumsum([l for l in lens][:-1]))
-		pairs = [np.vstack([np.arange(0,l-1),np.arange(1,l)]).T for l in lens]
-		sumPairs = [p+l for p,l in zip(pairs,lens2)]
-		validInds = np.vstack(sumPairs)
+		sets = [np.vstack([np.arange(ii, l+ ii - self.maxForward) for ii in range(self.maxForward + 1)]).T for l in lens]
+		#pairs = [np.vstack([np.arange(0,l-1),np.arange(1,l)]).T for l in lens]
+		sumSets = [p+l for p,l in zip(sets,lens2)]
+		validInds = np.vstack(sumSets)
 		self.data= np.vstack(data)
 		self.data_inds = validInds
 		self.dt = dt
 		self.length = len(validInds)
-		print('we no longer sampling now')
+		#print('added in more forward predictions')
 		## needed: slice data by dt? need true dt, ds dt for that
 		## should be fine to add though
 
@@ -340,9 +549,11 @@ class toyDataset(Dataset):
 
 		for ii in index:
 			inds = self.data_inds[ii]
-						
-			s1,s2 = self.transform(self.data[inds[0]]),self.transform(self.data[inds[1]])
-			result.append((s1,s2,self.dt))
+
+			samples = [self.transform(self.data[ind]) for ind in inds]
+			samples.append(self.dt)			
+			#s1,s2 = self.transform(self.data[inds[0]]),self.transform(self.data[inds[1]])
+			result.append(samples)
 
 		if single_index:
 			return result[0]
@@ -351,12 +562,75 @@ class toyDataset(Dataset):
 	def transform(self,data):
 		return torch.from_numpy(data).type(torch.FloatTensor)
 
+class toyDatasetTraj(Dataset):
+
+
+	def __init__(self,data,dt,batchsize,ds_length=2048) -> None:
+		"""
+		toyData: list of numpy arrays
+		"""
+
+		self.bsz = batchsize
+		exampleInd = np.random.choice(len(data),1)[0]
+		self.exampleTraj = data[exampleInd]
+		self.lens = list(map(lambda x: len(x) - 1,data))
+		maxBsz = np.amin(self.lens)
+		if self.bsz > maxBsz:
+			print(f"lowering batch size from {self.bsz} to {maxBsz}")
+			self.bsz = maxBsz
+		self.data= data
+		self.dt = dt
+		self.nTraj = len(data)
+		self.length = ds_length
+		#print('added in more forward predictions')
+		## needed: slice data by dt? need true dt, ds dt for that
+		## should be fine to add though
+
+	def __len__(self):
+
+		return self.length 
+	
+	def __getitem__(self, index):
+		
+		single_index = False
+		result = []
+		try:
+			iterator = iter(index)
+		except TypeError:
+			index = [index]
+			single_index = True
+
+		for ii in index:
+
+			inds = self.data_inds[ii]
+
+			tc = np.random.choice(self.nTraj,1)[0]
+
+			traj = self.data[tc]
+			length = self.lens[tc]
+
+			samples = np.random.choice(length,self.bsz,replace=False)
+			x1s,x2s = self.transform(traj[samples,:]),self.transform(traj[samples+1,:])
+			#samples.append(self.dt)			
+			#s1,s2 = self.transform(self.data[inds[0]]),self.transform(self.data[inds[1]])
+			result.append((x1s,x2s,self.dt))
+
+		if single_index:
+			return result[0]
+		return result
+	
+	def transform(self,data):
+		return torch.from_numpy(data).type(torch.FloatTensor)
+
+
+
 class toyDatasetLinearity(Dataset):
 
 	def __init__(self,data,dt) -> None:
 		"""
 		toyData: list of numpy arrays
 		"""
+		print("Don't use this, the normal dataset now does everything this one does")
 
 		exampleInd = np.random.choice(len(data),1)[0]
 		self.exampleTraj = data[exampleInd]
@@ -403,7 +677,7 @@ class toyDatasetLinearity(Dataset):
 class FixedWindowDataset(Dataset):
 
 	def __init__(self, audio_filenames, roi_filenames, p,
-		dataset_length=2048, min_spec_val=None,dt=0.05,win_length=0.05,overlap=0.5):
+		dataset_length=2048, min_spec_val=None,dt=0.05,win_length=0.05,overlap=0.5,nForward=1):
 		"""
 		Create a torch.utils.data.Dataset for chunks of animal vocalization.
 
@@ -424,6 +698,7 @@ class FixedWindowDataset(Dataset):
 		dt : float, optional
 			timestep between successive 
 		"""
+		self.maxForward = nForward
 		self.filenames = np.array(sorted(audio_filenames))
 		with warnings.catch_warnings():
 			warnings.filterwarnings("ignore", category=WavFileWarning)
@@ -470,6 +745,7 @@ class FixedWindowDataset(Dataset):
 		offsets :
 		"""
 		specs, specs2,dts,file_indices, onsets, offsets = [],[], [],[], [], []
+		result = []
 		single_index = False
 		try:
 			iterator = iter(index)
@@ -480,6 +756,8 @@ class FixedWindowDataset(Dataset):
 		for i in index:
 			while True:
 				# First find the file, then the ROI.
+
+				data=[]
 				file_index = np.random.choice(np.arange(len(self.filenames)), \
 					p=self.file_weights)
 				load_filename = self.filenames[file_index]
@@ -492,12 +770,13 @@ class FixedWindowDataset(Dataset):
 					* np.random.rand()
 				offset = onset + self.win_length
 
-				onset2 = onset + self.dt 
-				offset2 = onset2 + self.win_length
+				nextOnsets = [onset+ ii*self.dt for ii in range(1,self.maxForward+1)]
+				nextOffsets = [o +self.win_length for o in nextOnsets]
+				#onset2 = onset + self.dt 
+				#offset2 = onset2 + self.win_length
 				target_times = np.linspace(onset, offset, \
 						self.p['num_time_bins'])
-				target_times2 = np.linspace(onset2, offset2, \
-						self.p['num_time_bins'])
+				
 				# Then make a spectrogram.
 				spec, flag = get_spec(max(0.0, onset-shoulder), \
 						offset+shoulder, self.audio[file_index], self.p, \
@@ -508,52 +787,69 @@ class FixedWindowDataset(Dataset):
 				if self.min_spec_val is not None and \
 						np.max(spec) < self.min_spec_val:
 					continue
-
-				spec2, flag2 = get_spec(max(0.0, onset2-shoulder), \
-						offset2+shoulder, self.audio[file_index], self.p, \
-						fs=self.fs, target_times=target_times2)
+				data.append(self.transform(spec).view(1,spec.shape[0],spec.shape[1]))
+				for onset2,offset2 in zip(nextOnsets,nextOffsets):
+					target_times2 = np.linspace(onset2, offset2, \
+							self.p['num_time_bins'])
+					spec2, flag2 = get_spec(max(0.0, onset2-shoulder), \
+							offset2+shoulder, self.audio[file_index], self.p, \
+							fs=self.fs, target_times=target_times2)
+					data.append(self.transform(spec2).view(1,spec2.shape[0],spec2.shape[1]))
 				
-				spec = self.transform(spec).view(1,spec.shape[0],spec.shape[1])
-				spec2 = self.transform(spec2).view(1,spec2.shape[0],spec2.shape[1])
-				specs.append(spec)
-				specs2.append(spec2)
+				#spec = self.transform(spec).view(1,spec.shape[0],spec.shape[1])
+				#spec2 = self.transform(spec2).view(1,spec2.shape[0],spec2.shape[1])
+				#specs.append(spec)
+				#specs2.append(spec2)
 				file_indices.append(file_index)
 				onsets.append(onset)
 				offsets.append(offset)
+				data.append(self.dt)
 				dts.append(self.dt)
+				result.append(data)
 				break
 		np.random.seed(None)
 		if return_seg_info:
 			if single_index:
-				return specs[0], specs2[0],dts[0], file_indices[0], onsets[0], offsets[0]
-			return specs, specs2,dts,file_indices, onsets, offsets
+				return result[0], file_indices[0], onsets[0], offsets[0]
+			return result[0],file_indices, onsets, offsets
 		if single_index:
-			return specs[0],specs2[0],dts[0]
-		return specs,specs2,dts
+			return result[0]
+		return result
 
 	def transform(self,data):
 		return torch.from_numpy(data).type(torch.FloatTensor)
 	
-def makeToyDataloaders(ds1,ds2,dt,batch_size=512,t='regular'):
+def makeToyDataloaders(ds1,ds2,dt,batch_size=512,t='regular',nForward=1):
 
 	#assert ds1.shape[1] == 3
 	#ds1 = ds1).type(torch.FloatTensor)
 	#ds2 = torch.from_numpy(ds2).type(torch.FloatTensor)
+	adjustedBatch = batch_size // nForward
+	print(f"this DL will return {adjustedBatch} trajectories per batch")
 	if t== 'regular':
-		dataset1 = toyDataset(ds1,dt)
-		dataset2 = toyDataset(ds2,dt)
+		dataset1 = toyDataset(ds1,dt,nForward=nForward)
+		dataset2 = toyDataset(ds2,dt,nForward=nForward)
 	elif t =='linearity':
+		print('just use the regular version dingus')
 		dataset1 = toyDatasetLinearity(ds1,dt)
 		dataset2 = toyDatasetLinearity(ds2,dt)
+	elif t == 'trajectory':
+		dataset1 = toyDatasetTraj(ds1,dt,batchsize=batch_size,ds_length=2048)
+		dataset2 = toyDatasetTraj(ds2,dt,batchsize=batch_size,ds_length=2048)
+		trainDataLoader = DataLoader(dataset1,batch_size=1,shuffle=True,
+				  num_workers=4)
+		testDataLoader = DataLoader(dataset2,batch_size=1,shuffle=False,
+				  num_workers=4)
+		return {'train':trainDataLoader,'test':testDataLoader}
 	else:
 		print("What are you doing")
 		return NotImplementedError
 
 
-	trainDataLoader = DataLoader(dataset1,batch_size=batch_size,shuffle=True,
-			      num_workers=4)
-	testDataLoader = DataLoader(dataset2,batch_size=batch_size,shuffle=False,
-			      num_workers=4)
+	trainDataLoader = DataLoader(dataset1,batch_size=adjustedBatch,shuffle=True,
+				  num_workers=4)
+	testDataLoader = DataLoader(dataset2,batch_size=adjustedBatch,shuffle=False,
+				  num_workers=4)
 	
 	return {'train':trainDataLoader,'test':testDataLoader}
 
