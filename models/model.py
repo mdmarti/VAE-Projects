@@ -416,7 +416,16 @@ class EmbeddingSDE(nn.Module):
 		
 		#entropy_dz = self.entropy_loss_sumbatch(z2 - z1,dt=dt[0])
 		#varLoss = self.snr_loss(zs) 
-			
+
+		mu2 = self.sde.MLP(z2)
+
+		linLoss = self.mu *self._linearity_penalty(mu,mu2)
+
+		if len(batch) == 3:
+			linLoss = self._linearity_penalty(mu,mu2)
+		else:
+			linLoss = self._linearity_penalty(dz,dz2)
+
 		if mode == 'kl':
 			#kl_loss = self.entropy_loss(dz)
 			loss = -kl_loss #+ lp#lp - entropy_dz + self.mu*muLoss#+ self.mu * (varLoss + covarLoss) + muLoss #self.mu * varLoss
