@@ -602,7 +602,7 @@ class toyDatasetTraj(Dataset):
 
 		for ii in index:
 
-			inds = self.data_inds[ii]
+			#inds = self.data_inds[ii]
 
 			tc = np.random.choice(self.nTraj,1)[0]
 

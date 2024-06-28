@@ -349,7 +349,7 @@ class EmbeddingSDE(nn.Module):
 	def forward(self,batch,mode='kl'):
 		
 		xs,dts = batch[:-1], batch[-1]
-		xs = [x.to(self.device) for x in xs]
+		xs = [x.to(self.device).squeeze([0]) for x in xs]
 		dts = dts.to(self.device)
 		"""
 		if len(batch) == 3:
@@ -382,6 +382,7 @@ class EmbeddingSDE(nn.Module):
 
 		#dz = z2 - z1
 		kl_loss = self.entropy_loss(torch.vstack(dzs))
+		kl_losses = torch.nanmean(torch.hstack([self.entropy_loss(z) for z in zs]))
 		if len(batch) == 3:
 			linLoss = self.mu *self._linearity_penalty(mu,mu2)
 		else:
@@ -419,6 +420,9 @@ class EmbeddingSDE(nn.Module):
 		if mode == 'kl':
 			#kl_loss = self.entropy_loss(dz)
 			loss = -kl_loss #+ lp#lp - entropy_dz + self.mu*muLoss#+ self.mu * (varLoss + covarLoss) + muLoss #self.mu * varLoss
+		elif mode == 'trajectory':
+			loss = lp - kl_losses - kl_loss
+
 		elif mode == 'probkl':
 			print("Don't use this")
 			#assert self.encoder.type == 'probabilistic', print("This loss needs a probabilistic encoder!!!")
