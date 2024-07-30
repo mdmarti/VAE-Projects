@@ -115,6 +115,73 @@ def generate_2d_swirls(n=100,T=1,dt=0.001,
 	
 	return trajectories
 
+def generate_radial_odes(n=100,T=1,dt=0.001,
+                        coeffs=[1.5,2,np.pi/4,0.01],sigma=0.,
+                        seed=1040):
+    """
+    Makes the circles dataset (https://scikit-learn.org/stable/modules/generated/sklearn.datasets.make_circles.html#sklearn.datasets.make_circles),
+    but as a dynamical system, but with a double well potential on the radius 
+    Takes as arguments:
+    n: number of trajectories to make
+    T: integration time
+    dt: integration timestep
+    coeffs:
+        center of double well, weight on quadratic term, rotation per second, weight on dR
+
+    Returns:
+    trajectories:
+    list of n np.ndarrays of size (T/dt)x2, each element corresponding to a trajectory
+    """    
+
+    trajectories=[]
+    t = np.arange(0,T,dt)
+    gen = np.random.default_rng(seed=seed)
+    
+    r0,a,omega,alpha = coeffs
+
+    def ft(theta,t):
+        dtheta = omega
+        return dtheta
+    
+    def fr(r,t):
+        
+        # potential function: (r - r0)^4 - a(r - r0)^2
+        return -alpha*(4 * (r - r0)**3 - 2*a * (r - r0))
+
+    def g(x,t):
+        return sigma*np.eye(2)
+
+    def dW(dt):
+        return gen.multivariate_normal(mean=np.zeros((2,)),cov = np.sqrt(dt)*np.eye(2))
+
+
+    for ii in range(n):
+
+        xnot = gen.multivariate_normal(mean=np.zeros((2,)),cov = a*np.eye(2))
+     
+        theta = np.arctan2(xnot[1],xnot[0])
+        r = np.linalg.norm(xnot)
+        xx = [np.hstack([r,theta])]
+        for jj in range(1,len(t)+1):
+            x = xx[jj-1]
+            tt = t[jj-1]
+            dtheta = ft(theta,tt)
+            dr = fr(r,tt)
+            theta += dtheta*dt
+            r += dr*dt
+            xy = np.array([r*np.cos(theta),r*np.sin(theta)])
+            dw_xy = g(xy,tt) @ dW(dt)
+            xy2 = xy + dw_xy
+
+            xx2 = np.hstack([np.linalg.norm(xy2), np.arctan2(xy2[1],xy2[0])])
+            xx.append(xx2)
+        xx = np.vstack(xx)
+
+        trajectories.append(xx)
+
+
+    return trajectories
+
 def generate_stochastic_lorenz63(n=100,T=1,dt=0.001,coeffs=[10,28,8/3,0.,0.,0.],seed=1024):
 
     """
