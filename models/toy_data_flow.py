@@ -4,6 +4,7 @@ import numpy as np
 import warnings
 import matplotlib.pyplot as plt
 from matplotlib import animation
+from abc import ABC,abstractmethod
 
 EPSILON = 1e-12
 
@@ -20,6 +21,146 @@ def scale(data):
 	sd = np.nanstd(x_stacked,axis=0,keepdims=True)
 	mag = np.amax(np.abs(x_stacked))
 	return [d/mag for d in data],mag
+
+
+class ToyData():
+
+
+	def __init__(self):
+
+		pass
+
+	@abstractmethod
+	def f(self,x,t):
+		pass
+
+	@abstractmethod
+	def g(self,x,t):
+		pass
+
+	@abstractmethod
+	def dW(self,dt):
+		pass 
+
+	@abstractmethod
+	def dx(self,x,t,dt,sigma):
+		pass 
+
+	@abstractmethod
+	def init_conditions(self):
+		pass
+
+	def generate(self,n,T,dt,sigma):
+
+		trajectories = []
+		t = np.arange(dt,T+dt/2,dt)
+		for ii in range(n):
+
+			xnot = self.init_conditions()
+			x = [xnot]
+
+			for jj in range(1,len(t)):
+
+				xx = x[jj-1]
+				tt = t[jj-1]
+
+				dx = self.dx(xx,tt,dt,sigma)
+				
+				x.append(xx + dx)
+			
+			x = np.vstack(x)
+			trajectories.append(x)
+
+		return trajectories
+	
+class Vanderpol(ToyData):
+
+	def __init__(self,coeffs,seed=1234):
+
+		super(Vanderpol,self).__init__()
+		self.rho,self.tau = coeffs
+		self.gen = np.random.default_rng(seed=seed)
+
+	def f(self,x,t):
+		dx1 = self.rho * self.tau * (x[0] - x[0]**3/3 - x[1])
+		dx2 = self.tau/self.rho * x[0]
+		return np.hstack([dx1,dx2])
+	def g(self,x,t,sigma):
+		return sigma*x
+	
+	def dW(self,dt):
+		return self.gen.multivariate_normal(mean=np.zeros((2,)),scale=np.sqrt(dt)*np.eye)
+	
+	def dx(self,x,t,dt,sigma):
+
+		fx = self.f(x,t)
+		gx = self.g(x,t,sigma)
+		dw = self.dW(dt)
+
+		return fx * dt + gx @ dw
+	
+	def init_conditions(self):
+
+		return self.gen.multivariate_normal(mean=[1,1],cov=np.eye(2)*0.03)
+	
+class DoubleCircles(ToyData):
+
+	def __init__(self,coeffs,seed=1234):
+
+		super(DoubleCircles,self).__init__()
+
+		self.r0,self.a,self.omega = coeffs
+		self.gen = np.random.default_rng(seed=seed)
+
+	def ft(self,theta,r,t):
+		#dtheta = omega
+		if r > self.r0:
+			return self.omega
+		else:
+			return -self.omega
+	
+	def fr(self,r,t):
+		
+		# potential function: (r - r0)^4 - a(r - r0)^2
+		return -(4 * (r - self.r0)**3 - 2*self.a * (r - self.r0))
+
+	def g(self,x,t,sigma):
+		return sigma*np.eye(2)
+
+	def dW(self,dt):
+		return self.gen.multivariate_normal(mean=np.zeros((2,)),cov = dt*np.eye(2))
+	
+	def _polar_to_cartesian(self,r,theta):
+	
+		return np.hstack([r*np.cos(theta),r*np.sin(theta)])
+	
+	def _cartesian_to_polar(self,xy):
+		
+		r = np.linalg.norm(xy)
+		theta = np.arctan2(xy[1],xy[0])
+		return r,theta
+	
+	def init_conditions(self):
+		r0 = self.r0 
+		t0 = self.gen.uniform(0,2*np.pi)
+
+		return self.gen.multivariate_normal(mean=np.zeros((2,)),cov = self.a*np.eye(2))#self._polar_to_cartesian(r0,t0)
+
+	def dx(self,x,t,dt,sigma):
+		#print(x.shape)
+		r,theta = self._cartesian_to_polar(x)
+		dr = self.fr(r,t)
+		dtheta = self.ft(theta,r,t)
+		r += dr*dt 
+		theta += dtheta*dt
+
+		newX = self._polar_to_cartesian(r,theta)
+		dw_xy = self.g(x,t,sigma) @ self.dW(dt)
+		xy2 = newX + dw_xy
+		#print(xy2.shape)
+		return xy2 - x
+
+
 
 def generate_vanderpol(n=100,T = 1, dt=0.001,rho=2,tau=15,sigma=0.25,x0=np.array([1,1])):
 
@@ -80,6 +221,7 @@ def generate_2d_swirls(n=100,T=1,dt=0.001,
 	t = np.arange(0,T,dt)
 	gen = np.random.default_rng(seed=seed)
 	
+	
 	def f(theta,t,omega):
 		dtheta = omega*dt
 		return dtheta
@@ -116,77 +258,77 @@ def generate_2d_swirls(n=100,T=1,dt=0.001,
 	return trajectories
 
 def generate_radial_odes(n=100,T=1,dt=0.001,
-                        coeffs=[1.5,2,np.pi/4],sigma=0.,
-                        seed=1040):
-    """
-    Makes the circles dataset (https://scikit-learn.org/stable/modules/generated/sklearn.datasets.make_circles.html#sklearn.datasets.make_circles),
-    but as a dynamical system, but with a double well potential on the radius 
-    Takes as arguments:
-    n: number of trajectories to make
-    T: integration time
-    dt: integration timestep
-    coeffs:
-        center of double well, weight on quadratic term, rotation per second, weight on dR
+						coeffs=[1.5,2,np.pi/4],sigma=0.,
+						seed=1040):
+	"""
+	Makes the circles dataset (https://scikit-learn.org/stable/modules/generated/sklearn.datasets.make_circles.html#sklearn.datasets.make_circles),
+	but as a dynamical system, but with a double well potential on the radius 
+	Takes as arguments:
+	n: number of trajectories to make
+	T: integration time
+	dt: integration timestep
+	coeffs:
+		center of double well, weight on quadratic term, rotation per second, weight on dR
 
-    Returns:
-    trajectories:
-    list of n np.ndarrays of size (T/dt)x2, each element corresponding to a trajectory
-    """    
+	Returns:
+	trajectories:
+	list of n np.ndarrays of size (T/dt)x2, each element corresponding to a trajectory
+	"""    
 
-    trajectories=[]
-    t = np.arange(0,T,dt)
-    gen = np.random.default_rng(seed=seed)
-    
-    r0,a,omega = coeffs
+	trajectories=[]
+	t = np.arange(0,T,dt)
+	gen = np.random.default_rng(seed=seed)
+	
+	r0,a,omega = coeffs
 
-    def ft(theta,t,omega):
-        #dtheta = omega
-        return omega
-    
-    def fr(r,t):
-        
-        # potential function: (r - r0)^4 - a(r - r0)^2
-        return -(4 * (r - r0)**3 - 2*a * (r - r0))
+	def ft(theta,t,omega):
+		#dtheta = omega
+		return omega
+	
+	def fr(r,t):
+		
+		# potential function: (r - r0)^4 - a(r - r0)^2
+		return -(4 * (r - r0)**3 - 2*a * (r - r0))
 
-    def g(x,t):
-        return sigma*np.eye(2)
+	def g(x,t):
+		return sigma*np.eye(2)
 
-    def dW(dt):
-        return gen.multivariate_normal(mean=np.zeros((2,)),cov = dt*np.eye(2))
-
-
-    for ii in range(n):
-
-        xnot = gen.multivariate_normal(mean=np.zeros((2,)),cov = a*np.eye(2))
-     
-        theta = np.arctan2(xnot[1],xnot[0])
-        r = np.linalg.norm(xnot)
-        xx = [xnot]
-        for jj in range(1,len(t)+1):
-            x = xx[jj-1]
-            tt = t[jj-1]
-            if r < r0:
-                dtheta = ft(theta,tt,omega)
-            else:
-                dtheta = ft(theta,tt,-omega)
-            dr = fr(r,tt)
-            theta += dtheta*dt
-            r += dr*dt
-            r = max(0,r)
-            xy = np.array([r*np.cos(theta),r*np.sin(theta)])
-            dw_xy = g(xy,tt) @ dW(dt)
-            xy2 = xy + dw_xy
-
-            theta = np.arctan2(xy2[1],xy2[0])
-            r = np.linalg.norm(xy2)
-            xx2 = np.hstack(xy2)
-            xx.append(xx2)
-        xx = np.vstack(xx)
-
-        trajectories.append(xx)
+	def dW(dt):
+		return gen.multivariate_normal(mean=np.zeros((2,)),cov = dt*np.eye(2))
 
 
-    return trajectories
+	for ii in range(n):
+
+		xnot = gen.multivariate_normal(mean=np.zeros((2,)),cov = a*np.eye(2))
+	 
+		theta = np.arctan2(xnot[1],xnot[0])
+		r = np.linalg.norm(xnot)
+		xx = [xnot]
+		for jj in range(1,len(t)+1):
+			x = xx[jj-1]
+			tt = t[jj-1]
+			if r < r0:
+				dtheta = ft(theta,tt,omega)
+			else:
+				dtheta = ft(theta,tt,-omega)
+			dr = fr(r,tt)
+			theta += dtheta*dt
+			r += dr*dt
+			r = max(0,r)
+			xy = np.array([r*np.cos(theta),r*np.sin(theta)])
+			dw_xy = g(xy,tt) @ dW(dt)
+			xy2 = xy + dw_xy
+
+			theta = np.arctan2(xy2[1],xy2[0])
+			r = np.linalg.norm(xy2)
+			xx2 = np.hstack(xy2)
+			xx.append(xx2)
+		xx = np.vstack(xx)
+
+		trajectories.append(xx)
+
+
+	return trajectories
 
 def generate_stochastic_lorenz63(n=100,T=1,dt=0.001,coeffs=[10,28,8/3,0.,0.,0.],seed=1024):
 
@@ -536,6 +678,15 @@ def downsample(data:list,origdt:float,newdt:float,noise:bool=True) -> np.ndarray
 		downsampled = [d + 0.01*np.random.randn(*d.shape) for d in downsampled]
 
 	return downsampled
+
+
+def visualize_2d(data):
+
+	pass
+
+def visualize_3d(data):
+
+	pass
 
 
 
