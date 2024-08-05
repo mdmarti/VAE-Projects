@@ -230,7 +230,7 @@ class Rossler(ToyData):
 	
 	def init_conditions(self):
 
-		return self.gen.multivariate_normal(mean=[0,-9,0],cov=np.eye(3))
+		return self.gen.multivariate_normal(mean=[0,-9,0],cov=6*np.eye(3))
 
 class DoubleSDE(ToyData):
 
@@ -287,10 +287,10 @@ class DoubleSDE(ToyData):
 
 class Balls(ToyData):
 
-	def __init__(self,coeffs=[np.pi,-np.pi,np.array([-0.5,0]),np.array([0.5,0])],seed=1234):
+	def __init__(self,coeffs=np.array([[-1,-3],[-3,1]]),seed=1234):
 
 		super(Balls,self).__init__()
-		self.coeffs = coeffs
+		self.coeffs = np.array(coeffs)
 
 		#self.center2 = -self.center1
 		
