@@ -4,6 +4,8 @@ from torch.utils.tensorboard import SummaryWriter
 import os
 import numpy as np
 
+
+
 class circlePredictor(nn.Module):
 
     def __init__(self,input_size,hidden_size,num_layers,save_dir='./circle_model',loss_fn = nn.MSELoss(reduction='mean')):

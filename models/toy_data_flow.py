@@ -424,3 +424,81 @@ class toyDataset(Dataset):
 	def transform(self,data):
 		return torch.from_numpy(data).type(torch.FloatTensor)
 
+
+class projection():
+
+	"""
+	
+	we just need one class for this
+	"""
+
+	def __init__(self,origDim,newDim, projType='linear',temp=1,seed=1234) -> None:
+		self.gen = np.random.default_rng(seed=seed)
+		self.d1 = origDim
+		self.d2 = newDim
+		self.projType=projType 
+		self.W = self.gen.normal(loc=0.0,scale=1.5,size=(origDim,newDim))
+		self.temp=temp
+		if projType == 'linear':
+			
+
+			self.projection = lambda x: x @ self.W 
+		
+		elif projType == 'softmax':
+
+			assert self.temp >0, print('Temperature should be a positive number')
+			self.projection = lambda x: _softmax(x @ self.W,temp=self.temp)
+
+		elif projType == 'combine':
+
+			self.projection = lambda x: _combine_dims(x @ self.W)
+
+		elif projType == 'sigmoid':
+
+			assert self.temp >0, print('Temperature should be a positive number')
+			self.projection = lambda x: _sigmoid(x @ self.W,slope=self.temp)
+			
+		else:
+			print('Method must be softmax or linear')
+			raise NotImplementedError
+
+	
+	def project(
+		self,
+		data: np.array,
+		noise: float= 0.
+	 ) -> np.array:
+		
+		r"""
+		Return batch projectiojns.
+		
+
+		Args: 
+			data: what we are embedding in a higher-d space
+			
+		"""
+		if noise:
+			proj = self.projection(data)
+			return  proj + noise * np.random.normal(size=proj.shape)
+		else:
+			return self.projection(data)
+	
+def _softmax(x:np.array,temp=1):
+
+	m = np.amax (x,axis=1,keepdims=True)
+	e_x = np.exp((x - m)/temp)
+	return e_x/np.sum(e_x,axis=1,keepdims=True) 
+
+def _combine_dims(x:np.array):
+
+	xOut = x 
+	for ii in range(x.shape[-1]-1):
+		xOut[:,ii] = x[:,ii]*x[:,ii+1]
+
+	return xOut
+
+def _sigmoid(x:np.array,slope=1):
+
+	xout = 1/(1 + np.exp(-x/slope))
+
+	return xout
